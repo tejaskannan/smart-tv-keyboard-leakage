@@ -4,6 +4,8 @@ import numpy as np
 from argparse import ArgumentParser
 from scipy.signal import spectrogram
 
+from smarttvleakage.graphs.keyboard_graph import KeyboardGraph
+
 
 OFF_THRESHOLD = 0.001
 MOVE_THRESHOLD = 0.15
@@ -60,4 +62,8 @@ if __name__ == '__main__':
     signal = audio.to_soundarray()
     num_moves = extract_moves(audio_signal=signal)
 
+    keyboard_graph = KeyboardGraph()
+    candidate_keys = keyboard_graph.get_keys_for_moves(num_moves=num_moves)
+
     print('Number of Moves: {}'.format(num_moves))
+    print('Candidates: {}'.format(candidate_keys))
