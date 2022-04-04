@@ -47,3 +47,30 @@ class KeyboardGraph:
 
     def get_moves_for_key(self, key: str) -> int:
         return self._shortest_distances.get(key, -1)
+
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int) -> List[str]:
+        visited: Set[str] = set()
+
+        frontier = deque()
+        frontier.append((start_key, 0))
+
+        candidates: Set[str] = set()
+
+        while len(frontier) > 0:
+            (key, dist) = frontier.popleft()
+
+            if key in visited:
+                continue
+
+            visited.add(key)
+
+            if dist > num_moves:
+                continue
+            elif dist == num_moves:
+                candidates.add(key)
+
+            for neighbor in self._adjacency_list[key]:
+                if neighbor not in visited:
+                    frontier.append((neighbor, dist + 1))
+
+        return list(sorted(candidates))
