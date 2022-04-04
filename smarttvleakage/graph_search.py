@@ -12,7 +12,7 @@ def filter_and_normalize_scores(key_probs: Dict[str, float], candidate_keys: Lis
     return { key: (score / score_sum) for key, score in filtered_scores.items() }
 
 
-def get_words_from_moves(num_moves: List[int], graph: KeyboardGraph, dictionary: EnglishDictionary) -> List[str]:
+def get_words_from_moves(num_moves: List[int], graph: KeyboardGraph, dictionary: EnglishDictionary, max_num_results: int) -> List[str]:
     target_length = len(num_moves)
 
     candidate_queue = deque()
@@ -45,7 +45,7 @@ def get_words_from_moves(num_moves: List[int], graph: KeyboardGraph, dictionary:
                 visited.add(candidate_word)
 
     ranked_results = list(reversed(sorted(scores.items(), key=lambda t: t[1])))
-    return ranked_results[0:10]
+    return ranked_results[0:max_num_results]
 
 
 if __name__ == '__main__':
