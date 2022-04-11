@@ -185,8 +185,10 @@ if __name__ == '__main__':
             rank = candidates.index(true_word)
         except ValueError as ex:
             rank = MAX_NUM_RESULTS
+
+        rank += 1
         
-        rank_list.append(rank + 1)
+        rank_list.append(rank)
         rank_dict[true_word] = rank
         
         if should_plot:
