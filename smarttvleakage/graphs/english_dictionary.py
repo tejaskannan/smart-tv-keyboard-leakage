@@ -1,13 +1,43 @@
+import string
+import os.path
+import io
 from collections import Counter
-from typing import Dict
+from typing import Dict, List
 
 from smarttvleakage.utils.file_utils import read_json
 
 
-class EnglishDictionary:
+keyboard_graph = read_json(os.path.join(os.path.dirname(__file__), 'samsung_keyboard.json'))
+CHARACTERS: List[str] = list(sorted(keyboard_graph.keys()))
+
+
+class CharacterDictionary:
+
+    def get_letter_freq(self, prefix: str, total_length: int) -> Dict[str, float]:
+        raise NotImplementedError()
+
+
+class UniformDictionary(CharacterDictionary):
+
+    def get_letter_freq(self, prefix: str, total_length: int) -> Dict[str, float]:
+        return { c: 1.0 / len(CHARACTERS) for c in CHARACTERS }
+
+
+class EnglishDictionary(CharacterDictionary):
 
     def __init__(self, path: str):
-        self._dictionary = read_json(path)
+        if path.endswith('.json'):
+            self._dictionary = read_json(path)
+        elif path.endswith('.txt'):
+            self._dictionary: Dict[str, int] = dict()
+
+            with open(path, 'rb') as fin:
+                io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
+
+                for line in io_wrapper:
+                    line = line.strip()
+                    if len(line) > 0:
+                        self._dictionary[line] = 0
 
     def get_letter_freq(self, prefix: str, total_length: int) -> Dict[str, float]:
         assert total_length > len(prefix), 'The total length must be longer than the prefix.'

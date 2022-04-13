@@ -59,6 +59,9 @@ class KeyboardGraph:
         while len(frontier) > 0:
             (key, dist) = frontier.popleft()
 
+            if not key.startswith('<'):
+                key = key.lower()
+
             if key in visited:
                 continue
 
@@ -68,6 +71,8 @@ class KeyboardGraph:
                 continue
             elif dist == num_moves:
                 candidates.add(key)
+
+            assert key in self._adjacency_list, 'Found invalid key: {}'.format(key)
 
             for neighbor in self._adjacency_list[key]:
                 if neighbor not in visited:
