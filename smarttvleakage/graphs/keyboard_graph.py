@@ -1,18 +1,43 @@
 import os.path
 from collections import deque, defaultdict
+from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set
 
 from smarttvleakage.utils.file_utils import read_json
 
 
-START_KEY = 'q'
+
+class KeyboardMode(Enum):
+    STANDARD = auto()
+    SPECIAL_ONE = auto()
 
 
-class KeyboardGraph:
+START_KEYS = {
+    KeyboardMode.STANDARD: 'q',
+    KeyboardMode.SPECIAL_ONE: '<CHANGE>'
+}
+
+
+class MultiKeyboardGraph:
 
     def __init__(self):
         dir_name = os.path.dirname(__file__)
-        self._adjacency_list = read_json(os.path.join(dir_name, 'samsung_keyboard.json'))
+        standard_path = os.path.join(dir_name, 'samsung_keyboard.json')
+        special_one_path = os.path.join(dir_name, 'samsung_keyboard_special_1.json')
+
+        self._keyboards = {
+            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
+            KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
+        }
+
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode) -> List[str]:
+        return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves)
+
+
+class SingleKeyboardGraph:
+
+    def __init__(self, path: str, start_key: str):
+        self._adjacency_list = read_json(path)
 
         # Verify that all edges go two ways
         for key, neighbors in self._adjacency_list.items():
@@ -26,7 +51,7 @@ class KeyboardGraph:
         visited: Set[str] = set()
 
         frontier = deque()
-        frontier.append((START_KEY, 0))
+        frontier.append((start_key, 0))
 
         while len(frontier) > 0:
             (key, dist) = frontier.popleft()

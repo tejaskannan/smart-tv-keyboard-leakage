@@ -7,8 +7,10 @@ from typing import Dict, List
 from smarttvleakage.utils.file_utils import read_json
 
 
-keyboard_graph = read_json(os.path.join(os.path.dirname(__file__), 'samsung_keyboard.json'))
-CHARACTERS: List[str] = list(sorted(keyboard_graph.keys()))
+standard_graph = read_json(os.path.join(os.path.dirname(__file__), 'samsung_keyboard.json'))
+special_graph = read_json(os.path.join(os.path.dirname(__file__), 'samsung_keyboard_special_1.json'))
+
+CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
 
 
 class CharacterDictionary:

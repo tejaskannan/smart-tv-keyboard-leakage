@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from scipy.signal import correlate, convolve, find_peaks
 from typing import Tuple, List, Dict
 
-from smarttvleakage.graphs.keyboard_graph import KeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.graphs.english_dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.graph_search import get_words_from_moves
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
@@ -158,7 +158,7 @@ if __name__ == '__main__':
         video_paths = [args.video_path]
         should_plot = True
 
-    graph = KeyboardGraph()
+    graph = MultiKeyboardGraph()
     
     if args.dictionary_path == 'uniform':
         dictionary = UniformDictionary()
@@ -178,6 +178,8 @@ if __name__ == '__main__':
 
         # TODO: Add the 'cancel' sound into this. For now, we assume the last 'select' is for completion
         num_moves = num_moves[0:-1]
+
+        print(num_moves)
 
         ranked_candidates = get_words_from_moves(num_moves=num_moves,
                                                  graph=graph,
