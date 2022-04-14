@@ -47,9 +47,13 @@ class EnglishDictionary(CharacterDictionary):
         current_position = len(prefix)
 
         for word in self._dictionary.keys():
-            if (len(word) == total_length) and (word.startswith(prefix)):
+            if (len(word) <= total_length) and (word.startswith(prefix)):
                 letter_counts[word[current_position]] += 1
                 total_count += 1
+
+        # Use laplace smoothing
+        for c in CHARACTERS:
+            letter_counts[c] += 1
 
         result: Dict[str, float] = dict()
         for letter, count in letter_counts.items():

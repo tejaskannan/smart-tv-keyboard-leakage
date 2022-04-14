@@ -7,7 +7,7 @@ from scipy.signal import correlate, convolve, find_peaks
 from typing import Tuple, List, Dict
 
 from smarttvleakage.graphs.keyboard_graph import KeyboardGraph
-from smarttvleakage.graphs.english_dictionary import EnglishDictionary
+from smarttvleakage.graphs.english_dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.graph_search import get_words_from_moves
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
@@ -159,8 +159,13 @@ if __name__ == '__main__':
         should_plot = True
 
     graph = KeyboardGraph()
-    dictionary = EnglishDictionary(path=args.dictionary_path)
+    
+    if args.dictionary_path == 'uniform':
+        dictionary = UniformDictionary()
+    else:
+        dictionary = EnglishDictionary(path=args.dictionary_path)
 
+    num_candidates_list: List[int] = []
     rank_list: List[int] = []
     rank_dict: Dict[str, int] = dict()
 
@@ -171,29 +176,38 @@ if __name__ == '__main__':
         signal = audio.to_soundarray()
         num_moves = extract_moves_for_word(audio_signal=signal, sounds_folder=args.sounds_folder, should_plot=should_plot)
 
+        # TODO: Add the 'cancel' sound into this. For now, we assume the last 'select' is for completion
+        num_moves = num_moves[0:-1]
+
         ranked_candidates = get_words_from_moves(num_moves=num_moves,
                                                  graph=graph,
                                                  dictionary=dictionary,
-                                                 max_num_results=MAX_NUM_RESULTS)
+                                                 max_num_results=None)
 
         candidates = list(map(lambda t: t[0], ranked_candidates))
 
         file_name = os.path.basename(video_path)
-        true_word = file_name.replace('.mp4', '')
+        true_word = file_name.replace('.mp4', '').replace('.MOV', '')
 
         try:
             rank = candidates.index(true_word)
         except ValueError as ex:
-            rank = MAX_NUM_RESULTS
+            rank = len(candidates) + 1
 
         rank += 1
         
         rank_list.append(rank)
         rank_dict[true_word] = rank
+        num_candidates_list.append(len(candidates))
         
         if should_plot:
             print('Number of Moves: {}'.format(num_moves))
 
-    avg_rank = sum(rank_list) / len(rank_list)
+    avg_rank = np.average(rank_list)
+    med_rank = np.median(rank_list)
+    avg_num_candidates = np.average(num_candidates_list)
+
     print('Ranking Dict: {}'.format(rank_dict))
     print('Average Rank: {:.4f}'.format(avg_rank))
+    print('Median Rank: {:.4f}'.format(med_rank))
+    print('Average # Candidates: {:.4f}'.format(avg_num_candidates))
