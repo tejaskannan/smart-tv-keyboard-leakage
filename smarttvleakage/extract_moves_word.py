@@ -165,7 +165,6 @@ if __name__ == '__main__':
     else:
         dictionary = EnglishDictionary(path=args.dictionary_path)
 
-    num_candidates_list: List[int] = []
     rank_list: List[int] = []
     rank_dict: Dict[str, int] = dict()
 
@@ -173,43 +172,39 @@ if __name__ == '__main__':
         video_clip = mp.VideoFileClip(video_path)
         audio = video_clip.audio
 
+        file_name = os.path.basename(video_path)
+        true_word = file_name.replace('.mp4', '').replace('.MOV', '')
+
         signal = audio.to_soundarray()
         num_moves = extract_moves_for_word(audio_signal=signal, sounds_folder=args.sounds_folder, should_plot=should_plot)
 
         # TODO: Add the 'cancel' sound into this. For now, we assume the last 'select' is for completion
         num_moves = num_moves[0:-1]
 
-        print(num_moves)
-
         ranked_candidates = get_words_from_moves(num_moves=num_moves,
                                                  graph=graph,
                                                  dictionary=dictionary,
                                                  max_num_results=None)
 
-        candidates = list(map(lambda t: t[0], ranked_candidates))
+        did_find_word = False
 
-        file_name = os.path.basename(video_path)
-        true_word = file_name.replace('.mp4', '').replace('.MOV', '')
+        for rank, (guess, score) in enumerate(ranked_candidates):
+            if guess == true_word:
+                rank_list.append(rank + 1)
+                rank_dict[true_word] = rank + 1
+                did_find_word = True
+                break
 
-        try:
-            rank = candidates.index(true_word)
-        except ValueError as ex:
-            rank = len(candidates) + 1
+        if not did_find_word:
+            rank_list.append(rank + 1)
+            rank_dict[true_word] = rank + 1
 
-        rank += 1
-        
-        rank_list.append(rank)
-        rank_dict[true_word] = rank
-        num_candidates_list.append(len(candidates))
-        
         if should_plot:
             print('Number of Moves: {}'.format(num_moves))
 
     avg_rank = np.average(rank_list)
     med_rank = np.median(rank_list)
-    avg_num_candidates = np.average(num_candidates_list)
 
     print('Ranking Dict: {}'.format(rank_dict))
     print('Average Rank: {:.4f}'.format(avg_rank))
     print('Median Rank: {:.4f}'.format(med_rank))
-    print('Average # Candidates: {:.4f}'.format(avg_num_candidates))

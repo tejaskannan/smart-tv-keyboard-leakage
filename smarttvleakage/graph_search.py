@@ -1,9 +1,10 @@
 from argparse import ArgumentParser
-from collections import deque, namedtuple
-from typing import Set, List, Dict, Optional
+from queue import PriorityQueue
+from collections import namedtuple
+from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
-from smarttvleakage.graphs.english_dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary
+from smarttvleakage.graphs.english_dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 
 
 SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode'])
@@ -43,11 +44,11 @@ def get_characters_from_keys(keys: List[str]) -> str:
                 prev_turn_off_caps_lock = False
         elif key == '<BACK>':
             characters.pop()
-        elif key != '<CHANGE>':
+        elif key not in UNPRINTED_CHARACTERS:
             if caps_lock or ((idx > 0) and (keys[idx - 1] == '<CAPS>') and (not prev_turn_off_caps_lock)):
                 character = key.upper()
             else:
-                character = key
+                character = CHARACTER_TRANSLATION.get(key, key)
 
             characters.append(character)
             prev_turn_off_caps_lock = False
@@ -55,25 +56,33 @@ def get_characters_from_keys(keys: List[str]) -> str:
     return characters
 
 
-def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, max_num_results: Optional[int]) -> List[str]:
+def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, max_num_results: Optional[int]) -> Iterable[Tuple[str, float]]:
     target_length = len(num_moves)
 
-    candidate_queue = deque()
+    candidate_queue = PriorityQueue()
 
     init_state = SearchState(keys=[], score=1.0, keyboard_mode=KeyboardMode.STANDARD)
-    candidate_queue.append(init_state)
+    candidate_queue.put((-1 * init_state.score, init_state))
 
     scores: Dict[str, float] = dict()
     visited: Set[str] = set()
 
-    while len(candidate_queue) > 0:
-        current_state = candidate_queue.pop()
+    result_count = 0
+
+    while not candidate_queue.empty():
+        _, current_state = candidate_queue.get()
 
         current_characters = get_characters_from_keys(keys=current_state.keys)
         current_string = ''.join(current_characters)
 
         if len(current_state.keys) == target_length:
-            scores[current_string] = current_state.score
+            yield current_string, current_state.score
+
+            result_count += 1
+
+            if (max_num_results is not None) and (result_count >= max_num_results):
+                return
+
             continue
 
         move_idx = len(current_state.keys)
@@ -100,30 +109,25 @@ def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictio
                                          score=score * current_state.score,
                                          keyboard_mode=next_keyboard)
 
-                candidate_queue.append(next_state)
+                candidate_queue.put((-1 * next_state.score, next_state))
                 visited.add(candidate_word)
-
-    ranked_results = list(reversed(sorted(scores.items(), key=lambda t: t[1])))
-
-    if max_num_results is not None:
-        return ranked_results[0:max_num_results]
-
-    return ranked_results
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary JSON file.')
+    parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary JSON or text file.')
     parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
+    parser.add_argument('--target', type=str, required=True, help='The target string.')
     args = parser.parse_args()
 
     graph = MultiKeyboardGraph()
-    #dictionary = EnglishDictionary(path=args.dictionary_path)
-    dictionary = UniformDictionary()
 
-    results = get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)
-    result_words = list(map(lambda t: t[0], results))
+    if args.dictionary_path == 'uniform':
+        dictionary = UniformDictionary()
+    else:
+        dictionary = EnglishDictionary(path=args.dictionary_path)
 
-    target = 'Ns$a'
-    print(target in result_words)
-    print(len(result_words))
+    for idx, (guess, score) in enumerate(get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
+        if args.target == guess:
+            print('Found {}. Rank {}'.format(guess, idx + 1))
+            break

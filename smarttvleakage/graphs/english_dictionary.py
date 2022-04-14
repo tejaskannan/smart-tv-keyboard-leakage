@@ -11,6 +11,12 @@ standard_graph = read_json(os.path.join(os.path.dirname(__file__), 'samsung_keyb
 special_graph = read_json(os.path.join(os.path.dirname(__file__), 'samsung_keyboard_special_1.json'))
 
 CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
+UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<WWW>', '<COM>', '<BACK>', '<CAPS>', '<NEXT>' }
+
+CHARACTER_TRANSLATION = {
+    '<MULT>': '×',
+    '<DIV>': '÷'
+}
 
 
 class CharacterDictionary:
@@ -42,20 +48,21 @@ class EnglishDictionary(CharacterDictionary):
                         self._dictionary[line] = 0
 
     def get_letter_freq(self, prefix: str, total_length: int) -> Dict[str, float]:
-        assert total_length > len(prefix), 'The total length must be longer than the prefix.'
+        assert total_length > len(prefix), 'The total length ({}) must be longer than the prefix ({}).'.format(total_length, prefix)
 
         letter_counts: Counter = Counter()
         total_count = 0
         current_position = len(prefix)
 
         for word in self._dictionary.keys():
-            if (len(word) <= total_length) and (word.startswith(prefix)):
+            if (len(word) > current_position) and (len(word) <= total_length) and (word.startswith(prefix)):
                 letter_counts[word[current_position]] += 1
                 total_count += 1
 
         # Use laplace smoothing
         for c in CHARACTERS:
             letter_counts[c] += 1
+            total_count += 1
 
         result: Dict[str, float] = dict()
         for letter, count in letter_counts.items():
