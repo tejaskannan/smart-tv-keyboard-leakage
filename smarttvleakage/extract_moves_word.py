@@ -7,7 +7,7 @@ from scipy.signal import correlate, convolve, find_peaks
 from typing import Tuple, List, Dict
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.graphs.english_dictionary import EnglishDictionary, UniformDictionary
+from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.graph_search import get_words_from_moves
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
@@ -166,6 +166,7 @@ if __name__ == '__main__':
         dictionary = EnglishDictionary(path=args.dictionary_path)
 
     rank_list: List[int] = []
+    num_candidates_list: List[int] = []
     rank_dict: Dict[str, int] = dict()
 
     for video_path in video_paths:
@@ -188,10 +189,12 @@ if __name__ == '__main__':
 
         did_find_word = False
 
-        for rank, (guess, score) in enumerate(ranked_candidates):
+        for rank, (guess, score, num_candidates) in enumerate(ranked_candidates):
             if guess == true_word:
                 rank_list.append(rank + 1)
                 rank_dict[true_word] = rank + 1
+                num_candidates_list.append(num_candidates)
+
                 did_find_word = True
                 break
 
@@ -205,6 +208,9 @@ if __name__ == '__main__':
     avg_rank = np.average(rank_list)
     med_rank = np.median(rank_list)
 
+    avg_num_candidates = np.average(num_candidates_list)
+    med_num_candidates = np.median(num_candidates_list)
+
     print('Ranking Dict: {}'.format(rank_dict))
-    print('Average Rank: {:.4f}'.format(avg_rank))
-    print('Median Rank: {:.4f}'.format(med_rank))
+    print('Avg Rank: {:.4f}, Median Rank: {:.4f}'.format(avg_rank, med_rank))
+    print('Avg # Candidates: {:.4f}, Median # Candidates: {:.4f}'.format(avg_num_candidates, med_num_candidates))

@@ -130,6 +130,8 @@ if __name__ == '__main__':
     else:
         dictionary = EnglishDictionary(path=args.dictionary_path)
 
+    print('Built Dictionary.')
+
     for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
         if args.target == guess:
             print('Found {}. Rank {}. # Considered Strings: {}'.format(guess, idx + 1, candidates_count))

@@ -54,8 +54,6 @@ class EnglishDictionary(CharacterDictionary):
         for word in string_dictionary.keys():
             self._trie.add_string(word)
 
-        print('Build dictionary.')
-
     def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix)
