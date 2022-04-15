@@ -1,17 +1,18 @@
+import time
 from argparse import ArgumentParser
 from queue import PriorityQueue
 from collections import namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
-from smarttvleakage.graphs.english_dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 
 
 SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode'])
 
 
-def filter_and_normalize_scores(key_probs: Dict[str, float], candidate_keys: List[str]) -> Dict[str, float]:
-    filtered_scores = { key: key_probs[key] for key in candidate_keys if key in key_probs }
+def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str]) -> Dict[str, float]:
+    filtered_scores = { key: float(key_counts[key]) for key in candidate_keys if key in key_counts }
     score_sum = sum(filtered_scores.values())
     return { key: (score / score_sum) for key, score in filtered_scores.items() }
 
@@ -56,7 +57,7 @@ def get_characters_from_keys(keys: List[str]) -> str:
     return characters
 
 
-def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, max_num_results: Optional[int]) -> Iterable[Tuple[str, float]]:
+def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     target_length = len(num_moves)
 
     candidate_queue = PriorityQueue()
@@ -68,15 +69,17 @@ def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictio
     visited: Set[str] = set()
 
     result_count = 0
+    candidate_count = 0
 
     while not candidate_queue.empty():
         _, current_state = candidate_queue.get()
 
         current_characters = get_characters_from_keys(keys=current_state.keys)
         current_string = ''.join(current_characters)
+        candidate_count += 1
 
         if len(current_state.keys) == target_length:
-            yield current_string, current_state.score
+            yield current_string, current_state.score, candidate_count
 
             result_count += 1
 
@@ -92,9 +95,9 @@ def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictio
                                                   num_moves=num_moves[move_idx],
                                                   mode=current_state.keyboard_mode)
 
-        next_key_probs = dictionary.get_letter_freq(prefix=current_string, total_length=target_length)
+        next_key_counts = dictionary.get_letter_counts(prefix=current_string, should_smooth=True)
 
-        filtered_probs = filter_and_normalize_scores(key_probs=next_key_probs,
+        filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                      candidate_keys=neighbors)
 
         for neighbor_key, score in filtered_probs.items():
@@ -127,7 +130,7 @@ if __name__ == '__main__':
     else:
         dictionary = EnglishDictionary(path=args.dictionary_path)
 
-    for idx, (guess, score) in enumerate(get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
+    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
         if args.target == guess:
-            print('Found {}. Rank {}'.format(guess, idx + 1))
+            print('Found {}. Rank {}. # Considered Strings: {}'.format(guess, idx + 1, candidates_count))
             break
