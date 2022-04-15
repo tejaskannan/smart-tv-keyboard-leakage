@@ -4,7 +4,7 @@ import io
 from collections import Counter
 from typing import Dict, List
 
-from smarttvleakage.utils.file_utils import read_json
+from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
 
 
@@ -34,7 +34,14 @@ class UniformDictionary(CharacterDictionary):
 
 class EnglishDictionary(CharacterDictionary):
 
-    def __init__(self, path: str):
+    def __init__(self):
+        self._trie = Trie()
+        self._is_built = False
+
+    def build(self, path: str):
+        if self._is_built:
+            return
+
         # Read the input words
         if path.endswith('.json'):
             string_dictionary = read_json(path)
@@ -50,11 +57,14 @@ class EnglishDictionary(CharacterDictionary):
                         string_dictionary[line] = 0
 
         # Build the trie
-        self._trie = Trie()
         for word in string_dictionary.keys():
             self._trie.add_string(word)
 
+        self._is_built = True
+
     def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
+        assert self._is_built, 'Must call build() first'
+
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix)
 
@@ -64,3 +74,13 @@ class EnglishDictionary(CharacterDictionary):
                 character_counts[c] = character_counts.get(c, 0) + 1
 
         return character_counts
+
+    @classmethod
+    def restore(cls, path: str):
+        dictionary = cls()
+        dictionary._trie = read_pickle_gz(path)
+        dictionary._is_built = True
+        return dictionary
+
+    def save(self, path: str):
+        save_pickle_gz(self._trie, path)

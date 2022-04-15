@@ -118,7 +118,7 @@ def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictio
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary JSON or text file.')
+    parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     args = parser.parse_args()
@@ -128,9 +128,7 @@ if __name__ == '__main__':
     if args.dictionary_path == 'uniform':
         dictionary = UniformDictionary()
     else:
-        dictionary = EnglishDictionary(path=args.dictionary_path)
-
-    print('Built Dictionary.')
+        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
     for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
         if args.target == guess:

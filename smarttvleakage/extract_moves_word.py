@@ -163,7 +163,7 @@ if __name__ == '__main__':
     if args.dictionary_path == 'uniform':
         dictionary = UniformDictionary()
     else:
-        dictionary = EnglishDictionary(path=args.dictionary_path)
+        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
     rank_list: List[int] = []
     num_candidates_list: List[int] = []
