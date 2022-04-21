@@ -22,21 +22,22 @@ CHARACTER_TRANSLATION = {
 
 class CharacterDictionary:
 
-    def get_letter_counts(self, prefix: str) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
         raise NotImplementedError()
 
 
 class UniformDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
         return { c: 1 for c in CHARACTERS }
 
 
 class EnglishDictionary(CharacterDictionary):
 
-    def __init__(self):
-        self._trie = Trie()
+    def __init__(self, max_depth: int):
+        self._trie = Trie(max_depth=max_depth)
         self._is_built = False
+        self._max_depth = max_depth
 
     def build(self, path: str):
         if self._is_built:
@@ -77,9 +78,10 @@ class EnglishDictionary(CharacterDictionary):
 
     @classmethod
     def restore(cls, path: str):
-        dictionary = cls()
+        dictionary = cls(max_depth=1)
         dictionary._trie = read_pickle_gz(path)
         dictionary._is_built = True
+        dictionary._max_depth = dictionary._trie.max_depth
         return dictionary
 
     def save(self, path: str):

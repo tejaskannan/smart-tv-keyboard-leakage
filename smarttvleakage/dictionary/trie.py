@@ -1,4 +1,8 @@
-from typing import Optional, Dict, Any, List
+import os
+from collections import deque, defaultdict
+from typing import Optional, Dict, Any, List, DefaultDict
+
+from smarttvleakage.utils.file_utils import read_jsonl_gz, append_jsonl_gz
 
 
 class TrieNode:
@@ -22,6 +26,9 @@ class TrieNode:
 
     def increment_count(self):
         self._count += 1
+
+    def set_children(self, children: List[Any]):
+        self._children = children
 
     def add_child(self, character: str):
         node = self.get_child(character)
@@ -52,24 +59,45 @@ class TrieNode:
 
 class Trie:
 
-    def __init__(self):
+    def __init__(self, max_depth: int):
         self._root = TrieNode(character='<ROOT>', count=0)
+        self._max_depth = max_depth
+
+    @property
+    def max_depth(self) -> int:
+        return self._max_depth
 
     def add_string(self, string: str):
         node = self._root
 
-        for character in string:
-            node = node.add_child(character)
+        for idx, character in enumerate(string):
+            next_node = node.add_child(character)
+
+            if idx < self.max_depth:
+                node = next_node
 
     def get_next_characters(self, prefix: str) -> Dict[str, int]:
         node = self._root
+
+        if prefix == '':
+            return node.get_child_characters()
+
+        child_dict = dict()
+
         for character in prefix:
             node = node.get_child(character=character)
 
             if node is None:
-                return dict()
+                return child_dict
+            else:
+                next_dict = node.get_child_characters()
 
-        return node.get_child_characters()
+                if len(next_dict) == 0:
+                    return child_dict
+                else:
+                    child_dict = next_dict
+
+        return child_dict
 
     def get_num_nodes(self) -> int:
 

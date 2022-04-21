@@ -44,7 +44,8 @@ def get_characters_from_keys(keys: List[str]) -> str:
                 caps_lock = True
                 prev_turn_off_caps_lock = False
         elif key == '<BACK>':
-            characters.pop()
+            if len(characters) > 0:
+                characters.pop()
         elif key not in UNPRINTED_CHARACTERS:
             if caps_lock or ((idx > 0) and (keys[idx - 1] == '<CAPS>') and (not prev_turn_off_caps_lock)):
                 character = key.upper()
