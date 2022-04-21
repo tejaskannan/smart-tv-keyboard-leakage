@@ -1,6 +1,7 @@
 import string
 import os.path
 import io
+import gzip
 from collections import Counter
 from typing import Dict, List
 
@@ -53,6 +54,13 @@ class EnglishDictionary(CharacterDictionary):
                 io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
 
                 for line in io_wrapper:
+                    line = line.strip()
+                    if len(line) > 0:
+                        string_dictionary[line] = 0
+        elif path.endswith('.gz'):
+            string_dictionary: Dict[str, int] = dict()
+            with gzip.open(path, 'rt') as fin:
+                for line in fin:
                     line = line.strip()
                     if len(line) > 0:
                         string_dictionary[line] = 0

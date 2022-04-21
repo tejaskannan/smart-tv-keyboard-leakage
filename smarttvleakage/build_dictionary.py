@@ -8,7 +8,7 @@ if __name__ == '__main__':
     parser.add_argument('--output-path', type=str, required=True)
     args = parser.parse_args()
 
-    dictionary = EnglishDictionary(max_depth=8)
+    dictionary = EnglishDictionary(max_depth=16)
 
     print('Building dictionary...')
     dictionary.build(args.words_path)
