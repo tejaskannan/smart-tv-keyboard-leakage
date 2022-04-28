@@ -24,20 +24,20 @@ class TrieNode:
     def children(self) -> List[Any]:
         return self._children
 
-    def increment_count(self):
-        self._count += 1
+    def increase_count(self, count: count):
+        self._count += count
 
     def set_children(self, children: List[Any]):
         self._children = children
 
-    def add_child(self, character: str):
+    def add_child(self, character: str, count=count):
         node = self.get_child(character)
 
         if node is None:
-            node = TrieNode(character=character, count=1)
+            node = TrieNode(character=character, count=count)
             self._children.append(node)
         else:
-            node.increment_count()
+            node.increase_count(count=count)
 
         return node
 
@@ -67,11 +67,11 @@ class Trie:
     def max_depth(self) -> int:
         return self._max_depth
 
-    def add_string(self, string: str):
+    def add_string(self, string: str, count: int):
         node = self._root
 
         for idx, character in enumerate(string):
-            next_node = node.add_child(character)
+            next_node = node.add_child(character, count=count)
 
             if idx < self.max_depth:
                 node = next_node

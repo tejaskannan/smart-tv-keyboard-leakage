@@ -40,7 +40,7 @@ class EnglishDictionary(CharacterDictionary):
         self._is_built = False
         self._max_depth = max_depth
 
-    def build(self, path: str):
+    def build(self, path: str, min_count: int):
         if self._is_built:
             return
 
@@ -55,19 +55,30 @@ class EnglishDictionary(CharacterDictionary):
 
                 for line in io_wrapper:
                     line = line.strip()
-                    if len(line) > 0:
-                        string_dictionary[line] = 0
+                    tokens = line.split()
+
+                    if len(line) == 0:
+                        continue
+
+                    if len(tokens) == 1:
+                        string_dictionary[line] = 1
+                    elif len(tokens) == 2:
+                        count = int(tokens[1])
+
+                        if count > min_count:
+                            string_dictionary[tokens[0]] = count
+
         elif path.endswith('.gz'):
             string_dictionary: Dict[str, int] = dict()
             with gzip.open(path, 'rt') as fin:
                 for line in fin:
                     line = line.strip()
                     if len(line) > 0:
-                        string_dictionary[line] = 0
+                        string_dictionary[line] = 1
 
         # Build the trie
-        for word in string_dictionary.keys():
-            self._trie.add_string(word)
+        for word, count in string_dictionary.items():
+            self._trie.add_string(word, count=max(count, 1))
 
         self._is_built = True
 
