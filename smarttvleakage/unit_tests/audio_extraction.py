@@ -62,6 +62,15 @@ class AudioExtraction(unittest.TestCase):
 
         self.assertEqual(move_seq, [4, 2, 2, 4])
 
+    def test_vol_50(self):
+        audio_signal = read_pickle_gz('sounds/half_volume.pkl.gz')
+
+        extractor = MoveExtractor()
+        move_seq = extractor.extract_move_sequence(audio=audio_signal)
+
+        self.assertEqual(move_seq, [4, 2, 2, 4])
+
+
 
 if __name__ == '__main__':
     unittest.main()

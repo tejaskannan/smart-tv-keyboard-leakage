@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
 from collections import namedtuple
-from scipy.signal import spectrogram, find_peaks
+from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple
 
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
@@ -12,11 +12,27 @@ from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end'])
 
 SOUNDS = ['move', 'select', 'key_select']
+MOVE_STEPS = 100
+SELECT_FACTOR = 0.8
 MIN_DISTANCE = 20
+WINDOW_SIZE = 8
+
 SOUND_THRESHOLDS = {
-    'move': 0.003,
-    'select': 0.004,
-    'key_select': 0.013
+    'move': (0.002, 0.003),
+    'select': (0.003, 0.004),
+    'key_select': (0.012, 0.014)
+}
+
+SOUND_PROMINENCE = {
+    'move': 2e-4,
+    'select': 1e-3,
+    'key_select': 0.0015
+}
+
+SOUND_FACTORS = {
+    'move': 0.25,
+    'select': 2.0,
+    'key_select': 2.0
 }
 
 
@@ -45,6 +61,9 @@ def moving_window_distances(target: np.ndarray, known: np.ndarray) -> List[float
 
         dist = np.linalg.norm(target_segment - known, ord=1)
         distances.append(1.0 / dist)
+
+    smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
+    distances = convolve(distances, smooth_filter).astype(float).tolist()
 
     return distances
 
@@ -118,11 +137,36 @@ class MoveExtractor:
         """
         assert sound in SOUNDS, 'The provided sound must be in [{}]. Got: {}'.format(','.join(SOUNDS), sound)
         distances = self.compute_spectrogram_distances(audio=audio)[sound]
-        
-        peaks, peak_properties = find_peaks(x=distances, height=SOUND_THRESHOLDS[sound], distance=MIN_DISTANCE)
+
+        (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
+        threshold = np.mean(distances) + SOUND_FACTORS[sound] * np.std(distances)
+        threshold = min(max(threshold, min_threshold), max_threshold)
+
+        peaks, peak_properties = find_peaks(x=distances, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE[sound], None))
         peak_heights = peak_properties['peak_heights']
 
-        return peaks, peak_heights
+        # Filter out sounds that are not above 0.5 * stddev if not in a cluster of peaks
+        if sound == 'move':
+            filtered_peaks: List[int] = []
+            filtered_peak_heights: List[float] = []
+
+            high_threshold = np.mean(distances) + 2 * SOUND_FACTORS[sound] * np.std(distances)
+
+            # Get the first peak above the higher threshold
+            for i in range(len(peaks)):
+                if any([peak_heights[j] > high_threshold for j in range(i + 1) if ((peaks[i] - peaks[j]) < MOVE_STEPS)]):
+                    filtered_peaks.append(peaks[i])
+                    filtered_peak_heights.append(peak_heights[i])
+
+            return filtered_peaks, filtered_peak_heights
+        elif sound == 'select':
+            cutoff = SELECT_FACTOR * max(peak_heights)
+            filtered_peaks = [peaks[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
+            filtered_peak_heights = [peak_heights[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
+
+            return filtered_peaks, filtered_peak_heights
+        else:
+            return peaks, peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray) -> List[int]:
         """
@@ -172,11 +216,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-3-letter/dog.mp4')
+    video_clip = mp.VideoFileClip('/local/smart-tv-full/test.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'move'
+    sound = 'key_select'
 
     extractor = MoveExtractor()
     distance_dict = extractor.compute_spectrogram_distances(audio=audio_signal)
@@ -193,6 +237,3 @@ if __name__ == '__main__':
     ax1.scatter(instance_idx, instance_heights, marker='o', color='orange')
 
     plt.show()
-
-
-
