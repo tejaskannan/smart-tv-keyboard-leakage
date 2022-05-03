@@ -13,7 +13,7 @@ SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end
 
 SOUNDS = ['move', 'select', 'key_select']
 MOVE_STEPS = 100
-SELECT_FACTOR = 0.8
+SELECT_FACTOR = 0.82
 MIN_DISTANCE = 20
 WINDOW_SIZE = 8
 
@@ -216,11 +216,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-full/test.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-autocomplete/magical.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'key_select'
+    sound = 'select'
 
     extractor = MoveExtractor()
     distance_dict = extractor.compute_spectrogram_distances(audio=audio_signal)

@@ -31,6 +31,9 @@ class MultiKeyboardGraph:
         }
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode) -> List[str]:
+        if num_moves < 0:
+            return []
+
         return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves)
 
 
@@ -97,7 +100,7 @@ class SingleKeyboardGraph:
             elif dist == num_moves:
                 candidates.add(key)
 
-            assert key in self._adjacency_list, 'Found invalid key: {}'.format(key)
+            assert key in self._adjacency_list, 'Found invalid key: {}. Start Key: {}, Num Moves: {}'.format(key, start_key, num_moves)
 
             for neighbor in self._adjacency_list[key]:
                 if neighbor not in visited:

@@ -9,6 +9,7 @@ from smarttvleakage.audio import MoveExtractor
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.graph_search import get_words_from_moves
+from smarttvleakage.search_with_autocomplete import get_words_from_moves_autocomplete
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
 
@@ -16,6 +17,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--video-path', type=str, required=True)
     parser.add_argument('--dictionary-path', type=str, required=True)
+    parser.add_argument('--use-autocomplete', action='store_true')
     args = parser.parse_args()
 
     if os.path.isdir(args.video_path):
@@ -56,10 +58,19 @@ if __name__ == '__main__':
         signal = audio.to_soundarray()
         num_moves = move_extractor.extract_move_sequence(audio=signal)
 
-        ranked_candidates = get_words_from_moves(num_moves=num_moves,
-                                                 graph=graph,
-                                                 dictionary=dictionary,
-                                                 max_num_results=None)
+        print('Num Moves: {}'.format(num_moves))
+
+        if args.use_autocomplete:
+            ranked_candidates = get_words_from_moves_autocomplete(num_moves=num_moves,
+                                                                  graph=graph,
+                                                                  dictionary=dictionary,
+                                                                  max_num_results=None)
+        else:
+            ranked_candidates = get_words_from_moves(num_moves=num_moves,
+                                                     graph=graph,
+                                                     dictionary=dictionary,
+                                                     max_num_results=None)
+
 
         did_find_word = False
 

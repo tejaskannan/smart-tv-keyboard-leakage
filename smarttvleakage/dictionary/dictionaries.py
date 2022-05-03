@@ -3,7 +3,7 @@ import os.path
 import io
 import gzip
 from collections import Counter
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
@@ -82,11 +82,14 @@ class EnglishDictionary(CharacterDictionary):
 
         self._is_built = True
 
-    def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
+    def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
+        return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
+
+    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
 
         # Get the prior counts of the next characters using the given prefix
-        character_counts = self._trie.get_next_characters(prefix)
+        character_counts = self._trie.get_next_characters(prefix, length=length)
 
         # Use laplace smoothing
         if should_smooth:
