@@ -2,11 +2,11 @@ import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from scipy.signal import spectrogram, find_peaks, convolve
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, DefaultDict
 
-from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
+from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 
 
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end'])
@@ -18,20 +18,21 @@ MIN_DISTANCE = 20
 WINDOW_SIZE = 8
 
 SOUND_THRESHOLDS = {
-    'move': (0.002, 0.003),
+    'move': (0.00275, 0.0035),
     'select': (0.003, 0.004),
-    'key_select': (0.012, 0.014)
+    'key_select': (0.065, 0.09)
 }
 
+
 SOUND_PROMINENCE = {
-    'move': 2e-4,
+    'move': 1e-4,
     'select': 1e-3,
     'key_select': 0.0015
 }
 
 SOUND_FACTORS = {
-    'move': 0.25,
-    'select': 2.0,
+    'move': 0.5,
+    'select': 1.5,
     'key_select': 2.0
 }
 
@@ -45,7 +46,7 @@ def create_spectrogram(signal: np.ndarray) -> np.ndarray:
     return Pxx
 
 
-def moving_window_distances(target: np.ndarray, known: np.ndarray) -> List[float]:
+def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth: bool) -> List[float]:
     target = target.T
     known = known.T
 
@@ -62,8 +63,9 @@ def moving_window_distances(target: np.ndarray, known: np.ndarray) -> List[float
         dist = np.linalg.norm(target_segment - known, ord=1)
         distances.append(1.0 / dist)
 
-    smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
-    distances = convolve(distances, smooth_filter).astype(float).tolist()
+    if should_smooth:
+        smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
+        distances = convolve(distances, smooth_filter).astype(float).tolist()
 
     return distances
 
@@ -74,53 +76,59 @@ class MoveExtractor:
         directory = os.path.dirname(__file__)
         sound_directory = os.path.join(directory, '..', 'sounds')
 
-        self._known_sounds: Dict[str, SoundProfile] = dict()
+        self._known_sounds: DefaultDict[str, List[SoundProfile]] = defaultdict(list)
 
         # Read in the start / end indices (known beforehand)
         freq_range_dict = read_json(os.path.join(sound_directory, 'freq_ranges.json'))
 
         for sound in SOUNDS:
-            path = os.path.join(sound_directory, '{}.pkl.gz'.format(sound))
-            audio = read_pickle_gz(path)
+            for path in iterate_dir(sound_directory):
+                file_name = os.path.basename(path)
+                if not file_name.startswith(sound):
+                    continue
+                
+                audio = read_pickle_gz(path)
 
-            start, end = freq_range_dict[sound]['start'], freq_range_dict[sound]['end']
-            channel0 = create_spectrogram(signal=audio[:, 0])
-            channel1 = create_spectrogram(signal=audio[:, 1])
+                start, end = freq_range_dict[sound]['start'], freq_range_dict[sound]['end']
+                channel0 = create_spectrogram(signal=audio[:, 0])
+                channel1 = create_spectrogram(signal=audio[:, 1])
 
-            profile = SoundProfile(channel0=channel0, channel1=channel1, start=start, end=end)
-            self._known_sounds[sound] = profile
+                profile = SoundProfile(channel0=channel0, channel1=channel1, start=start, end=end)
+                self._known_sounds[sound].append(profile)
 
-    def compute_spectrogram_distances(self, audio: np.ndarray) -> Dict[str, List[float]]:
+    def compute_spectrogram_distances_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
         """
         Computes the sum of the absolute distances between the spectrogram
         of the given audio signal and those of the known sounds in a moving-window fashion.
 
         Args:
             audio: A 2d audio signal where the last dimension is the channel.
+            sound: The name of the known sound to use
         Returns:
-            A dictionary mapping known sound name -> moving-window distances
+            An array of the moving-window distances
         """
         # Create the spectrogram from the known signal
         channel0 = create_spectrogram(signal=audio[:, 0])
         channel1 = create_spectrogram(signal=audio[:, 1])
 
         # For each sound type, compute the moving average distances
-        result: Dict[str, np.ndarray] = dict()
+        distance_lists: List[List[float]] = []
 
-        for sound in SOUNDS:
-            sound_profile = self._known_sounds[sound]
+        for sound_profile in self._known_sounds[sound]:
             start, end = sound_profile.start, sound_profile.end
 
             channel0_dist = moving_window_distances(target=channel0[start:end],
-                                                    known=sound_profile.channel0[start:end])
+                                                    known=sound_profile.channel0[start:end],
+                                                    should_smooth=(sound != 'move'))
 
             channel1_dist = moving_window_distances(target=channel1[start:end],
-                                                    known=sound_profile.channel1[start:end])
+                                                    known=sound_profile.channel1[start:end],
+                                                    should_smooth=(sound != 'move'))
 
             distances = [c0 + c1 for c0, c1 in zip(channel0_dist, channel1_dist)]
-            result[sound] = distances
+            distance_lists.append(distances)
 
-        return result
+        return np.max(distance_lists, axis=0)
 
     def find_instances_of_sound(self, audio: np.ndarray, sound: str) -> Tuple[List[int], List[float]]:
         """
@@ -136,7 +144,7 @@ class MoveExtractor:
                 (2) A list of the peak values in the distance graph
         """
         assert sound in SOUNDS, 'The provided sound must be in [{}]. Got: {}'.format(','.join(SOUNDS), sound)
-        distances = self.compute_spectrogram_distances(audio=audio)[sound]
+        distances = self.compute_spectrogram_distances_for_sound(audio=audio, sound=sound)
 
         (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
         threshold = np.mean(distances) + SOUND_FACTORS[sound] * np.std(distances)
@@ -145,13 +153,16 @@ class MoveExtractor:
         peaks, peak_properties = find_peaks(x=distances, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE[sound], None))
         peak_heights = peak_properties['peak_heights']
 
+        #print(sound)
+        #print(peak_properties['prominences'])
+
         # Filter out sounds that are not above 0.5 * stddev if not in a cluster of peaks
         if sound == 'move':
             filtered_peaks: List[int] = []
             filtered_peak_heights: List[float] = []
 
             high_threshold = np.mean(distances) + 2 * SOUND_FACTORS[sound] * np.std(distances)
-
+            
             # Get the first peak above the higher threshold
             for i in range(len(peaks)):
                 if any([peak_heights[j] > high_threshold for j in range(i + 1) if ((peaks[i] - peaks[j]) < MOVE_STEPS)]):
@@ -160,7 +171,8 @@ class MoveExtractor:
 
             return filtered_peaks, filtered_peak_heights
         elif sound == 'select':
-            cutoff = SELECT_FACTOR * max(peak_heights)
+            #cutoff = SELECT_FACTOR * max(peak_heights)
+            cutoff = 0.003
             filtered_peaks = [peaks[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
             filtered_peak_heights = [peak_heights[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
 
@@ -216,14 +228,14 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-autocomplete/magical.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/thus.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'select'
+    sound = 'move'
 
     extractor = MoveExtractor()
-    distance_dict = extractor.compute_spectrogram_distances(audio=audio_signal)
+    distances = extractor.compute_spectrogram_distances_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
     move_seq = extractor.extract_move_sequence(audio=audio_signal)
@@ -232,7 +244,7 @@ if __name__ == '__main__':
     fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 
     ax0.plot(list(range(audio_signal.shape[0])), audio_signal[:, 0])
-    ax1.plot(list(range(len(distance_dict[sound]))), distance_dict[sound])
+    ax1.plot(list(range(len(distances))), distances)
 
     ax1.scatter(instance_idx, instance_heights, marker='o', color='orange')
 
