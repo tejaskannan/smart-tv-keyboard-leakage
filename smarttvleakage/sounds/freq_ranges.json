@@ -10,5 +10,9 @@
     "select": {
         "start": 0,
         "end": 50
+    },
+    "double_move": {
+        "start": 0,
+        "end": 50
     }
 }
