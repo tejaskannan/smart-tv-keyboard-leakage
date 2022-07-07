@@ -23,13 +23,13 @@ CHARACTER_TRANSLATION = {
 
 class CharacterDictionary:
 
-    def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
         raise NotImplementedError()
 
 
 class UniformDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, should_smooth: bool) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
         return { c: 1 for c in CHARACTERS }
 
 
