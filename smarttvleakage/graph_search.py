@@ -96,7 +96,9 @@ def get_words_from_moves(num_moves: List[int], graph: MultiKeyboardGraph, dictio
                                                   num_moves=num_moves[move_idx],
                                                   mode=current_state.keyboard_mode)
 
-        next_key_counts = dictionary.get_letter_counts(prefix=current_string, should_smooth=True)
+        next_key_counts = dictionary.get_letter_counts(prefix=current_string,
+                                                       length=target_length,
+                                                       should_smooth=True)
 
         filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                      candidate_keys=neighbors)

@@ -3,7 +3,7 @@ import os.path
 import io
 import gzip
 from collections import Counter
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Iterable
 
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
@@ -82,8 +82,20 @@ class EnglishDictionary(CharacterDictionary):
 
         self._is_built = True
 
+    def iterate_words(self, path: str) -> Iterable[str]:
+        assert path.endswith('txt'), 'Must provide a text file'
+
+        with open(path, 'r') as fin:
+            for line in fin:
+                line = line.strip()
+                if len(line) > 0:
+                    yield line.split()[0]
+
     def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
         return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
+
+    def does_contain_string(self, string: str) -> bool:
+        return self._trie.does_contain_string(string)
 
     def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
