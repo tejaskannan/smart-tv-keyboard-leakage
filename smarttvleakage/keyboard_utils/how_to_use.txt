@@ -1,0 +1,6 @@
+word_to_move.py
+The function for generating the series of moves based on a word is called findPath and takes the string word and an integer error. The error is the % of moves that will have an error. Right now 70% are off by two and 30% are off by 4 but we can change the error model to something more accurate later.
+If you run the file, it takes a .txt file where every line is a new string to get the path to and it will output a csv with the string and then the series of moves (one per cell). The csv is tab delimited. It also takes the output file and the error.
+
+graph_to_distance.py
+When you run this it will take a .json graph and make a matrix of the shortest path between any two keys based off of this and then output the .csv of it. The top row is the letter and then below that it is the matrix. I put the ones that I made based off of the samsung keyboards in the graphs folder.
