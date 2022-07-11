@@ -6,35 +6,56 @@ from collections import namedtuple, defaultdict
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict
 
+from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 
 
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end'])
 
-SOUNDS = ['move', 'select', 'key_select']
+SOUNDS = ['move', 'select', 'key_select', 'double_move']
 MOVE_STEPS = 100
 SELECT_FACTOR = 0.82
 MIN_DISTANCE = 20
 WINDOW_SIZE = 8
 
 SOUND_THRESHOLDS = {
-    'move': (0.00275, 0.0035),
-    'select': (0.003, 0.004),
-    'key_select': (0.065, 0.09)
+    'move': (0.005, 0.006),
+    'select': (0.007, 0.01),
+    'key_select': (0.065, 0.09),
+    'double_move': (0.0045, 0.006)
 }
 
 
 SOUND_PROMINENCE = {
-    'move': 1e-4,
+    'move': 1e-3,
     'select': 1e-3,
-    'key_select': 0.0015
+    'key_select': 1e-3,
+    'double_move': 1e-3
 }
 
+
+#SOUND_THRESHOLDS = {
+#    'move': 0.005,
+#    'select': 0.003,
+#    'key_select': 0.07,
+#    'double_move': 0.0045
+#}
+
+
 SOUND_FACTORS = {
-    'move': 0.5,
-    'select': 1.5,
-    'key_select': 2.0
+    'move': 0.4,
+    'select': 2.0,
+    'key_select': 2.0,
+    'double_move': 1.0
 }
+
+#SOUND_FACTORS = {
+#    'move': 0.1,
+#    'select': 0.5,
+#    'key_select': 1.1,
+#    'double_move': 0.75
+#}
+
 
 
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:
@@ -42,11 +63,11 @@ def create_spectrogram(signal: np.ndarray) -> np.ndarray:
 
     _, _, Sxx = spectrogram(signal, fs=44100, nfft=1024)
     Pxx = 10 * np.log10(Sxx)
-    
-    return Pxx
+
+    return Pxx  # X is frequency, Y is time
 
 
-def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth: bool) -> List[float]:
+def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth: bool, should_match_binary: bool) -> List[float]:
     target = target.T
     known = known.T
 
@@ -60,8 +81,12 @@ def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth
         if len(target_segment) < segment_size:
             target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
 
-        dist = np.linalg.norm(target_segment - known, ord=1)
-        distances.append(1.0 / dist)
+        if not should_match_binary:
+            dist = 1.0 / np.linalg.norm(target_segment - known, ord=1)
+        else:
+            dist = np.sum(target_segment * known)
+
+        distances.append(dist)
 
     if should_smooth:
         smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
@@ -72,9 +97,9 @@ def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth
 
 class MoveExtractor:
 
-    def __init__(self):
+    def __init__(self, tv_type: SmartTVType):
         directory = os.path.dirname(__file__)
-        sound_directory = os.path.join(directory, '..', 'sounds')
+        sound_directory = os.path.join(directory, '..', 'sounds', tv_type.name.lower())
 
         self._known_sounds: DefaultDict[str, List[SoundProfile]] = defaultdict(list)
 
@@ -119,11 +144,11 @@ class MoveExtractor:
 
             channel0_dist = moving_window_distances(target=channel0[start:end],
                                                     known=sound_profile.channel0[start:end],
-                                                    should_smooth=(sound != 'move'))
+                                                    should_smooth=True)
 
             channel1_dist = moving_window_distances(target=channel1[start:end],
                                                     known=sound_profile.channel1[start:end],
-                                                    should_smooth=(sound != 'move'))
+                                                    should_smooth=True)
 
             distances = [c0 + c1 for c0, c1 in zip(channel0_dist, channel1_dist)]
             distance_lists.append(distances)
@@ -149,38 +174,45 @@ class MoveExtractor:
         (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
         threshold = np.mean(distances) + SOUND_FACTORS[sound] * np.std(distances)
         threshold = min(max(threshold, min_threshold), max_threshold)
+        #threshold = SOUND_THRESHOLDS[sound]
+        #unique_distances = list(set(np.round(distances, decimals=4)))
+        #iqr = np.percentile(unique_distances, 75) - np.percentile(unique_distances, 25)
+        #threshold = np.median(unique_distances) + SOUND_FACTORS[sound] * iqr
+
+        #print('Sound: {}, Threshold: {}'.format(sound, threshold))
 
         peaks, peak_properties = find_peaks(x=distances, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE[sound], None))
         peak_heights = peak_properties['peak_heights']
 
-        #print(sound)
         #print(peak_properties['prominences'])
 
+        return peaks, peak_heights
+
         # Filter out sounds that are not above 0.5 * stddev if not in a cluster of peaks
-        if sound == 'move':
-            filtered_peaks: List[int] = []
-            filtered_peak_heights: List[float] = []
+        #if sound == 'move':
+        #    filtered_peaks: List[int] = []
+        #    filtered_peak_heights: List[float] = []
 
-            high_threshold = np.mean(distances) + 2 * SOUND_FACTORS[sound] * np.std(distances)
-            
-            # Get the first peak above the higher threshold
-            for i in range(len(peaks)):
-                if any([peak_heights[j] > high_threshold for j in range(i + 1) if ((peaks[i] - peaks[j]) < MOVE_STEPS)]):
-                    filtered_peaks.append(peaks[i])
-                    filtered_peak_heights.append(peak_heights[i])
+        #    high_threshold = np.mean(distances) + 2 * SOUND_FACTORS[sound] * np.std(distances)
+        #    
+        #    # Get the first peak above the higher threshold
+        #    for i in range(len(peaks)):
+        #        if any([peak_heights[j] > high_threshold for j in range(i + 1) if ((peaks[i] - peaks[j]) < MOVE_STEPS)]):
+        #            filtered_peaks.append(peaks[i])
+        #            filtered_peak_heights.append(peak_heights[i])
 
-            return filtered_peaks, filtered_peak_heights
-        elif sound == 'select':
-            #cutoff = SELECT_FACTOR * max(peak_heights)
-            cutoff = 0.003
-            filtered_peaks = [peaks[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
-            filtered_peak_heights = [peak_heights[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
+        #    return filtered_peaks, filtered_peak_heights
+        #elif sound == 'select':
+        #    #cutoff = SELECT_FACTOR * max(peak_heights)
+        #    cutoff = 0.003
+        #    filtered_peaks = [peaks[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
+        #    filtered_peak_heights = [peak_heights[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
 
-            return filtered_peaks, filtered_peak_heights
-        else:
-            return peaks, peak_heights
+        #    return filtered_peaks, filtered_peak_heights
+        #else:
+        #    return peaks, peak_heights
 
-    def extract_move_sequence(self, audio: np.ndarray) -> List[int]:
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[int], bool]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
@@ -193,53 +225,78 @@ class MoveExtractor:
 
         # Signals without any key selections do not interact with the keyboard
         if len(key_select_idx) == 0:
-            return []
+            return [], False
 
         # Get occurances of the other two sounds
         move_idx, move_heights = self.find_instances_of_sound(audio=audio, sound='move')
         select_idx, select_heights = self.find_instances_of_sound(audio=audio, sound='select')
+        double_idx, double_heights = self.find_instances_of_sound(audio=audio, sound='double_move')
 
         # The first move starts before the first key select and after the nearest select
         first_key = key_select_idx[0]
         selects_before = list(filter(lambda i: i < first_key, select_idx))
-        start_idx = selects_before[-1] if len(selects_before) > 0 else 0
+        start_idx = (selects_before[-1] + 50) if len(selects_before) > 0 else 0
 
         # Extract the number of moves between selections
         # TODO: Handle sequences with multiple keyboard interactions
         clipped_move_idx = list(filter(lambda i: i > start_idx, move_idx))
+        clipped_double_idx = list(filter(lambda i: i > start_idx, double_idx))
 
         key_idx = 0
         num_moves = 0
+        last_num_moves = 0
         result: List[int] = []
 
-        for i in range(len(clipped_move_idx)):
+        #print(clipped_double_idx)
+        #print(clipped_move_idx)
+
+        i = 0
+        j = 0
+        while i < len(clipped_move_idx):
+            #print('Move Idx: {}, Num Moves: {}'.format(clipped_move_idx[i], num_moves))
+
             while (key_idx < len(key_select_idx)) and (clipped_move_idx[i] > key_select_idx[key_idx]):
                 result.append(num_moves)
                 key_idx += 1
                 num_moves = 0
 
             if key_idx >= len(key_select_idx):
+                # Get the remaining number of moves before the last done (or end of sequence)
+                last_num_moves = (len(clipped_move_idx) - i)
                 break
 
-            num_moves += 1
-            i += 1
+            is_double = 0
+            if (j < len(clipped_double_idx)) and (abs(clipped_double_idx[j] - clipped_move_idx[i]) < 50):
+                is_double = 1
+                while (i < len(clipped_move_idx)) and (j < len(clipped_double_idx)) and (abs(clipped_double_idx[j] - clipped_move_idx[i]) < 50):
+                    i += 1
 
-        return result
+                j += 1
+                num_moves += 2
+            else:
+                num_moves += 1
+                i += 1
+
+        # If the last number of moves was 0 or 1, then we have the potential to have use the search complete feature
+        did_use_autocomplete = (last_num_moves <= 1)
+
+        return result, did_use_autocomplete
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/thus.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/portion.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'move'
+    sound = 'select'
 
-    extractor = MoveExtractor()
+    extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     distances = extractor.compute_spectrogram_distances_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
-    move_seq = extractor.extract_move_sequence(audio=audio_signal)
+    move_seq, did_use_autocomplete = extractor.extract_move_sequence(audio=audio_signal)
     print('Move Sequence: {}'.format(move_seq))
+    print('Did use autocomplete: {}'.format(did_use_autocomplete))
 
     fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 
