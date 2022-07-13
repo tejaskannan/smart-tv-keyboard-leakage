@@ -8,54 +8,25 @@ from typing import List, Dict, Tuple, DefaultDict
 
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
+from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 
 
-SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end'])
+SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'channel0_constellation', 'channel1_constellation', 'start', 'end'])
 
-SOUNDS = ['move', 'select', 'key_select', 'double_move']
-MOVE_STEPS = 100
-SELECT_FACTOR = 0.82
-MIN_DISTANCE = 20
+SOUNDS = ['move', 'select', 'key_select']
+MIN_DISTANCE = 15
+MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
+SOUND_PROMINENCE = 0.0009
+
+CONSTELLATION_THRESHOLD = -75
 
 SOUND_THRESHOLDS = {
-    'move': (0.005, 0.006),
-    'select': (0.007, 0.01),
-    'key_select': (0.065, 0.09),
-    'double_move': (0.0045, 0.006)
+    'move': (300, 600),
+    'select': (0.0017, 0.0003),
+    #'key_select': (0.00275, 0.003)
+    'key_select': (0.8, 0.8)
 }
-
-
-SOUND_PROMINENCE = {
-    'move': 1e-3,
-    'select': 1e-3,
-    'key_select': 1e-3,
-    'double_move': 1e-3
-}
-
-
-#SOUND_THRESHOLDS = {
-#    'move': 0.005,
-#    'select': 0.003,
-#    'key_select': 0.07,
-#    'double_move': 0.0045
-#}
-
-
-SOUND_FACTORS = {
-    'move': 0.4,
-    'select': 2.0,
-    'key_select': 2.0,
-    'double_move': 1.0
-}
-
-#SOUND_FACTORS = {
-#    'move': 0.1,
-#    'select': 0.5,
-#    'key_select': 1.1,
-#    'double_move': 0.75
-#}
-
 
 
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:
@@ -67,13 +38,18 @@ def create_spectrogram(signal: np.ndarray) -> np.ndarray:
     return Pxx  # X is frequency, Y is time
 
 
-def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth: bool, should_match_binary: bool) -> List[float]:
+def compute_masked_spectrogram(spectrogram: float, threshold: float, min_freq: int, max_freq: int) -> np.ndarray:
+    clipped_spectrogram = spectrogram[min_freq:max_freq, :]
+    return (clipped_spectrogram > threshold).astype(int)
+
+
+def moving_window_similarity(target: np.ndarray, known: np.ndarray, should_smooth: bool, should_match_binary: bool) -> List[float]:
     target = target.T
     known = known.T
 
     segment_size = known.shape[0]
+    similarity: List[float] = []
 
-    distances: List[float] = []
     for start in range(target.shape[0]):
         end = start + segment_size
         target_segment = target[start:end]
@@ -82,17 +58,17 @@ def moving_window_distances(target: np.ndarray, known: np.ndarray, should_smooth
             target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
 
         if not should_match_binary:
-            dist = 1.0 / np.linalg.norm(target_segment - known, ord=1)
+            sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
         else:
-            dist = np.sum(target_segment * known)
+            sim_score = np.sum(target_segment * known)
 
-        distances.append(dist)
+        similarity.append(sim_score)
 
     if should_smooth:
         smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
-        distances = convolve(distances, smooth_filter).astype(float).tolist()
+        similarity = convolve(similarity, smooth_filter).astype(float).tolist()
 
-    return distances
+    return similarity
 
 
 class MoveExtractor:
@@ -118,7 +94,17 @@ class MoveExtractor:
                 channel0 = create_spectrogram(signal=audio[:, 0])
                 channel1 = create_spectrogram(signal=audio[:, 1])
 
-                profile = SoundProfile(channel0=channel0, channel1=channel1, start=start, end=end)
+                if sound == 'move':
+                    channel0 = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+                    channel1 = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+                else:
+                    channel0 = channel0[start:end, :]
+                    channel1 = channel1[start:end, :]
+
+                profile = SoundProfile(channel0=channel0,
+                                       channel1=channel1,
+                                       start=start,
+                                       end=end)
                 self._known_sounds[sound].append(profile)
 
     def compute_spectrogram_distances_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
@@ -132,6 +118,8 @@ class MoveExtractor:
         Returns:
             An array of the moving-window distances
         """
+        assert sound in SOUNDS, 'Unknown sound: {}'.format(sound)
+
         # Create the spectrogram from the known signal
         channel0 = create_spectrogram(signal=audio[:, 0])
         channel1 = create_spectrogram(signal=audio[:, 1])
@@ -142,15 +130,26 @@ class MoveExtractor:
         for sound_profile in self._known_sounds[sound]:
             start, end = sound_profile.start, sound_profile.end
 
-            channel0_dist = moving_window_distances(target=channel0[start:end],
-                                                    known=sound_profile.channel0[start:end],
-                                                    should_smooth=True)
+            if sound == 'move':
+                channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+                channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+                should_match_binary = True
+            else:
+                channel0_clipped = channel0[start:end, :]
+                channel1_clipped = channel1[start:end, :]
+                should_match_binary = False
 
-            channel1_dist = moving_window_distances(target=channel1[start:end],
-                                                    known=sound_profile.channel1[start:end],
-                                                    should_smooth=True)
+            channel0_dist = moving_window_distances(target=channel0_clipped,
+                                                    known=sound_profile.channel0,
+                                                    should_smooth=True,
+                                                    should_match_binary=should_match_binary)
 
-            distances = [c0 + c1 for c0, c1 in zip(channel0_dist, channel1_dist)]
+            channel1_dist = moving_window_distances(target=channel1_clipped,
+                                                    known=sound_profile.channel1,
+                                                    should_smooth=True,
+                                                    should_match_binary=should_match_binary)
+
+            distances = [max(c0, c1) for c0, c1 in zip(channel0_dist, channel1_dist)]
             distance_lists.append(distances)
 
         return np.max(distance_lists, axis=0)
@@ -172,45 +171,14 @@ class MoveExtractor:
         distances = self.compute_spectrogram_distances_for_sound(audio=audio, sound=sound)
 
         (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
-        threshold = np.mean(distances) + SOUND_FACTORS[sound] * np.std(distances)
-        threshold = min(max(threshold, min_threshold), max_threshold)
-        #threshold = SOUND_THRESHOLDS[sound]
-        #unique_distances = list(set(np.round(distances, decimals=4)))
-        #iqr = np.percentile(unique_distances, 75) - np.percentile(unique_distances, 25)
-        #threshold = np.median(unique_distances) + SOUND_FACTORS[sound] * iqr
+        #threshold = np.mean(distances) + SOUND_FACTORS[sound] * np.std(distances)
+        #threshold = min(max(threshold, min_threshold), max_threshold)
+        threshold = min_threshold
 
-        #print('Sound: {}, Threshold: {}'.format(sound, threshold))
-
-        peaks, peak_properties = find_peaks(x=distances, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE[sound], None))
+        peaks, peak_properties = find_peaks(x=distances, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
 
-        #print(peak_properties['prominences'])
-
         return peaks, peak_heights
-
-        # Filter out sounds that are not above 0.5 * stddev if not in a cluster of peaks
-        #if sound == 'move':
-        #    filtered_peaks: List[int] = []
-        #    filtered_peak_heights: List[float] = []
-
-        #    high_threshold = np.mean(distances) + 2 * SOUND_FACTORS[sound] * np.std(distances)
-        #    
-        #    # Get the first peak above the higher threshold
-        #    for i in range(len(peaks)):
-        #        if any([peak_heights[j] > high_threshold for j in range(i + 1) if ((peaks[i] - peaks[j]) < MOVE_STEPS)]):
-        #            filtered_peaks.append(peaks[i])
-        #            filtered_peak_heights.append(peak_heights[i])
-
-        #    return filtered_peaks, filtered_peak_heights
-        #elif sound == 'select':
-        #    #cutoff = SELECT_FACTOR * max(peak_heights)
-        #    cutoff = 0.003
-        #    filtered_peaks = [peaks[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
-        #    filtered_peak_heights = [peak_heights[i] for i in range(len(peaks)) if peak_heights[i] > cutoff]
-
-        #    return filtered_peaks, filtered_peak_heights
-        #else:
-        #    return peaks, peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[int], bool]:
         """
@@ -221,40 +189,42 @@ class MoveExtractor:
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        key_select_idx, key_select_heights = self.find_instances_of_sound(audio=audio, sound='key_select')
+        raw_key_select_idx, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound='key_select')
 
         # Signals without any key selections do not interact with the keyboard
-        if len(key_select_idx) == 0:
+        if len(raw_key_select_idx) == 0:
             return [], False
 
         # Get occurances of the other two sounds
         move_idx, move_heights = self.find_instances_of_sound(audio=audio, sound='move')
         select_idx, select_heights = self.find_instances_of_sound(audio=audio, sound='select')
-        double_idx, double_heights = self.find_instances_of_sound(audio=audio, sound='double_move')
+
+        # Filter out any conflicting key and normal selects
+        key_select_idx: List[int] = []
+        key_select_heights: List[float] = []
+
+        for (key_idx, peak_height) in zip(raw_key_select_idx, raw_key_select_heights):
+            idx_diff = np.abs(np.subtract(select_idx, key_idx))
+            if not np.any(idx_diff < MIN_DISTANCE):
+                key_select_idx.append(key_idx)
+                key_select_heights.append(peak_height)
 
         # The first move starts before the first key select and after the nearest select
-        first_key = key_select_idx[0]
-        selects_before = list(filter(lambda i: i < first_key, select_idx))
+        first_key_idx = key_select_idx[0]
+        selects_before = list(filter(lambda i: i < first_key_idx, select_idx))
         start_idx = (selects_before[-1] + 50) if len(selects_before) > 0 else 0
 
         # Extract the number of moves between selections
         # TODO: Handle sequences with multiple keyboard interactions
         clipped_move_idx = list(filter(lambda i: i > start_idx, move_idx))
-        clipped_double_idx = list(filter(lambda i: i > start_idx, double_idx))
 
         key_idx = 0
         num_moves = 0
         last_num_moves = 0
         result: List[int] = []
 
-        #print(clipped_double_idx)
-        #print(clipped_move_idx)
-
         i = 0
-        j = 0
         while i < len(clipped_move_idx):
-            #print('Move Idx: {}, Num Moves: {}'.format(clipped_move_idx[i], num_moves))
-
             while (key_idx < len(key_select_idx)) and (clipped_move_idx[i] > key_select_idx[key_idx]):
                 result.append(num_moves)
                 key_idx += 1
@@ -265,17 +235,8 @@ class MoveExtractor:
                 last_num_moves = (len(clipped_move_idx) - i)
                 break
 
-            is_double = 0
-            if (j < len(clipped_double_idx)) and (abs(clipped_double_idx[j] - clipped_move_idx[i]) < 50):
-                is_double = 1
-                while (i < len(clipped_move_idx)) and (j < len(clipped_double_idx)) and (abs(clipped_double_idx[j] - clipped_move_idx[i]) < 50):
-                    i += 1
-
-                j += 1
-                num_moves += 2
-            else:
-                num_moves += 1
-                i += 1
+            num_moves += 1
+            i += 1
 
         # If the last number of moves was 0 or 1, then we have the potential to have use the search complete feature
         did_use_autocomplete = (last_num_moves <= 1)
@@ -284,11 +245,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/portion.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/shall.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'select'
+    sound = 'key_select'
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     distances = extractor.compute_spectrogram_distances_for_sound(audio=audio_signal, sound=sound)
