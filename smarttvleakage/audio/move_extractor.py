@@ -29,7 +29,7 @@ SOUND_THRESHOLDS = {
     'move': (300, 600),
     'select': (0.0017, 0.0003),
     #'key_select': (0.00275, 0.003)
-    'key_select': (0.8, 0.8)
+    'key_select': (0.85, 0.85)
 }
 
 
@@ -225,8 +225,8 @@ class MoveExtractor:
         (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
         threshold = min_threshold
 
-        if sound == 'key_select':
-            threshold = max(np.mean(similarity) + 4 * np.std(similarity), threshold)
+        #if sound == 'key_select':
+        #    threshold = min(max(np.mean(similarity) + 4 * np.std(similarity), min_threshold), max_threshold)
 
         peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
@@ -298,11 +298,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-full/test.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/earth.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'key_select'
+    sound = 'select'
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
