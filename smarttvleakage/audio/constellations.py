@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.ndimage import maximum_filter
 from typing import List, Tuple
 
 
@@ -6,25 +7,40 @@ def compute_constellation_map(spectrogram: np.ndarray, freq_delta: int, time_del
     assert freq_delta > 0, 'Must provide a positive frequency delta'
     assert time_delta > 0, 'Must provide a positive time delta'
 
-    freq_dims, time_dims = spectrogram.shape
+    filtered_spectrogram = maximum_filter(spectrogram, size=(freq_delta + 1, time_delta + 1), mode='constant', cval=0.0)
+    peak_matrix = np.logical_and(np.isclose(filtered_spectrogram, spectrogram), (spectrogram > threshold)).astype(int)
 
-    time_peaks: List[int] = []
-    freq_peaks: List[int] = []
+    freq_peaks, time_peaks = np.argwhere(peak_matrix == 1).T
 
-    for time_idx in range(0, time_dims, time_delta):
-        for freq_idx in range(freq_range[0], freq_range[1], freq_delta):
-            freq_limit = freq_idx + freq_delta
-            time_limit = time_idx + time_delta
+    filtered_time_peaks: List[int] = []
+    filtered_freq_peaks: List[int] = []
 
-            spectrogram_window = spectrogram[freq_idx:freq_limit, time_idx:time_limit]
-            (max_freq_idx, max_time_idx) = np.unravel_index(np.argmax(spectrogram_window, axis=None), spectrogram_window.shape)
-            max_val = spectrogram_window[max_freq_idx, max_time_idx]
+    for time, freq in zip(time_peaks, freq_peaks):
+        if (freq >= freq_range[0]) and (freq <= freq_range[1]):
+            filtered_time_peaks.append(time)
+            filtered_freq_peaks.append(freq)
 
-            if max_val > threshold:
-                time_peaks.append(max_time_idx + time_idx)
-                freq_peaks.append(max_freq_idx + freq_idx)
+    return filtered_time_peaks, filtered_freq_peaks
 
-    return time_peaks, freq_peaks
+    #freq_dims, time_dims = spectrogram.shape
+
+    #time_peaks: List[int] = []
+    #freq_peaks: List[int] = []
+
+    #for time_idx in range(0, time_dims, time_delta):
+    #    for freq_idx in range(freq_range[0], freq_range[1], freq_delta):
+    #        freq_limit = freq_idx + freq_delta
+    #        time_limit = time_idx + time_delta
+
+    #        spectrogram_window = spectrogram[freq_idx:freq_limit, time_idx:time_limit]
+    #        (max_freq_idx, max_time_idx) = np.unravel_index(np.argmax(spectrogram_window, axis=None), spectrogram_window.shape)
+    #        max_val = spectrogram_window[max_freq_idx, max_time_idx]
+
+    #        if max_val > threshold:
+    #            time_peaks.append(max_time_idx + time_idx)
+    #            freq_peaks.append(max_freq_idx + freq_idx)
+
+    #return time_peaks, freq_peaks
 
 
 def filter_points_by_time(times: np.ndarray, freqs: np.ndarray, start_time: int, end_time: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -52,8 +68,8 @@ def match_constellations(target_times: np.ndarray,
     result_steps: List[int] = []
     result_matches: List[float] = []
 
-    min_ref_time = min(ref_times) - 1
-    max_ref_time = max(ref_times) + 1
+    min_ref_time = min(ref_times) - time_tol
+    max_ref_time = max(ref_times) + time_tol
     ref_times = [(t - min_ref_time) for t in ref_times]
     num_ref_points = len(ref_times)
 
@@ -82,9 +98,10 @@ def match_constellations(target_times: np.ndarray,
         num_window_points = len(window_times)
         match_fraction = num_matches / (num_ref_points + num_window_points)
 
-        #if num_matches:
+        #if num_matches > 3:
         #    print('Base Time: {}, Comparison: {}, Freq Matches: {}, Time Matches: {}'.format(base_time, comparison, freq_matches, time_matches))
         #    print('Freq Diff: {}, Time Diff: {}'.format(freq_abs_diff, time_abs_diff))
+        #    print('Match Fraction: {:.4f}, Num: {}, Denom: {} + {}'.format(match_fraction, num_matches, num_ref_points, num_window_points))
         #    print('==========')
 
         result_steps.append(base_time)

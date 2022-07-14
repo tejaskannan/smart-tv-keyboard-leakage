@@ -20,6 +20,7 @@ if __name__ == '__main__':
     parser.add_argument('--dictionary-path', type=str, required=True)
     parser.add_argument('--use-autocomplete', action='store_true')
     parser.add_argument('--max-num-results', type=int)
+    parser.add_argument('--max-num-videos', type=int)
     args = parser.parse_args()
 
     if os.path.isdir(args.video_path):
@@ -54,7 +55,10 @@ if __name__ == '__main__':
 
     print('Number of video files: {}'.format(len(video_paths)))
 
-    for video_path in video_paths:
+    for idx, video_path in enumerate(video_paths):
+        if (args.max_num_videos is not None) and (idx >= args.max_num_videos):
+            break
+
         video_clip = mp.VideoFileClip(video_path)
         audio = video_clip.audio
 
@@ -62,10 +66,10 @@ if __name__ == '__main__':
         true_word = file_name.replace('.mp4', '').replace('.MOV', '')
 
         signal = audio.to_soundarray()
-        num_moves, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
+        move_sequence, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
 
         if args.use_autocomplete:
-            ranked_candidates = get_words_from_moves_autocomplete(num_moves=num_moves,
+            ranked_candidates = get_words_from_moves_autocomplete(move_sequence=move_sequence,
                                                                   graph=graph,
                                                                   dictionary=dictionary,
                                                                   did_use_autocomplete=did_use_autocomplete,
@@ -74,13 +78,11 @@ if __name__ == '__main__':
             ranked_candidates = get_words_from_moves(num_moves=num_moves,
                                                      graph=graph,
                                                      dictionary=dictionary,
-                                                     max_num_results=None)
+                                                     max_num_results=args.max_num_results)
 
         did_find_word = False
 
         for rank, (guess, score, num_candidates) in enumerate(ranked_candidates):
-            #print('Guess: {}, Score: {:.6f}'.format(guess, score))
-
             if guess == true_word:
                 rank_list.append(rank + 1)
                 rank_dict[true_word] = rank + 1
@@ -93,19 +95,19 @@ if __name__ == '__main__':
         top10_correct += int(did_find_word and (rank < 10))
         total_count += 1
 
+        if (not did_find_word) and (args.max_num_results is not None):
+            rank = args.max_num_results
+
         print('==========')
         print('Word: {}'.format(true_word))
         print('Rank: {} ({})'.format(rank + 1, did_find_word))
-        print('Move Squence: {} ({})'.format(num_moves, did_use_autocomplete))
+        print('Move Sequence: {} ({})'.format(move_sequence, did_use_autocomplete))
 
         if not did_find_word:
             rank_list.append(rank + 1)
             rank_dict[true_word] = rank + 1
             candidates_dict[true_word] = num_candidates
             num_not_found += 1
-
-        if should_plot:
-            print('Number of Moves: {}'.format(num_moves))
 
     avg_rank = np.average(rank_list)
     med_rank = np.median(rank_list)

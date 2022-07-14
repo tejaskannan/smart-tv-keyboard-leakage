@@ -12,6 +12,7 @@ from smarttvleakage.audio.constellations import compute_constellation_map, match
 
 
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'channel0_constellation', 'channel1_constellation', 'start', 'end'])
+ConstellationParams = namedtuple('ConstellationParams', ['threshold', 'freq_delta', 'time_delta', 'freq_tol', 'time_tol'])
 
 SOUNDS = ['move', 'select', 'key_select']
 MIN_DISTANCE = 15
@@ -19,16 +20,18 @@ MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
 SOUND_PROMINENCE = 0.0009
 
-CONSTELLATION_THRESHOLD = -75
-FREQ_DELTA = 10
-TIME_DELTA = 10
-FREQ_TOL = 2
-TIME_TOL = 2
+CONSTELLATION_PARAMS = {
+    'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
+    'select': ConstellationParams(threshold=-60, freq_delta=3, time_delta=3, freq_tol=2, time_tol=2),
+    'move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
+}
+
 
 SOUND_THRESHOLDS = {
-    'move': (300, 600),
-    'select': (0.0017, 0.0003),
+    'move': (275, 600),
+    #'select': (0.0017, 0.0003),
     #'key_select': (0.00275, 0.003)
+    'select': (0.85, 0.85),
     'key_select': (0.85, 0.85)
 }
 
@@ -105,16 +108,18 @@ class MoveExtractor:
                     channel0_clipped = channel0[start:end, :]
                     channel1_clipped = channel1[start:end, :]
 
+                constellation_params = CONSTELLATION_PARAMS[sound]
+
                 channel0_constellation = compute_constellation_map(spectrogram=channel0,
-                                                                   freq_delta=FREQ_DELTA,
-                                                                   time_delta=TIME_DELTA,
-                                                                   threshold=CONSTELLATION_THRESHOLD,
+                                                                   freq_delta=constellation_params.freq_delta,
+                                                                   time_delta=constellation_params.time_delta,
+                                                                   threshold=constellation_params.threshold,
                                                                    freq_range=(start, end))
 
                 channel1_constellation = compute_constellation_map(spectrogram=channel1,
-                                                                   freq_delta=FREQ_DELTA,
-                                                                   time_delta=TIME_DELTA,
-                                                                   threshold=CONSTELLATION_THRESHOLD,
+                                                                   freq_delta=constellation_params.freq_delta,
+                                                                   time_delta=constellation_params.time_delta,
+                                                                   threshold=constellation_params.threshold,
                                                                    freq_range=(start, end))
 
                 profile = SoundProfile(channel0=channel0_clipped,
@@ -143,20 +148,21 @@ class MoveExtractor:
         channel1 = create_spectrogram(signal=audio[:, 1])
 
         # Create the constellations (if needed)
-        if sound == 'key_select':
+        if sound in ('key_select', 'select'):
             sound_profile = self._known_sounds[sound][0]
             start, end = sound_profile.start, sound_profile.end
+            constellation_params = CONSTELLATION_PARAMS[sound]
 
             channel0_constellation = compute_constellation_map(spectrogram=channel0,
-                                                               freq_delta=FREQ_DELTA,
-                                                               time_delta=TIME_DELTA,
-                                                               threshold=CONSTELLATION_THRESHOLD,
+                                                               freq_delta=constellation_params.freq_delta,
+                                                               time_delta=constellation_params.time_delta,
+                                                               threshold=constellation_params.threshold,
                                                                freq_range=(start, end))
 
             channel1_constellation = compute_constellation_map(spectrogram=channel1,
-                                                               freq_delta=FREQ_DELTA,
-                                                               time_delta=TIME_DELTA,
-                                                               threshold=CONSTELLATION_THRESHOLD,
+                                                               freq_delta=constellation_params.freq_delta,
+                                                               time_delta=constellation_params.time_delta,
+                                                               threshold=constellation_params.threshold,
                                                                freq_range=(start, end))
 
         # For each sound type, compute the moving average distances
@@ -165,21 +171,21 @@ class MoveExtractor:
         for sound_profile in self._known_sounds[sound]:
             start, end = sound_profile.start, sound_profile.end
 
-            if sound == 'key_select':
+            if sound in ('key_select', 'select'):
                 _, channel0_sim = match_constellations(target_times=channel0_constellation[0],
                                                        target_freq=channel0_constellation[1],
                                                        ref_times=sound_profile.channel0_constellation[0],
                                                        ref_freq=sound_profile.channel0_constellation[1],
-                                                       freq_tol=FREQ_TOL,
-                                                       time_tol=TIME_TOL,
+                                                       freq_tol=constellation_params.freq_tol,
+                                                       time_tol=constellation_params.time_tol,
                                                        time_steps=channel0.shape[1])
 
                 _, channel1_sim = match_constellations(target_times=channel1_constellation[0],
                                                        target_freq=channel1_constellation[1],
                                                        ref_times=sound_profile.channel1_constellation[0],
                                                        ref_freq=sound_profile.channel1_constellation[1],
-                                                       freq_tol=FREQ_TOL,
-                                                       time_tol=TIME_TOL,
+                                                       freq_tol=constellation_params.freq_tol,
+                                                       time_tol=constellation_params.time_tol,
                                                        time_steps=channel1.shape[1])
             else:
                 if sound == 'move':
@@ -250,7 +256,17 @@ class MoveExtractor:
 
         # Get occurances of the other two sounds
         move_idx, move_heights = self.find_instances_of_sound(audio=audio, sound='move')
-        select_idx, select_heights = self.find_instances_of_sound(audio=audio, sound='select')
+        raw_select_idx, raw_select_heights = self.find_instances_of_sound(audio=audio, sound='select')
+
+        select_idx: List[int] = []
+        select_heights: List[int] = []
+
+        # Filter out selects using move detection
+        for (idx, height) in zip(raw_select_idx, raw_select_heights):
+            idx_diff = np.abs(np.subtract(move_idx, idx))
+            if np.all(idx_diff > MIN_DISTANCE):
+                select_idx.append(idx)
+                select_heights.append(height)
 
         # Filter out any conflicting key and normal selects
         key_select_idx: List[int] = []
@@ -298,11 +314,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/earth.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/altogether.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'select'
+    sound = 'move'
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
