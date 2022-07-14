@@ -8,7 +8,7 @@ from typing import Tuple, List, Dict
 from smarttvleakage.audio import MoveExtractor
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
-from smarttvleakage.graph_search import get_words_from_moves
+from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_autocomplete
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
@@ -75,7 +75,7 @@ if __name__ == '__main__':
                                                                   did_use_autocomplete=did_use_autocomplete,
                                                                   max_num_results=args.max_num_results)
         else:
-            ranked_candidates = get_words_from_moves(num_moves=num_moves,
+            ranked_candidates = get_words_from_moves(move_sequence=move_sequence,
                                                      graph=graph,
                                                      dictionary=dictionary,
                                                      max_num_results=args.max_num_results)
