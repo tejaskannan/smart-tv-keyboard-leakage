@@ -75,14 +75,17 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
 
     while not candidate_queue.empty():
         # Pop the minimum element off the queue
-        _, current_state = candidate_queue.get()
+        pq_score, current_state = candidate_queue.get()
 
         # Make the string from the given keys
         current_string = get_string_from_keys(keys=current_state.keys)
         candidate_count += 1
 
+        #print('String: {}, Score: {}, PQ Score: {}'.format(current_string, current_state.score, pq_score))
+
         # Check the stopping condition (whether we reach the target number of keys)
         if (len(current_state.keys) == target_length) or ((did_use_autocomplete) and (len(current_state.keys) == (target_length - 1))):
+
             # Make sure we do not produce duplicate strings
             if current_string not in seen_strings:
                 yield current_string, current_state.score, candidate_count
@@ -108,16 +111,24 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
             if current_state.center_key != current_state.current_key:
                 suggestion_adjustment += 1
 
-        suggestion_adjustment = 1 if len(current_state.keys) > 0 and num_moves > 2 else 0
-        optimal_num_moves = max(num_moves - suggestion_adjustment, 0)
+        move_score_factors: Dict[int, float] = dict()
 
-        move_score_factors: Dict[int, float] = {
-            optimal_num_moves: 1.0
-        }
+        if (len(current_state.keys) > 0) and (num_moves > 2):
+            move_score_factors[max(num_moves - 1, 0)] = 1.0
+            move_score_factors[max(num_moves - 2, 0)] = 1.0
+        else:
+            move_score_factors[num_moves] = 1.0
+
+        #suggestion_adjustment = 1 if len(current_state.keys) > 0 and num_moves > 2 else 0
+        #optimal_num_moves = max(num_moves - suggestion_adjustment, 0)
+
+        #move_score_factors: Dict[int, float] = {
+        #    optimal_num_moves: 1.0
+        #}
 
         # Add in a mistake of 1 incorrect move (and another to correct)
-        if num_moves > 3:
-            move_score_factors[optimal_num_moves - 2] = INCORRECT_FACTOR
+        #if num_moves > 3:
+        #    move_score_factors[num_moves - 2] = INCORRECT_FACTOR
 
         # Get the unnormalized scores for the next keys
         next_key_counts = dictionary.get_letter_counts(prefix=current_string,
@@ -223,9 +234,11 @@ if __name__ == '__main__':
     else:
         dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
-    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves_autocomplete(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
+    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves_autocomplete(move_sequence=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None, did_use_autocomplete=False)):
         if idx >= 100:
             break
+
+        print('Guess: {}, Score: {}'.format(guess, score))
 
         if args.target == guess:
             print('Found {}. Rank {}. # Considered Strings: {}'.format(guess, idx + 1, candidates_count))

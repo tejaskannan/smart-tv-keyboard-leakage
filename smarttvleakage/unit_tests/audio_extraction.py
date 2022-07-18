@@ -87,13 +87,21 @@ class AudioExtraction(unittest.TestCase):
 
         self.assertEqual(move_seq, [6, 1])
 
-    def test_vol_50(self):
-        audio_signal = read_pickle_gz('sounds/half_volume.pkl.gz')
+    def test_remember_autocomplete(self):
+        audio_signal = read_pickle_gz('sounds/remember.pkl.gz')
 
         extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
         move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
 
-        self.assertEqual(move_seq, [4, 2, 2, 4])
+        self.assertEqual(move_seq, [3, 1, 1, 0, 0, 0, 0, 0])
+
+    #def test_vol_50(self):
+    #    audio_signal = read_pickle_gz('sounds/half_volume.pkl.gz')
+
+    #    extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+    #    move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
+
+    #    self.assertEqual(move_seq, [4, 2, 2, 4])
 
 
 if __name__ == '__main__':

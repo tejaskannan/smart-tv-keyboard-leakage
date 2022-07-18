@@ -15,7 +15,7 @@ SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'channel0_con
 ConstellationParams = namedtuple('ConstellationParams', ['threshold', 'freq_delta', 'time_delta', 'freq_tol', 'time_tol'])
 
 SOUNDS = ['move', 'select', 'key_select']
-MIN_DISTANCE = 15
+MIN_DISTANCE = 12
 MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
 SOUND_PROMINENCE = 0.0009
@@ -32,7 +32,7 @@ SOUND_THRESHOLDS = {
     #'select': (0.0017, 0.0003),
     #'key_select': (0.00275, 0.003)
     'select': (0.85, 0.85),
-    'key_select': (0.85, 0.85)
+    'key_select': (0.79, 0.85)
 }
 
 
@@ -314,7 +314,7 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/altogether.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/remember.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
