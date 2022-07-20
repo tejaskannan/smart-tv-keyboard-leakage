@@ -13,7 +13,7 @@ standard_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs
 special_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung_keyboard_special_1.json'))
 
 CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
-UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<COM>', '<BACK>', '<CAPS>', '<NEXT>' }
+UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' }
 
 CAPS = '<CAPS>'
 CHANGE = '<CHANGE>'
@@ -25,7 +25,8 @@ CHARACTER_TRANSLATION = {
     '<MULT>': '×',
     '<DIV>': '÷',
     '<SPACE>': ' ',
-    '<WWW>': 'www'
+    '<WWW>': 'www',
+    '<COM>': 'com'
 }
 
 

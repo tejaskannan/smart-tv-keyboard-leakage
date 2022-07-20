@@ -14,21 +14,26 @@ from smarttvleakage.audio.constellations import compute_constellation_map, match
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'channel0_constellation', 'channel1_constellation', 'start', 'end'])
 ConstellationParams = namedtuple('ConstellationParams', ['threshold', 'freq_delta', 'time_delta', 'freq_tol', 'time_tol'])
 
-SOUNDS = ['move', 'select', 'key_select']
+SOUNDS = ['move', 'select', 'key_select', 'double_move']
 MIN_DISTANCE = 12
+KEY_SELECT_DISTANCE = 30
+MIN_DOUBLE_MOVE_DISTANCE = 30
 MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
 SOUND_PROMINENCE = 0.0009
+KEY_SELECT_MOVE_DISTANCE = 20
 
 CONSTELLATION_PARAMS = {
     'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
     'select': ConstellationParams(threshold=-60, freq_delta=3, time_delta=3, freq_tol=2, time_tol=2),
-    'move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
+    'move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
+    'double_move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
 }
 
 
 SOUND_THRESHOLDS = {
     'move': (275, 600),
+    'double_move': (450, 600),
     #'select': (0.0017, 0.0003),
     #'key_select': (0.00275, 0.003)
     'select': (0.85, 0.85),
@@ -101,7 +106,7 @@ class MoveExtractor:
                 channel0 = create_spectrogram(signal=audio[:, 0])
                 channel1 = create_spectrogram(signal=audio[:, 1])
 
-                if sound == 'move':
+                if sound in ('move', 'double_move'):
                     channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
                     channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
                 else:
@@ -188,7 +193,7 @@ class MoveExtractor:
                                                        time_tol=constellation_params.time_tol,
                                                        time_steps=channel1.shape[1])
             else:
-                if sound == 'move':
+                if sound in ('move', 'double_move'):
                     channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
                     channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
                     should_match_binary = True
@@ -234,10 +239,25 @@ class MoveExtractor:
         #if sound == 'key_select':
         #    threshold = min(max(np.mean(similarity) + 4 * np.std(similarity), min_threshold), max_threshold)
 
-        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=MIN_DISTANCE, prominence=(SOUND_PROMINENCE, None))
+        distance = KEY_SELECT_DISTANCE if sound == 'key_select' else MIN_DISTANCE
+        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
 
-        return peaks, peak_heights
+        # Filter out duplicate double moves
+        if sound == 'double_move' and len(peaks) > 0:
+            filtered_peaks = [peaks[0]]
+            filtered_peak_heights = [peak_heights[0]]
+
+            for idx in range(len(peaks)):
+                if (peaks[idx] - filtered_peaks[-1]) >= MIN_DOUBLE_MOVE_DISTANCE:
+                    filtered_peaks.append(peaks[idx])
+                    filtered_peak_heights.append(peak_heights[idx])
+
+                idx += 1
+
+            return filtered_peaks, filtered_peak_heights
+        else:
+            return peaks, peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[int], bool]:
         """
@@ -248,64 +268,85 @@ class MoveExtractor:
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        raw_key_select_idx, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound='key_select')
+        raw_key_select_times, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound='key_select')
 
         # Signals without any key selections do not interact with the keyboard
-        if len(raw_key_select_idx) == 0:
+        if len(raw_key_select_times) == 0:
             return [], False
 
         # Get occurances of the other two sounds
-        move_idx, move_heights = self.find_instances_of_sound(audio=audio, sound='move')
-        raw_select_idx, raw_select_heights = self.find_instances_of_sound(audio=audio, sound='select')
+        move_times, move_heights = self.find_instances_of_sound(audio=audio, sound='move')
+        double_move_times, double_move_heights = self.find_instances_of_sound(audio=audio, sound='double_move')
+        raw_select_times, raw_select_heights = self.find_instances_of_sound(audio=audio, sound='select')
 
-        select_idx: List[int] = []
+        select_times: List[int] = []
         select_heights: List[int] = []
 
         # Filter out selects using move detection
-        for (idx, height) in zip(raw_select_idx, raw_select_heights):
-            idx_diff = np.abs(np.subtract(move_idx, idx))
-            if np.all(idx_diff > MIN_DISTANCE):
-                select_idx.append(idx)
+        for (t, height) in zip(raw_select_times, raw_select_heights):
+            move_diff = np.abs(np.subtract(move_times, t))
+            double_move_diff = np.abs(np.subtract(double_move_times, t))
+
+            if np.all(move_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DOUBLE_MOVE_DISTANCE):
+                select_times.append(t)
                 select_heights.append(height)
 
         # Filter out any conflicting key and normal selects
-        key_select_idx: List[int] = []
+        key_select_times: List[int] = []
         key_select_heights: List[float] = []
 
-        for (key_idx, peak_height) in zip(raw_key_select_idx, raw_key_select_heights):
-            idx_diff = np.abs(np.subtract(select_idx, key_idx))
-            if np.all(idx_diff > MIN_DISTANCE):
-                key_select_idx.append(key_idx)
+        for (t, peak_height) in zip(raw_key_select_times, raw_key_select_heights):
+            select_time_diff = np.abs(np.subtract(select_times, t))
+            move_time_diff = np.abs(np.subtract(move_times, t))
+
+            if np.all(select_time_diff > MIN_DISTANCE) and np.all(move_time_diff > KEY_SELECT_MOVE_DISTANCE):
+                key_select_times.append(t)
                 key_select_heights.append(peak_height)
 
+        if len(key_select_times) == 0:
+            return [], False
+
         # The first move starts before the first key select and after the nearest select
-        first_key_idx = key_select_idx[0]
-        selects_before = list(filter(lambda i: i < first_key_idx, select_idx))
-        start_idx = (selects_before[-1] + 50) if len(selects_before) > 0 else 0
+        first_key_time = key_select_times[0]
+        selects_before = list(filter(lambda t: t < first_key_time, select_times))
+        start_time = (selects_before[-1] + MIN_DISTANCE) if len(selects_before) > 0 else 0
 
         # Extract the number of moves between selections
         # TODO: Handle sequences with multiple keyboard interactions
-        clipped_move_idx = list(filter(lambda i: i > start_idx, move_idx))
+        clipped_move_times = list(filter(lambda t: t > start_time, move_times))
+        clipped_double_move_times = list(filter(lambda t: t > start_time, double_move_times))
 
+        move_idx = 0
         key_idx = 0
+        double_move_idx = 0
         num_moves = 0
         last_num_moves = 0
         result: List[int] = []
 
-        i = 0
-        while i < len(clipped_move_idx):
-            while (key_idx < len(key_select_idx)) and (clipped_move_idx[i] > key_select_idx[key_idx]):
+        while move_idx < len(clipped_move_times):
+            while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
                 result.append(num_moves)
                 key_idx += 1
                 num_moves = 0
 
-            if key_idx >= len(key_select_idx):
+            if key_idx >= len(key_select_times):
                 # Get the remaining number of moves before the last done (or end of sequence)
-                last_num_moves = (len(clipped_move_idx) - i)
+                last_num_moves = (len(clipped_move_times) - move_idx)
                 break
 
-            num_moves += 1
-            i += 1
+            if (double_move_idx < len(clipped_double_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
+                move_idx += 1
+                while (move_idx < len(clipped_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
+                    move_idx += 1
+
+                double_move_idx += 1
+                num_moves += 2
+            else:
+                num_moves += 1
+                move_idx += 1
+
+            #num_moves += 1
+            #move_idx += 1
 
         # If the last number of moves was 0 or 1, then we have the potential to have use the search complete feature
         did_use_autocomplete = (last_num_moves <= 1)
@@ -314,11 +355,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/remember.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/cannot.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'move'
+    sound = 'double_move'
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)

@@ -48,11 +48,15 @@ def get_words_from_moves_autocomplete(move_sequence: List[int], graph: MultiKeyb
 
 
 def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
-    target_length = len(move_sequence)
-    string_length = target_length if (not did_use_autocomplete) else None
-
     directory = os.path.dirname(__file__)
     single_suggestions = read_json(os.path.join(directory, 'graphs/autocomplete.json'))
+
+    # Remove false positive zeros from the front of the move sequence (use the rule: q always followed by u)
+    while (len(move_sequence) > 1) and (move_sequence[0] == 0) and (move_sequence[1] != 1):
+        move_sequence.pop(0)
+
+    target_length = len(move_sequence)
+    string_length = target_length if (not did_use_autocomplete) else None
 
     # Initialize a minimum priority queue
     candidate_queue = PriorityQueue()
@@ -80,8 +84,6 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
         # Make the string from the given keys
         current_string = get_string_from_keys(keys=current_state.keys)
         candidate_count += 1
-
-        #print('String: {}, Score: {}, PQ Score: {}'.format(current_string, current_state.score, pq_score))
 
         # Check the stopping condition (whether we reach the target number of keys)
         if (len(current_state.keys) == target_length) or ((did_use_autocomplete) and (len(current_state.keys) == (target_length - 1))):
@@ -114,6 +116,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
         move_score_factors: Dict[int, float] = dict()
 
         if (len(current_state.keys) > 0) and (num_moves > 2):
+            move_score_factors[num_moves] = 1.0
             move_score_factors[max(num_moves - 1, 0)] = 1.0
             move_score_factors[max(num_moves - 2, 0)] = 1.0
         else:
