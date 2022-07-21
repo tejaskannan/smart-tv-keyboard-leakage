@@ -6,7 +6,7 @@ from collections import namedtuple, defaultdict
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict
 
-from smarttvleakage.utils.constants import SmartTVType
+from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 
@@ -329,11 +329,6 @@ class MoveExtractor:
                 key_idx += 1
                 num_moves = 0
 
-            if key_idx >= len(key_select_times):
-                # Get the remaining number of moves before the last done (or end of sequence)
-                last_num_moves = (len(clipped_move_times) - move_idx)
-                break
-
             if (double_move_idx < len(clipped_double_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
                 move_idx += 1
                 while (move_idx < len(clipped_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
@@ -345,21 +340,32 @@ class MoveExtractor:
                 num_moves += 1
                 move_idx += 1
 
-            #num_moves += 1
-            #move_idx += 1
+        # Write out the last group if we haven't reached the last key
+        if key_idx < len(key_select_times):
+            result.append(num_moves)
 
-        # If the last number of moves was 0 or 1, then we have the potential to have use the search complete feature
-        did_use_autocomplete = (last_num_moves <= 1)
+        # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
+        # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
+        # to the top of the keyboard on this turn)
+        last_key_select = key_select_times[-1]
+        selects_after = list(filter(lambda t: t > last_key_select, select_times))
+        next_select = selects_after[0] if len(selects_after) > 0 else BIG_NUMBER
+
+        moves_between = len(list(filter(lambda t: (t <= next_select) and (t >= last_key_select), clipped_move_times)))
+        did_use_autocomplete = (moves_between == 0)
+
+        if did_use_autocomplete and len(result) > 0:
+            return result[0:-1], did_use_autocomplete
 
         return result, did_use_autocomplete
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/cannot.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/thus.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'double_move'
+    sound = 'key_select'
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)

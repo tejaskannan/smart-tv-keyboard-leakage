@@ -1,9 +1,26 @@
 import os
 from collections import deque, defaultdict
-from typing import Optional, Dict, Any, List, DefaultDict
+from dataclasses import dataclass, field
+from queue import PriorityQueue
+from typing import Optional, Dict, Any, List, DefaultDict, Set, Iterable
 
 from smarttvleakage.utils.file_utils import read_jsonl_gz, append_jsonl_gz
+from smarttvleakage.utils.constants import BIG_NUMBER
 
+
+@dataclass(order=True)
+class PrioritizedItem:
+    priority: int
+    item: Any = field(compare=False)
+
+
+def get_min_priority(pq: PriorityQueue) -> float:
+    if pq.empty():
+        return BIG_NUMBER
+
+    item = pq.get()
+    pq.put(item)
+    return item.priority
 
 
 class TrieNode:
@@ -151,6 +168,73 @@ class Trie:
             return 1 + sum(get_num_nodes_helper(child) for child in root.children)
 
         return get_num_nodes_helper(root=self._root) - 1
+
+    def get_node_for(self, prefix: str) -> TrieNode:
+        node = self._root
+        if prefix == '':
+            return node
+
+        idx = 0
+        while (node is not None) and (idx < len(prefix)):
+            node = node.get_child(character=prefix[idx])
+            idx += 1
+
+        return node
+
+    def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[str]:
+        # Get the root nodes for all prefixes and add to a priority queue for later searching
+        node_queue = PriorityQueue()
+        recommended_queues: Dict[str, PriorityQueue] = dict()
+
+        for prefix in prefixes:
+            node = self.get_node_for(prefix)
+            recommended_queues[prefix] = PriorityQueue(maxsize=(max_count_per_prefix if max_count_per_prefix is not None else max_num_results))
+
+            if node is not None:
+                item = PrioritizedItem(priority=-1 * node.count, item=(node, prefix, prefix))
+                node_queue.put(item)
+
+        # Run Dijkstra's algorithm on the Trie to recover the most frequent words
+        global_min_score = BIG_NUMBER
+        num_results = 0
+
+        while not node_queue.empty():
+            item = node_queue.get()
+            (node, string, prefix) = item.item
+
+            prefix_queue = recommended_queues[prefix]
+            prefix_min_score = get_min_priority(prefix_queue)
+
+            if (node.is_end) and (min_length is None or (len(string) >= min_length)):
+                score = node.count - sum(c for c in node.get_child_characters(length=None).values())
+
+                if prefix_queue.full() and (score > prefix_min_score):
+                    prefix_queue.get()
+                    prefix_queue.put(PrioritizedItem(priority=score, item=string))
+                    prefix_min_score = min(prefix_min_score, score) if (prefix_min_score > 0) else score
+                elif (not prefix_queue.full()):
+                    prefix_queue.put(PrioritizedItem(priority=score, item=string))
+                    prefix_min_score = min(prefix_min_score, score) if (prefix_min_score > 0) else score
+
+
+            global_min_score = min(global_min_score, prefix_min_score)
+            if (node.count < global_min_score) and all(pq.full() for pq in recommended_queues.values()):
+                continue
+
+            for child in node.children:
+                next_item = PrioritizedItem(priority=-1 * child.count, item=(child, string + child.character, prefix))
+                node_queue.put(next_item)
+
+        total_count = self._root.count
+        words: List[Tuple[str, float]] = []
+
+        for prefix_queue in recommended_queues.values():
+            while not prefix_queue.empty():
+                item = prefix_queue.get()
+                count, word = item.priority, item.item
+                words.append((word, count / total_count))
+
+        return list(reversed(sorted(words, key=lambda t: t[1])))[0:max_num_results]
 
 
 def get_count_for_depth(root: TrieNode, depth: int) -> int:

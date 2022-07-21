@@ -127,6 +127,48 @@ class TrieTests(unittest.TestCase):
         next_characters = trie.get_next_characters('desert', length=None)
         self.assertEqual(next_characters, { 't': 2, 's': 1 })
 
+    def test_get_words_for_prefixes(self):
+        trie = Trie(max_depth=20)
+
+        trie.add_string('pelican', count=1)
+        trie.add_string('pelicans', count=3)
+        trie.add_string('deer', count=1)
+        trie.add_string('desert', count=4)
+        trie.add_string('dessert', count=2)
+        trie.add_string('warriors', count=10)
+        trie.add_string('wash', count=6)
+        trie.add_string('49ers', count=7)
+
+        results = list(trie.get_words_for(prefixes=['pel', 'de'], max_num_results=6, min_length=None, max_count_per_prefix=None))
+        words = list(map(lambda w: w[0], results))
+        expected = ['desert', 'pelicans', 'dessert', 'deer', 'pelican']
+        self.assertEqual(words, expected)
+
+        results = list(trie.get_words_for(prefixes=['pel', 'de'], max_num_results=6, min_length=5, max_count_per_prefix=None))
+        words = list(map(lambda w: w[0], results))
+        expected = ['desert', 'pelicans', 'dessert', 'pelican']
+        self.assertEqual(words, expected)
+
+        results = list(trie.get_words_for(prefixes=['pel', 'de'], max_num_results=6, min_length=None, max_count_per_prefix=2))
+        words = list(map(lambda w: w[0], results))
+        expected = ['desert', 'pelicans', 'dessert', 'pelican']
+        self.assertEqual(words, expected)
+
+        results = list(trie.get_words_for(prefixes=['pel', 'de'], max_num_results=3, min_length=None, max_count_per_prefix=None))
+        words = list(map(lambda w: w[0], results))
+        expected = ['desert', 'pelicans', 'dessert']
+        self.assertEqual(words, expected)
+
+        results = list(trie.get_words_for(prefixes=['wa', 'de'], max_num_results=3, min_length=None, max_count_per_prefix=None))
+        words = list(map(lambda w: w[0], results))
+        expected = ['warriors', 'wash', 'desert']
+        self.assertEqual(words, expected)
+
+        results = list(trie.get_words_for(prefixes=['wa', 'de', 'pel'], max_num_results=10, min_length=5, max_count_per_prefix=1))
+        words = list(map(lambda w: w[0], results))
+        expected = ['warriors', 'desert', 'pelicans']
+        self.assertEqual(words, expected)
+
 
     #def test_dictionary(self):
     #    trie = read_pickle_gz('/local/dictionaries/wikipedia.pkl.gz')

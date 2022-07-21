@@ -100,8 +100,8 @@ if __name__ == '__main__':
 
         print('==========')
         print('Word: {}'.format(true_word))
-        print('Rank: {} ({})'.format(rank + 1, did_find_word))
-        print('Move Sequence: {} ({})'.format(move_sequence, did_use_autocomplete))
+        print('Rank: {} (Did Find: {})'.format(rank + 1, did_find_word))
+        print('Move Sequence: {} (Did Use Autocomplete: {})'.format(move_sequence, did_use_autocomplete))
 
         if not did_find_word:
             rank_list.append(rank + 1)

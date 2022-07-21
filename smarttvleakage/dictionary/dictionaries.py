@@ -3,7 +3,7 @@ import os.path
 import io
 import gzip
 from collections import Counter
-from typing import Dict, List, Optional, Iterable
+from typing import Dict, List, Optional, Iterable, Tuple
 
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
@@ -99,6 +99,9 @@ class EnglishDictionary(CharacterDictionary):
                 line = line.strip()
                 if len(line) > 0:
                     yield line.split()[0]
+
+    def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[Tuple[str, float]]:
+        return self._trie.get_words_for(prefixes, max_num_results, min_length=min_length, max_count_per_prefix=max_count_per_prefix)
 
     def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
         return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
