@@ -16,65 +16,10 @@ import matplotlib.pyplot as plt
 from sklearn.model_selection import RandomizedSearchCV
 from smarttvleakage.audio.alg_determine_autocomplete import get_score_from_ms
 
-# RAW DATA
-# longest word is length nine
-MAX_LENGTH = 9
 
-SAMPLES = 20
-
-autocomplete_features_list = [
-    [1, 6, 1, 0, 0],
-    [6, 1],
-    [4, 8, 7, 1, 0],
-    [4, 1, 1, 0, 1, 0, 1, 0, 0],
-    [3, 1, 1, 1, 0, 0, 0, 0],
-    [2, 1, 2, 4, 1, 0],
-    [6, 1, 0, 0],
-    [7, 1],
-    [8, 1, 0, 6, 1, 0, 1],
-    [7, 1, 0, 0, 0],
-    [8, 1],
-    [8, 1],
-    [8, 5, 1, 0, 0],
-    [9, 1, 0, 0, 0, 0],
-    [3, 5, 1, 0, 0, 0],
-    [2, 1, 2, 2, 0],
-    [2, 1, 2, 0, 8],
-    [2, 1, 0, 0],
-    [4, 1, 0, 2, 0],
-    [6, 1]]
-
-# shuffle
-#random.shuffle(autocomplete_features_list)
-
-# first 7 of each {3/4}-letter, 4 from rockyou_10
-non_features_list = [
-    [6, 5, 6, 7],
-    [6, 4, 2, 4],
-    [4, 5, 6, 3],
-    [4, 6, 2, 3],
-    [5, 5, 0, 7],
-    [6, 2, 3, 3],
-    [3, 4, 3, 2],
-    [1, 8, 4],
-    [6, 4, 1],
-    [6, 6, 3],
-    [4, 3, 4],
-    [4, 3, 5],
-    [3, 2, 2],
-    [3, 2, 6],
-    [6, 5, 4, 1, 4, 3, 2],
-    [4, 6, 5, 1 ,3, 3, 1, 3, 1],
-    [6, 5, 7, 3, 2, 5, 4, 5],
-    [6, 4, 3, 5, 2, 4, 1, 4],
-    [3, 5, 1, 0, 5, 3, 6, 1],
-    [2, 7, 2, 2, 3, 3, 5, 4],
-    [2, 8, 8, 0, 2, 1, 2],
-    [5, 3, 1, 3, 1, 3, 2],
-    [1, 1, 2, 4, 4, 7, 6, 1]]
-#shuffle
-#random.shuffle(non_features_list)
-
+# TO DO:
+# improve the algorithmic method by building a dict[ms -> score]
+# improve combining the methods by using algorithmic score confidence? Not just ML confidence
 
 
 
@@ -774,6 +719,61 @@ def analyze_params(final_dict : dict[tuple[str, str], tuple[str, float, float]],
 
                     
 
+
+
+
+
+def build_model():
+    bins = 3
+    weight = 4
+
+    df = make_df(range(bins), weight)
+    model = RandomForestClassifier()
+
+    y = df.ac
+    X = df.drop(["ac"], axis=1, inplace=False)
+    # Trains without ID
+    model.fit(X.drop(["id"], axis=1, inplace=False), y)
+
+    return model
+
+
+# takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
+def classify_ms(model, ms : list[int]) -> int:
+    bins = 3
+    weight = 4
+    certainty_cutoff = .3
+    manual_cutoff = 0.00067
+
+
+    data = np.empty((0, bins), dtype=float)
+    list_dist = make_row_dist(ms, range(bins), weight)
+    new_row = np.array(list_dist, dtype=float)
+    data = np.append(data, [new_row], axis=0)
+    
+
+    column_titles = make_column_titles_dist(range(bins))
+    df = pd.DataFrame(data = data, columns = column_titles)
+
+    print(df)
+    
+    # now predict from the dataframe, and then add manual
+
+    pred_probas = model.predict_proba(df)[0]
+
+    if pred_probas[0] > 1-certainty_cutoff:
+        return 0
+    elif pred_probas[1] > 1-certainty_cutoff:
+        return 1
+    # rn cc is .5, fixe the key[0] issue
+    else: # go into manual scoring
+        manual_score = get_score_from_ms(ms, 1)[0][1]
+        if manual_score > manual_cutoff:
+            return 0
+        else:
+            return 1
+
+
                     
 
 
@@ -784,7 +784,14 @@ if __name__ == '__main__':
     # 1 - unused
     # 2 - for examination of specific words
     # 3 - for testing combination parameters
-    test = 3
+    # 4 - for predicting single ms
+    test = 4
+
+
+    if test == 4:
+        model = build_model()
+        print(str(classify_ms(model, [3, 6, 6])))
+
     
     # Test weighting methods
     if test == 0:

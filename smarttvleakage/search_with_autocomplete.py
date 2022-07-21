@@ -17,24 +17,33 @@ VisitedState = namedtuple('VisitedState', ['string', 'was_on_suggested'])
 
 INCORRECT_FACTOR = 1e-3
 SUGGESTION_THRESHOLD = 1e-3
-MAX_COUNT_PER_PREFIX = 10
 
 
 def get_words_from_moves_autocomplete(move_sequence: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     iterator = get_words_from_moves_autocomplete_helper(move_sequence, graph, dictionary, did_use_autocomplete, max_num_results)
-
+    
     if did_use_autocomplete:
-        prefixes: List[str] = []
-        num_results = max_num_results if max_num_results is not None else 100
-
+        prefix_list: List[str] = []
+        num_results = 100
         for idx, (word, _, _)  in enumerate(iterator):
             if idx >= num_results:
                 break
-            prefixes.append(word)
 
-        for word, score in dictionary.get_words_for(prefixes, max_num_results=num_results, min_length=(len(move_sequence) + 1), max_count_per_prefix=MAX_COUNT_PER_PREFIX):
-            #print('Word: {}, Score: {}'.format(word, score))
-            yield word, score, 0  # TODO: Fix the candidates here
+            prefix_list.append(word)
+
+        prefix_counts: Dict[str, int] = defaultdict(int)
+
+        #for word in dictionary.iterate_words('/local/dictionaries/enwiki-20210820-words-frequency.txt'):
+        for word in dictionary.iterate_words('local/dictionaries/enwiki-20210820-words-frequency.txt'):
+
+            for prefix in prefix_list:
+                if word.startswith(prefix):
+                    prefix_counts[prefix] += 1
+                    if prefix_counts[prefix] > 25:
+                        index = prefix_list.index(prefix)
+                        prefix_list.pop(index)
+
+                    yield word, 1.0, 0  # TODO: Fix the score and candidates here
     else:
         for result in iterator:
             yield result
@@ -79,7 +88,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
         candidate_count += 1
 
         # Check the stopping condition (whether we reach the target number of keys)
-        if (len(current_state.keys) == target_length):
+        if (len(current_state.keys) == target_length) or ((did_use_autocomplete) and (len(current_state.keys) == (target_length - 1))):
 
             # Make sure we do not produce duplicate strings
             if current_string not in seen_strings:
@@ -147,7 +156,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
                     candidate_string = get_string_from_keys(candidate_keys)
 
                     visited_state = VisitedState(string=candidate_string, was_on_suggested=False)
-                    should_aggregate_scores = (len(candidate_keys) < target_length) or (did_use_autocomplete)
+                    should_aggregate_scores = len(candidate_keys) < target_length
     
                     # Make the next state
                     if visited_state not in visited:
@@ -199,7 +208,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
                 candidate_string = get_string_from_keys(candidate_keys)
 
                 visited_state = VisitedState(string=candidate_string, was_on_suggested=True)
-                should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
+                should_aggregate_score = len(candidate_keys) < target_length
 
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
