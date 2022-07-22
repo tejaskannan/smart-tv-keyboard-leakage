@@ -9,6 +9,7 @@ from typing import Set, List, Dict, Optional, Iterable, Tuple
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
+from smarttvleakage.audio.manual_score_dict import get_word_from_ms
 
 
 
@@ -285,8 +286,8 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
 
     graph = MultiKeyboardGraph()
     dictionary = UniformDictionary()
-    # Path issue?
-    englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
+    englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
+    # englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
 
 
     word_list = []
@@ -300,6 +301,23 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
     #word_list = list(filter(lambda x: x[1] > 0, word_list))
 
     return word_list
+
+def get_score_from_ms_improved(ms : list[int], strategy : int) -> list[tuple[str, float]]:
+    print(ms)
+
+
+    
+    graph = MultiKeyboardGraph()
+    dictionary = UniformDictionary()
+    englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
+
+    word = get_word_from_ms(ms)
+    if word == "":
+        return 0
+
+    raw_score = englishDictionary.get_score_for_string(word, False) 
+    score = adjust_for_len(raw_score, word, strategy)
+    return [(word, score)]
 
 
 # used for finding best parameters
