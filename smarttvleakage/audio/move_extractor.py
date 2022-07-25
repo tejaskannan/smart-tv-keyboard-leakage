@@ -22,10 +22,12 @@ MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
 SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
+SELECT_MOVE_DISTANCE = 30
 
 CONSTELLATION_PARAMS = {
-    'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
-    'select': ConstellationParams(threshold=-60, freq_delta=3, time_delta=3, freq_tol=2, time_tol=2),
+    #'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
+    'key_select': ConstellationParams(threshold=-70, freq_delta=5, time_delta=5, freq_tol=3, time_tol=2),
+    'select': ConstellationParams(threshold=-60, freq_delta=3, time_delta=5, freq_tol=3, time_tol=3),
     'move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
     'double_move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
 }
@@ -36,8 +38,8 @@ SOUND_THRESHOLDS = {
     'double_move': (450, 600),
     #'select': (0.0017, 0.0003),
     #'key_select': (0.00275, 0.003)
-    'select': (0.85, 0.85),
-    'key_select': (0.79, 0.85)
+    'select': (0.79, 0.85),
+    'key_select': (0.79, 0.9)
 }
 
 
@@ -287,7 +289,7 @@ class MoveExtractor:
             move_diff = np.abs(np.subtract(move_times, t))
             double_move_diff = np.abs(np.subtract(double_move_times, t))
 
-            if np.all(move_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DOUBLE_MOVE_DISTANCE):
+            if np.all(move_diff > SELECT_MOVE_DISTANCE) and np.all(double_move_diff > MIN_DOUBLE_MOVE_DISTANCE):
                 select_times.append(t)
                 select_heights.append(height)
 
@@ -295,11 +297,15 @@ class MoveExtractor:
         key_select_times: List[int] = []
         key_select_heights: List[float] = []
 
+        last_select = select_times[-1] if len(select_times) > 0 else BIG_NUMBER
+
         for (t, peak_height) in zip(raw_key_select_times, raw_key_select_heights):
             select_time_diff = np.abs(np.subtract(select_times, t))
             move_time_diff = np.abs(np.subtract(move_times, t))
 
-            if np.all(select_time_diff > MIN_DISTANCE) and np.all(move_time_diff > KEY_SELECT_MOVE_DISTANCE):
+            num_moves_between = len(list(filter(lambda move_time: (move_time > last_select) and (move_time < t), move_times)))
+
+            if np.all(select_time_diff > KEY_SELECT_DISTANCE) and np.all(move_time_diff > KEY_SELECT_DISTANCE) and ((t < last_select) or (num_moves_between > 0)):
                 key_select_times.append(t)
                 key_select_heights.append(peak_height)
 
@@ -352,7 +358,7 @@ class MoveExtractor:
         next_select = selects_after[0] if len(selects_after) > 0 else BIG_NUMBER
 
         moves_between = len(list(filter(lambda t: (t <= next_select) and (t >= last_key_select), clipped_move_times)))
-        did_use_autocomplete = (moves_between == 0)
+        did_use_autocomplete = (moves_between == 0) and (len(selects_after) > 0)
 
         if did_use_autocomplete and len(result) > 0:
             return result[0:-1], did_use_autocomplete
@@ -361,7 +367,7 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/thus.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-no-suggestions-50/altogether.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 

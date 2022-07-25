@@ -83,9 +83,10 @@ class AudioExtraction(unittest.TestCase):
         audio_signal = read_pickle_gz('sounds/be.pkl.gz')
 
         extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
-        move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
+        move_seq, did_use_autocomplete = extractor.extract_move_sequence(audio=audio_signal)
 
         self.assertEqual(move_seq, [6, 1])
+        self.assertTrue(not did_use_autocomplete)
 
     def test_remember_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/remember.pkl.gz')
@@ -110,6 +111,22 @@ class AudioExtraction(unittest.TestCase):
         move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         self.assertEqual(move_seq, [7, 1, 0])
+
+    def test_measure_autocomplete(self):
+        audio_signal = read_pickle_gz('sounds/measure.pkl.gz')
+
+        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
+
+        self.assertEqual(move_seq, [8, 1, 0, 6, 1, 0, 1])
+
+    def test_year_autocomplete(self):
+        audio_signal = read_pickle_gz('sounds/year.pkl.gz')
+
+        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
+
+        self.assertEqual(move_seq, [5, 1, 0, 1])
 
     #def test_vol_50(self):
     #    audio_signal = read_pickle_gz('sounds/half_volume.pkl.gz')

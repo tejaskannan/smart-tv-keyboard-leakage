@@ -89,14 +89,36 @@ def match_constellations(target_times: np.ndarray,
         freq_abs_diff = np.abs(np.expand_dims(window_freqs, axis=-1) - np.expand_dims(ref_freq, axis=0))  # [W, K]
         time_abs_diff = np.abs(np.expand_dims(window_times, axis=-1) - np.expand_dims(ref_times, axis=0))  # [W, K]
 
-        comparison = np.logical_and(freq_abs_diff <= freq_tol, time_abs_diff <= time_tol).astype(int)
+        comparison = np.logical_and(freq_abs_diff <= freq_tol, time_abs_diff <= time_tol).astype(int)  # [W, K]
 
-        freq_matches = np.sum(np.max(comparison, axis=-1))
-        time_matches = np.sum(np.max(comparison, axis=0))
-        num_matches = time_matches + freq_matches
+        matched_targets: Set[int] = set()
+        matched_refs: Set[int] = set()
+
+        target_match_indices, ref_match_indices = np.nonzero(comparison)
+        num_matches = 0
+
+        for target_idx, ref_idx in zip(target_match_indices, ref_match_indices):
+            if (target_idx not in matched_targets) and (ref_idx not in matched_refs):
+                num_matches += 2
+                matched_targets.add(target_idx)
+                matched_refs.add(ref_idx)
+
+        #target_matches = np.sum(np.max(comparison, axis=-1))  # [W]
+        #comparison *= np.expand_dims(1 - target_matches, axis=-1)  # [W, K]
+
+        #target_matches = np.sum(np.max(comparison, axis=-1))
+        #ref_matches = np.sum(np.max(comparison, axis=0))
+        #num_matches = target_matches + ref_matches
 
         num_window_points = len(window_times)
         match_fraction = num_matches / (num_ref_points + num_window_points)
+
+        #if base_time >= 320 and base_time <= 360:
+        #    print('Window Times: {}, Window Freqs: {}'.format(window_times, window_freqs))
+        #    print('Ref Times: {}, Ref Freqs: {}'.format(ref_times, ref_freq))
+        #    print('Ref: {}, Target: {}, Num Matches: {}'.format(num_ref_points, num_window_points, num_matches))
+        #    print('Comparison: {}, Fraction: {}'.format(comparison, match_fraction))
+        #    print('========')
 
         #if num_matches > 3:
         #    print('Base Time: {}, Comparison: {}, Freq Matches: {}, Time Matches: {}'.format(base_time, comparison, freq_matches, time_matches))
