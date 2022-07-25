@@ -49,7 +49,7 @@ class EnglishDictionary(CharacterDictionary):
         self._is_built = False
         self._max_depth = max_depth
 
-    def build(self, path: str, min_count: int):
+    def build(self, path: str, min_count: int, has_counts: bool):
         if self._is_built:
             return
 
@@ -64,19 +64,15 @@ class EnglishDictionary(CharacterDictionary):
 
                 for line in io_wrapper:
                     line = line.strip()
-                    tokens = line.split()
 
-                    if len(line) == 0:
-                        continue
-
-                    if len(tokens) == 1:
+                    if not has_counts:
                         string_dictionary[line] = 1
-                    elif len(tokens) == 2:
+                    else:
+                        tokens = line.strip().split()
                         count = int(tokens[1])
 
                         if count > min_count:
                             string_dictionary[tokens[0]] = count
-
         elif path.endswith('.gz'):
             string_dictionary: Dict[str, int] = dict()
             with gzip.open(path, 'rt') as fin:
@@ -84,6 +80,8 @@ class EnglishDictionary(CharacterDictionary):
                     line = line.strip()
                     if len(line) > 0:
                         string_dictionary[line] = 1
+        else:
+            raise ValueError('Unknown file type: {}'.format(path))
 
         # Build the trie
         for word, count in string_dictionary.items():

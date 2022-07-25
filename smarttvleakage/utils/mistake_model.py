@@ -43,3 +43,6 @@ class DecayingMistakeModel(MistakeModel):
 
         decay_factor = np.power(self.decay_rate, offset)
         return self.mistake_rate * decay_factor
+
+
+

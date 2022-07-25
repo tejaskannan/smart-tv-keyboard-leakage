@@ -18,6 +18,9 @@ START_KEYS = {
 }
 
 
+FILTERED_KEYS = ['<BACK>', '<SPACE>']
+
+
 class MultiKeyboardGraph:
 
     def __init__(self):
@@ -97,7 +100,7 @@ class SingleKeyboardGraph:
 
             if dist > num_moves:
                 continue
-            elif dist == num_moves:
+            elif (dist == num_moves) and (key not in FILTERED_KEYS):
                 candidates.add(key)
 
             assert key in self._adjacency_list, 'Found invalid key: {}. Start Key: {}, Num Moves: {}'.format(key, start_key, num_moves)

@@ -49,6 +49,7 @@ if __name__ == '__main__':
     num_candidates_list: List[int] = []
     rank_dict: Dict[str, int] = dict()
     candidates_dict: Dict[str, int] = dict()
+    not_found_list: List[str] = []
 
     top10_correct = 0
     total_count = 0
@@ -106,6 +107,9 @@ if __name__ == '__main__':
         if (not did_find_word) and (args.max_num_results is not None):
             rank = args.max_num_results
 
+        if (not did_find_word):
+            not_found_list.append(true_word)
+
         print('==========')
         print('Word: {}'.format(true_word))
         print('Rank: {} ({})'.format(rank + 1, did_find_word))
@@ -129,3 +133,4 @@ if __name__ == '__main__':
     print('Avg # Candidates: {:.4f}, Median # Candidates: {:.4f}'.format(avg_num_candidates, med_num_candidates))
     print('Top 10 Accuracy: {:.4f}'.format(top10_correct / total_count))
     print('Num Not Found: {} ({:.4f})'.format(num_not_found, num_not_found / total_count))
+    print('Words not found: {}'.format(not_found_list))
