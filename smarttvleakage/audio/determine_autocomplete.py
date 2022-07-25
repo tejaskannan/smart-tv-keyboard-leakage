@@ -5,6 +5,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.gaussian_process import GaussianProcessClassifier
+from argparse import ArgumentParser
 
 from sklearn.metrics import f1_score,accuracy_score
 from sklearn.model_selection import train_test_split
@@ -14,67 +15,14 @@ import random
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import RandomizedSearchCV
-from smarttvleakage.audio.alg_determine_autocomplete import get_score_from_ms
+from smarttvleakage.audio.alg_determine_autocomplete import get_score_from_ms, get_score_from_ms_improved, adjust_for_len
+from smarttvleakage.audio.manual_score_dict import build_msfd
+import math
 
-# RAW DATA
-# longest word is length nine
-MAX_LENGTH = 9
 
-SAMPLES = 20
-
-autocomplete_features_list = [
-    [1, 6, 1, 0, 0],
-    [6, 1],
-    [4, 8, 7, 1, 0],
-    [4, 1, 1, 0, 1, 0, 1, 0, 0],
-    [3, 1, 1, 1, 0, 0, 0, 0],
-    [2, 1, 2, 4, 1, 0],
-    [6, 1, 0, 0],
-    [7, 1],
-    [8, 1, 0, 6, 1, 0, 1],
-    [7, 1, 0, 0, 0],
-    [8, 1],
-    [8, 1],
-    [8, 5, 1, 0, 0],
-    [9, 1, 0, 0, 0, 0],
-    [3, 5, 1, 0, 0, 0],
-    [2, 1, 2, 2, 0],
-    [2, 1, 2, 0, 8],
-    [2, 1, 0, 0],
-    [4, 1, 0, 2, 0],
-    [6, 1]]
-
-# shuffle
-#random.shuffle(autocomplete_features_list)
-
-# first 7 of each {3/4}-letter, 4 from rockyou_10
-non_features_list = [
-    [6, 5, 6, 7],
-    [6, 4, 2, 4],
-    [4, 5, 6, 3],
-    [4, 6, 2, 3],
-    [5, 5, 0, 7],
-    [6, 2, 3, 3],
-    [3, 4, 3, 2],
-    [1, 8, 4],
-    [6, 4, 1],
-    [6, 6, 3],
-    [4, 3, 4],
-    [4, 3, 5],
-    [3, 2, 2],
-    [3, 2, 6],
-    [6, 5, 4, 1, 4, 3, 2],
-    [4, 6, 5, 1 ,3, 3, 1, 3, 1],
-    [6, 5, 7, 3, 2, 5, 4, 5],
-    [6, 4, 3, 5, 2, 4, 1, 4],
-    [3, 5, 1, 0, 5, 3, 6, 1],
-    [2, 7, 2, 2, 3, 3, 5, 4],
-    [2, 8, 8, 0, 2, 1, 2],
-    [5, 3, 1, 3, 1, 3, 2],
-    [1, 1, 2, 4, 4, 7, 6, 1]]
-#shuffle
-#random.shuffle(non_features_list)
-
+# TO DO:
+# improve the algorithmic method by building a dict[ms -> score]
+# improve combining the methods by using algorithmic score confidence? Not just ML confidence
 
 
 
@@ -103,7 +51,7 @@ ms_dict_non["their"] = [4, 2, 4, 5, 4]
 ms_dict_non["creator"] = [4, 3, 1, 3, 5, 4, 5]
 ms_dict_non["with"] = [1, 6, 3, 2]
 ms_dict_non["certain"] = [4, 2, 1, 1, 5, 8, 4]
-ms_dict_non["unalienable"] = [6, 3, 6, 8, 2, 5, 5, 6, 5, 5, 7]
+#ms_dict_non["unalienable"] = [6, 3, 6, 8, 2, 5, 5, 6, 5, 5, 7]
 ms_dict_non["rights"] = [3, 4, 4, 1, 2, 4]
 ms_dict_non["life"] = [9, 2, 5, 2]
 ms_dict_non["liberty"] = [9, 2, 5, 4, 1, 1, 1]
@@ -111,10 +59,10 @@ ms_dict_non["and"] = [1, 6, 4]
 # ms_dict_non["the"] = [4, 2, 4]
 ms_dict_non["pursuit"] = [9, 3, 3, 3, 6, 1, 3]
 ms_dict_non["of"] = [8, 6]
-ms_dict_non["happiness"] = [6, 5, 10, 0, 2, 4, 5, 2, 0]
+#ms_dict_non["happiness"] = [6, 5, 10, 0, 2, 4, 5, 2, 0]
 ms_dict_non["secure"] = [2, 2, 2, 6, 3, 1]
-ms_dict_non["governments"] = [5, 5, 7, 3, 1, 4, 1, 6, 5, 3, 4]
-ms_dict_non["instituted"] = [7, 4, 5, 4, 3, 3, 2, 2, 2, 1]
+#ms_dict_non["governments"] = [5, 5, 7, 3, 1, 4, 1, 6, 5, 3, 4]
+#ms_dict_non["instituted"] = [7, 4, 5, 4, 3, 3, 2, 2, 2, 1]
 ms_dict_non["among"] = [1, 7, 4, 5, 2]
 ms_dict_non["deriving"] = [3, 1, 1, 4, 6, 6, 4, 2]
 ms_dict_non["just"] = [7, 1, 6, 4]
@@ -126,7 +74,7 @@ ms_dict_non["whenever"] = [1, 5, 4, 5, 5, 3, 3, 1]
 ms_dict_non["any"] = [1, 6, 2]
 ms_dict_non["form"] = [4, 6, 5, 5]
 ms_dict_non["becomes"] = [6, 4, 2, 8, 4, 6, 2]
-ms_dict_non["destructive"] = [3, 1, 2, 4, 1, 3, 6, 4, 3, 6, 3]
+#ms_dict_non["destructive"] = [3, 1, 2, 4, 1, 3, 6, 4, 3, 6, 3]
 # ms_dict_non["ends"] = [2, 5, 4, 1]
 ms_dict_non["it"] = [7, 3]
 ms_dict_non["is"] = [7, 7]
@@ -145,7 +93,7 @@ ms_dict_non["brought"] = [6, 3, 5, 2, 3, 1, 2]
 ms_dict_non["carrot"] = [4, 3, 4, 0, 5, 4]
 ms_dict_non["cause"] = [4, 3, 7, 6, 2]
 ms_dict_non["civil"] = [4, 7, 6, 6, 2]
-ms_dict_non["continent"] = [4, 8, 5, 3, 3, 4, 5, 5, 3]
+#ms_dict_non["continent"] = [4, 8, 5, 3, 3, 4, 5, 5, 3]
 ms_dict_non["dedicate"] = [3, 1, 1, 6, 7, 3, 5, 2]
 ms_dict_non["devotion"] = [3, 1, 3, 7, 4, 3, 1, 5]
 ms_dict_non["did"] = [3, 6, 6]
@@ -225,7 +173,7 @@ ms_dict_auto["their"] = [4, 1, 0, 1, 0]
 ms_dict_auto["creator"] = [4, 1, 3, 1, 1, 1, 0]
 ms_dict_auto["with"] = [1, 1, 0, 0]
 ms_dict_auto["certain"] = [4,3, 1, 0, 0, 0, 0]
-ms_dict_auto["unalienable"] = [6, 1, 9, 9, 1, 0, 0, 0, 0, 0, 0]
+#ms_dict_auto["unalienable"] = [6, 1, 9, 9, 1, 0, 0, 0, 0, 0, 0]
 ms_dict_auto["rights"] = [3, 1, 0, 0, 0, 0]
 ms_dict_auto["life"] = [9, 1, 1, 0]
 ms_dict_auto["liberty"] = [9, 1, 5, 1, 0, 0, 0]
@@ -233,10 +181,10 @@ ms_dict_auto["and"] = [1, 1, 0]
 # ms_dict_auto["the"] = []
 ms_dict_auto["pursuit"] = [9, 1, 8, 1, 1, 0, 1]
 ms_dict_auto["of"] = [8, 1]
-ms_dict_auto["happiness"] = [6, 1, 2, 6, 1, 0, 0, 0, 10]
+#ms_dict_auto["happiness"] = [6, 1, 2, 6, 1, 0, 0, 0, 10]
 ms_dict_auto["secure"] = [2, 1, 0, 1, 0, 1]
-ms_dict_auto["governments"] = [5, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0]
-ms_dict_auto["instituted"] = [7, 1, 1, 1, 1, 1, 0, 0, 1, 0]
+#ms_dict_auto["governments"] = [5, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0]
+#ms_dict_auto["instituted"] = [7, 1, 1, 1, 1, 1, 0, 0, 1, 0]
 ms_dict_auto["among"] = [1, 8, 1, 0, 0]
 ms_dict_auto["deriving"] = [3, 1, 2, 1, 1, 0, 0, 0]
 ms_dict_auto["just"] = [7, 1, 0, 0]
@@ -248,7 +196,7 @@ ms_dict_auto["whenever"] = [1, 1, 2, 0, 0, 0, 0, 0]
 ms_dict_auto["any"] = [1, 1, 1]
 ms_dict_auto["form"] = [4, 1, 0, 5]
 ms_dict_auto["becomes"] = [6, 1, 0, 1, 0, 0, 0]
-ms_dict_auto["destructive"] = [3, 1, 3, 1, 0, 1, 0, 0, 0, 1, 0]
+#ms_dict_auto["destructive"] = [3, 1, 3, 1, 0, 1, 0, 0, 0, 1, 0]
 # ms_dict_auto["ends"] = []
 ms_dict_auto["it"] = [7, 1]
 ms_dict_auto["is"] = [7, 1]
@@ -268,7 +216,7 @@ ms_dict_auto["brought"] = [6, 6, 4, 1, 1, 0, 0, 0]
 ms_dict_auto["carrot"] = [4, 1, 0, 5, 1, 0]
 ms_dict_auto["cause"] = [4, 1, 8, 1, 0]
 ms_dict_auto["civil"] = [4, 8, 7, 1, 0]
-ms_dict_auto["continent"] = [4, 1, 1, 0, 1, 0, 1, 0, 0]
+#ms_dict_auto["continent"] = [4, 1, 1, 0, 1, 0, 1, 0, 0]
 ms_dict_auto["dedicate"] = [3, 1, 1, 1, 0, 0, 0, 0]
 ms_dict_auto["devotion"] = [3, 1, 2, 1, 0, 2, 0, 0]
 ms_dict_auto["did"] = [3, 1, 0]
@@ -638,21 +586,33 @@ def combine_algorithmic(results_dict : dict[tuple[str, str],
                         tuple[float, int]], 
                         certainty_cutoff : float) -> dict[tuple[str, str], tuple[str, float, float]]:
     print("combine_algorithmic")
+
+    msfd = build_msfd()
     
     final_dict = {} # (method, certainty, manual_score)
     for key in results_dict:
         (correct, total) = results_dict[key]
 
         accuracy = correct / total
-        if accuracy > 1-certainty_cutoff:
-            final_dict[key] = ("ml", accuracy, -1)
-        elif accuracy < certainty_cutoff:
-            final_dict[key] = ("ml", accuracy, -1)
 
-        else: # Use algorithmic method
-            #print(key)
-            #print("acc: " + str(accuracy))
-            manual_score = get_score_from_ms(ms_dict_non[key[0]], 1)[0][1] # [(guess, score)]
+        if key[1] == "non":
+            ms = ms_dict_non[key[0]]
+        else:
+            ms = ms_dict_auto[key[0]]
+
+        ms_string = ""
+        for m in ms:
+            ms_string += str(m) + ","
+        
+        print(ms_string)
+        if ms_string in msfd:
+            manual_score = adjust_for_len(msfd[ms_string][1], key[0], 1) # [(guess, score)]
+        else:
+            manual_score = 0
+
+        if accuracy > (1-certainty_cutoff) or accuracy < certainty_cutoff:
+            final_dict[key] = ("ml", accuracy, manual_score)
+        else:
             final_dict[key] = ("alg", accuracy, manual_score)
     return final_dict
 
@@ -771,8 +731,147 @@ def analyze_params(final_dict : dict[tuple[str, str], tuple[str, float, float]],
     print("final accuracy: " + str(right / (total[0]+total[1])))
     return (right / (total[0]+total[1]))
 
+# something is off w/ this
+# works mostly but not w .0001, e.g.
+# well that's the only one I've found so far
+# but prob bc the split function
+# fix this tomorrow
+def normalize_manual_score(manual_score : float) -> float:
+    if manual_score <= 0:
+        return 0
+
+    midpoint = .00067
+    c1 = 1 - math.log(midpoint, 10)
+    c2 = math.log(midpoint, 10) + 1
+    if manual_score == .00067:
+        return .5
+    elif manual_score > .00067:
+        x = math.log(manual_score, 10) + c1
+        return 1-(pow(.5, x))
+    else:
+        x = c2 - math.log(manual_score, 10)
+        return pow(.5, x)
+
+def combine_confidences(ml_score : float, manual_score : float) -> int:
+    return (ml_score + manual_score) / 2
+
+# uses combined confidences
+# Takes a combined result dictionary and prints relevant analysis
+# (dict: (word, ty) -> (method, ml_score, manual_score)) ->
+def analyze_params_new(final_dict : dict[tuple[str, str], tuple[str, float, float]], 
+                    manual_score_cutoff : float,
+                    certainty_cutoff : float) -> float:
+    
+    ml_right = 0
+    manual_right = 0
+    combine_right = 0
+    cutoff_right = 0
+
+    for key in final_dict:
+        method, ml_score, manual_score = final_dict[key]
+        ty = key[1]
+
+        if ml_score > .5:
+            ml_right += 1
+
+
+        if ty == "auto":
+            if manual_score < manual_score_cutoff:
+                manual_right += 1
+        else:
+            if manual_score > manual_score_cutoff:
+                manual_right += 1
+
+                
+        if ml_score > 1-certainty_cutoff:
+            cutoff_right += 1
+        elif ml_score > certainty_cutoff:
+            if ty == "auto":
+                if manual_score < manual_score_cutoff:
+                    cutoff_right += 1
+            else:
+                if manual_score > manual_score_cutoff:
+                    cutoff_right += 1
+
+        
+        if ty == "auto":
+            combined_score = combine_confidences(1-ml_score, normalize_manual_score(manual_score))
+            if combined_score < .5:
+                combine_right += 1
+        else:
+            combined_score = combine_confidences(ml_score, normalize_manual_score(manual_score))
+            if combined_score > .5:
+                combine_right += 1
+
+
+    print("ml_right: " + str(ml_right))
+    print("manual_right: " + str(manual_right))
+    print("cutoff_right: " + str(cutoff_right))
+    print("combine_right: " + str(combine_right))
+
+    return 1.0
+
+
+
+        
+
 
                     
+
+
+
+
+
+def build_model():
+    bins = 3
+    weight = 4
+
+    df = make_df(range(bins), weight)
+    model = RandomForestClassifier()
+
+    y = df.ac
+    X = df.drop(["ac"], axis=1, inplace=False)
+    # Trains without ID
+    model.fit(X.drop(["id"], axis=1, inplace=False), y)
+
+    return model
+
+
+# takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
+def classify_ms(model, ms : list[int]) -> int:
+    bins = 3
+    weight = 4
+    certainty_cutoff = .3
+    manual_cutoff = 0.00067
+
+
+    data = np.empty((0, bins), dtype=float)
+    list_dist = make_row_dist(ms, range(bins), weight)
+    new_row = np.array(list_dist, dtype=float)
+    data = np.append(data, [new_row], axis=0)
+    
+
+    column_titles = make_column_titles_dist(range(bins))
+    df = pd.DataFrame(data = data, columns = column_titles)
+
+    print(df)
+    
+    # now predict from the dataframe, and then add manual
+
+    pred_probas = model.predict_proba(df)[0]
+
+    if pred_probas[0] > 1-certainty_cutoff:
+        return 0
+    elif pred_probas[1] > 1-certainty_cutoff:
+        return 1
+    # rn cc is .5, fixe the key[0] issue
+    else: # go into manual scoring
+        manual_score = get_score_from_ms_improved(ms, 1)[0][1]
+        if manual_score > manual_cutoff:
+            return 0
+        else:
+            return 1
+
 
                     
 
@@ -784,7 +883,24 @@ if __name__ == '__main__':
     # 1 - unused
     # 2 - for examination of specific words
     # 3 - for testing combination parameters
+    # 4 - for predicting single ms
+    # 5 - for testing score combinations
+    # 6 - (analyze_params_new) - tests combining confidences
     test = 3
+
+
+    
+    if test == 5:
+        parser = ArgumentParser()
+        parser.add_argument('--score', type=str, required=True)
+        args = parser.parse_args()
+        print(normalize_manual_score(float(args.score)))
+
+
+    if test == 4:
+        model = build_model()
+        print(str(classify_ms(model, [3, 6, 6])))
+
     
     # Test weighting methods
     if test == 0:
@@ -840,8 +956,8 @@ if __name__ == '__main__':
     if test == 3:
         print("test 3")
         bins_list = [3]
-        weights = [4, 3, 5]
-        certainty_cutoffs = [.26, .29, .32, .35, .38]
+        weights = [4, 3]
+        certainty_cutoffs = [.23, .26, .29, .32, .35, .38, .41]
         max_length = -1
         iters = 20
 
@@ -864,17 +980,19 @@ if __name__ == '__main__':
             print("accuracy: " + str(item[1]))
 
 
+    if test == 6:
+        print("test 6")
+        certainty_cutoff = .3
+        max_length = 9
+        iters = 20
 
+        df = make_df(range(3), 4)
+        model = RandomForestClassifier()
+        results_dict = get_word_results_proba(df, model, iters) # dict (word, ty) -> (accuracy sum, total)
+        final_dict = combine_algorithmic(results_dict, certainty_cutoff)
 
-
-
-
-
-
-    
-
-    
-
+        
+        analyze_params_new(final_dict, .000067, certainty_cutoff)
 
 
     

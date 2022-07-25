@@ -6,10 +6,10 @@ import random
 
 def findPath(word, error):
 	path = []
-	f = open('fw_samsung_keyboard.csv')
+	f = open('../graphs/samsung_keyboard.csv')
 	active = list(csv.reader(f))
 	f.close()
-	f = open('fw_samsung_keyboard_special_1.csv')
+	f = open('../graphs/samsung_keyboard_special_1.csv')
 	inactive = list(csv.reader(f))
 	f.close()
 	prev = 'q'

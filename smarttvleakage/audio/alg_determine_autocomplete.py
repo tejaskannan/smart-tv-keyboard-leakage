@@ -8,7 +8,8 @@ from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
-from smarttvleakage.graph_search import get_words_from_moves
+from smarttvleakage.search_without_autocomplete import get_words_from_moves
+from smarttvleakage.audio.manual_score_dict import get_word_from_ms
 
 
 
@@ -262,7 +263,7 @@ ms_dict_auto["year"] = [5, 1, 0, 1]
 
 
 
-# returns a score adjusted for length
+# returns a score adjusted for length, provided a strategy number 
 def adjust_for_len(raw : float, word : str, strategy : int) -> float:
     if strategy == 0: # linear
         return raw * len(word)
@@ -276,6 +277,7 @@ def adjust_for_len(raw : float, word : str, strategy : int) -> float:
 
 
 # gets a dictionary score from a move sequence by taking 500 samples, returns all samples with their scores
+# This function is the important one used after the ML model, and could be improved
 def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]:
     print(ms)
     # when to cut off
@@ -285,10 +287,11 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
     graph = MultiKeyboardGraph()
     dictionary = UniformDictionary()
     englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
+    # englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
 
 
     word_list = []
-    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(num_moves=ms, graph=graph, dictionary=dictionary, max_num_results=SAMPLES)):    
+    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(move_sequence=ms, graph=graph, dictionary=dictionary, max_num_results=SAMPLES)):    
         raw_score = englishDictionary.get_score_for_string(guess, False) 
         score = adjust_for_len(raw_score, guess, strategy)
         word_list.append((guess, score))
@@ -299,10 +302,27 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
 
     return word_list
 
+def get_score_from_ms_improved(ms : list[int], strategy : int) -> list[tuple[str, float]]:
+    print(ms)
 
 
+    
+    graph = MultiKeyboardGraph()
+    dictionary = UniformDictionary()
+    englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
+
+    word = get_word_from_ms(ms)
+    if word == "":
+        return 0
+
+    raw_score = englishDictionary.get_score_for_string(word, False) 
+    score = adjust_for_len(raw_score, word, strategy)
+    return [(word, score)]
+
+
+# used for finding best parameters
 # return the best partitioning for a list of scores
-def get_best_cutoff(scores):
+def get_best_cutoff(scores : list[tuple[float, str]]) -> tuple[int, float, int]:
 
     scores.sort(key=lambda x: x[0])
 
@@ -325,7 +345,7 @@ def get_best_cutoff(scores):
 
 
 
-def test_strategy(strategy):
+def test_strategy(strategy : int):
     max_length = 8
     min_length = 1
     scores = []
@@ -480,7 +500,7 @@ if __name__ == '__main__':
         englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
 
         word_list = []
-        for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(num_moves=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):    
+        for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(move_sequence=args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):    
             word_list.append((guess, englishDictionary.get_score_for_string(guess, False)))
         word_list.sort(key=(lambda x: x[1]), reverse=True)
         word_list = filter(lambda x: x[1] > 0, word_list)

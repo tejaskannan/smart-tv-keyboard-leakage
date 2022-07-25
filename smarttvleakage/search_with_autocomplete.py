@@ -24,15 +24,13 @@ TOP_KEY_FACTOR = 1.0
 
 def get_words_from_moves_autocomplete(move_sequence: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     iterator = get_words_from_moves_autocomplete_helper(move_sequence, graph, dictionary, did_use_autocomplete, max_num_results)
-
+    
     if did_use_autocomplete:
-        prefixes: List[str] = []
-        num_results = max_num_results if max_num_results is not None else 100
-
+        prefix_list: List[str] = []
+        num_results = 100
         for idx, (word, _, _)  in enumerate(iterator):
             if idx >= num_results:
                 break
-            prefixes.append(word)
 
         for word, score in dictionary.get_words_for(prefixes, max_num_results=num_results, min_length=(len(move_sequence) + 1), max_count_per_prefix=MAX_COUNT_PER_PREFIX):
             yield word, score, 0  # TODO: Fix the candidates here
@@ -157,8 +155,8 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
                     candidate_string = get_string_from_keys(candidate_keys)
 
                     visited_state = VisitedState(string=candidate_string, was_on_suggested=False)
+                    
                     should_aggregate_scores = (len(candidate_keys) < target_length) or (did_use_autocomplete)
-
                     score_factor = TOP_KEY_FACTOR if (neighbor_key in top_keys) else 1.0
     
                     # Make the next state
@@ -203,7 +201,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[int], graph: Mu
                 candidate_string = get_string_from_keys(candidate_keys)
 
                 visited_state = VisitedState(string=candidate_string, was_on_suggested=True)
-                should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
+                should_aggregate_score = len(candidate_keys) < target_length
 
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
