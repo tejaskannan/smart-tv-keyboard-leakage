@@ -26,8 +26,8 @@ class MultiKeyboardGraph:
 
     def __init__(self):
         dir_name = os.path.dirname(__file__)
-        standard_path = os.path.join(dir_name, 'samsung_keyboard.csv')
-        special_one_path = os.path.join(dir_name, 'samsung_keyboard_special_1.csv')
+        standard_path = os.path.join(dir_name, 'samsung_keyboard.json')
+        special_one_path = os.path.join(dir_name, 'samsung_keyboard_special_1.json')
 
         self._keyboards = {
             KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
@@ -47,21 +47,28 @@ class MultiKeyboardGraph:
 class SingleKeyboardGraph:
 
     def __init__(self, path: str, start_key: str):
-        f = open(path)
+        f = open('/home/abebdm/Desktop/smart-tv-keyboard-leakage-master/smarttvleakage/keyboard_utils/samsung_keyboard.csv')
         self.no_wraparound = list(csv.reader(f))
         f.close()
-        f = open(path[:-4]+"_wraparound"+[-4:])
+        f = open('/home/abebdm/Desktop/smart-tv-keyboard-leakage-master/smarttvleakage/keyboard_utils/samsung_keyboard_wraparound.csv')
         self.wraparound = list(csv.reader(f))
         f.close()
         start_idx = self.no_wraparound[0].index(start_key)
         temp = []
         self._keys_for_distance = {}
         for x,i in enumerate(self.no_wraparound[start_idx]):
+            # print(x)
+            # print(i)
+            # print('\n')
             if i in self._keys_for_distance.keys():
                 self._keys_for_distance[i].append(self.no_wraparound[0][x])
             else:
                 self._keys_for_distance[i] = [self.no_wraparound[0][x]]
         for x,i in enumerate(self.wraparound[start_idx]):
+            # print(self._keys_for_distance)
+            # print(x)
+            # print(i)
+            # print('\n')
             if self.wraparound[0][start_idx] in self._keys_for_distance[i]:
                 continue
             else:
@@ -74,21 +81,19 @@ class SingleKeyboardGraph:
         return self._keys_for_distance.get(num_moves, [])
 
 
+    # def get_moves_for_key(self, key: str) -> int:
+    #     return self._shortest_distances.get(key, -1)
+    # NOT USED
+
     def get_keys_for_moves_from(self, start_key: str, num_moves: int) -> List[str]:
-        idx = self.no_wraparound[0].index(start_key)+1
+        
+        idx = self.no_wraparound[0].index(start_key)
         candidates = []
-
         for x,i in enumerate(self.no_wraparound[idx]):
-
-            i=int(float(i))
             if i == num_moves:
-
                 candidates.append(self.no_wraparound[0][x])
-        for x,i in enumerate(self.wraparound[idx]):
-
-            i=int(float(i))
-            if i == num_moves and int(i) not in candidates:
+        for x,i in enumerate(self.wraparound[self.wraparound[0].index(start_key)]):
+            if i == num_moves and i not in candidates:
                 candidates.append(self.wraparound[0][x])
-
 
         return list(sorted(candidates))

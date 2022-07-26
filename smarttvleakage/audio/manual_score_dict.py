@@ -13,8 +13,8 @@ from smarttvleakage.keyboard_utils.word_to_move import findPath
 
 graph = MultiKeyboardGraph()
 dictionary = UniformDictionary()
-# englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
-englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
+englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
+# englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
 
 
 def default_value():
@@ -81,7 +81,7 @@ def build_file():
 # maybe build this as a dictionary??
 
 def build_msfd():
-    path = "audio/manual_score_dict_2.txt"
+    path = "manual_score_dict_2.txt"
     d = {}
     with open(path) as f:
         lines = f.readlines()
@@ -98,7 +98,7 @@ def get_word_from_ms(ms):
         ms_string += str(m) + ","
     ms_string += ";"
 
-    path = "audio/manual_score_dict_2.txt"
+    path = "manual_score_dict_2.txt"
     with open(path) as f:
         lines = f.readlines()
     

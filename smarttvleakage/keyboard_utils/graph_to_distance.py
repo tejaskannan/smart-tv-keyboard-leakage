@@ -10,7 +10,7 @@ parser.add_argument('-f', type=str, help='enter the graph')
 parser.add_argument('-o', type=str, help='enter the output csv')
 args = parser.parse_args()
 
-f = open('samsung_keyboard_special_1.json')
+f = open(args.f)
 kb = json.load(f)
 f.close()
 

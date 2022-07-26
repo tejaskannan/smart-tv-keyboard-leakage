@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
-from smarttvleakage.dictionary import EnglishDictionary
+#from smarttvleakage.dictionary import EnglishDictionary
+from dictionary import EnglishDictionary
 
 
 if __name__ == '__main__':
@@ -12,7 +13,7 @@ if __name__ == '__main__':
     dictionary = EnglishDictionary(max_depth=16)
 
     print('Building dictionary...')
-    dictionary.build(args.words_path, min_count=1, has_counts=args.has_counts)
+    dictionary.build(args.words_path, min_count=1, has_counts=True)
 
     print('Built Dictionary. Saving...')
     dictionary.save(args.output_path)
