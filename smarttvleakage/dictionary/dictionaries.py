@@ -14,11 +14,14 @@ special_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs'
 
 CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
 UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' }
+SELECT_SOUND_KEYS = { '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>' }
+
 
 CAPS = '<CAPS>'
 CHANGE = '<CHANGE>'
 BACKSPACE = '<BACK>'
 NEXT = '<NEXT>'
+SPACE = '<SPACE>'
 
 
 CHARACTER_TRANSLATION = {

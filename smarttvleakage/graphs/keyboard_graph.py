@@ -3,6 +3,7 @@ from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set
 
+from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
 from smarttvleakage.utils.file_utils import read_json
 
 
@@ -14,11 +15,11 @@ class KeyboardMode(Enum):
 
 START_KEYS = {
     KeyboardMode.STANDARD: 'q',
-    KeyboardMode.SPECIAL_ONE: '<CHANGE>'
+    KeyboardMode.SPECIAL_ONE: CHANGE
 }
 
 
-FILTERED_KEYS = ['<BACK>', '<SPACE>']
+FILTERED_KEYS = [BACKSPACE]
 
 
 class MultiKeyboardGraph:
@@ -33,11 +34,11 @@ class MultiKeyboardGraph:
             KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
         }
 
-    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode) -> List[str]:
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode, use_space: bool) -> List[str]:
         if num_moves < 0:
             return []
 
-        return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves)
+        return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_space=use_space)
 
 
 class SingleKeyboardGraph:
@@ -46,9 +47,9 @@ class SingleKeyboardGraph:
         self._adjacency_list = read_json(path)
 
         # Verify that all edges go two ways
-        for key, neighbors in self._adjacency_list.items():
-            for neighbor in neighbors:
-                assert (key in self._adjacency_list[neighbor]), '{} should be a neighbor of {}'.format(key, neighbor)
+        #for key, neighbors in self._adjacency_list.items():
+        #    for neighbor in neighbors:
+        #        assert (key in self._adjacency_list[neighbor]), '{} should be a neighbor of {}'.format(key, neighbor)
 
         # Get the shortest paths to all nodes
         self._shortest_distances: Dict[str, int] = dict()
@@ -79,7 +80,7 @@ class SingleKeyboardGraph:
     def get_moves_for_key(self, key: str) -> int:
         return self._shortest_distances.get(key, -1)
 
-    def get_keys_for_moves_from(self, start_key: str, num_moves: int) -> List[str]:
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_space: bool) -> List[str]:
         visited: Set[str] = set()
 
         frontier = deque()
@@ -94,6 +95,9 @@ class SingleKeyboardGraph:
                 key = key.lower()
 
             if key in visited:
+                continue
+
+            if (key == SPACE) and (not use_space):
                 continue
 
             visited.add(key)

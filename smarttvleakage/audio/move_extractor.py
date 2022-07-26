@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
 from collections import namedtuple, defaultdict
+from enum import Enum, auto
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict
 
@@ -13,8 +14,9 @@ from smarttvleakage.audio.constellations import compute_constellation_map, match
 
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'channel0_constellation', 'channel1_constellation', 'start', 'end'])
 ConstellationParams = namedtuple('ConstellationParams', ['threshold', 'freq_delta', 'time_delta', 'freq_tol', 'time_tol'])
+Move = namedtuple('Move', ['num_moves', 'end_sound'])
 
-SOUNDS = ['move', 'select', 'key_select', 'double_move']
+
 MIN_DISTANCE = 12
 KEY_SELECT_DISTANCE = 30
 MIN_DOUBLE_MOVE_DISTANCE = 30
@@ -24,22 +26,28 @@ SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
 SELECT_MOVE_DISTANCE = 30
 
+
+class Sound(Enum):
+    MOVE = auto()
+    DOUBLE_MOVE = auto()
+    SELECT = auto()
+    KEY_SELECT = auto()
+
+
 CONSTELLATION_PARAMS = {
     #'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
-    'key_select': ConstellationParams(threshold=-70, freq_delta=5, time_delta=5, freq_tol=3, time_tol=2),
-    'select': ConstellationParams(threshold=-60, freq_delta=3, time_delta=5, freq_tol=3, time_tol=3),
-    'move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
-    'double_move': ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
+    Sound.KEY_SELECT: ConstellationParams(threshold=-70, freq_delta=5, time_delta=5, freq_tol=3, time_tol=2),
+    Sound.SELECT: ConstellationParams(threshold=-60, freq_delta=3, time_delta=5, freq_tol=3, time_tol=3),
+    Sound.MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
+    Sound.DOUBLE_MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
 }
 
 
 SOUND_THRESHOLDS = {
-    'move': (275, 600),
-    'double_move': (450, 600),
-    #'select': (0.0017, 0.0003),
-    #'key_select': (0.00275, 0.003)
-    'select': (0.79, 0.85),
-    'key_select': (0.79, 0.9)
+    Sound.MOVE: (275, 600),
+    Sound.DOUBLE_MOVE: (450, 600),
+    Sound.SELECT: (0.79, 0.85),
+    Sound.KEY_SELECT: (0.79, 0.9)
 }
 
 
@@ -91,24 +99,26 @@ class MoveExtractor:
         directory = os.path.dirname(__file__)
         sound_directory = os.path.join(directory, '..', 'sounds', tv_type.name.lower())
 
-        self._known_sounds: DefaultDict[str, List[SoundProfile]] = defaultdict(list)
+        self._known_sounds: DefaultDict[Sound, List[SoundProfile]] = defaultdict(list)
 
         # Read in the start / end indices (known beforehand)
         freq_range_dict = read_json(os.path.join(sound_directory, 'freq_ranges.json'))
 
-        for sound in SOUNDS:
+        for sound in Sound:
+            sound_name = sound.name.lower()
+
             for path in iterate_dir(sound_directory):
                 file_name = os.path.basename(path)
-                if not file_name.startswith(sound):
+                if not file_name.startswith(sound_name):
                     continue
                 
                 audio = read_pickle_gz(path)
 
-                start, end = freq_range_dict[sound]['start'], freq_range_dict[sound]['end']
+                start, end = freq_range_dict[sound_name]['start'], freq_range_dict[sound_name]['end']
                 channel0 = create_spectrogram(signal=audio[:, 0])
                 channel1 = create_spectrogram(signal=audio[:, 1])
 
-                if sound in ('move', 'double_move'):
+                if sound in (Sound.MOVE, Sound.DOUBLE_MOVE):
                     channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
                     channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
                 else:
@@ -137,25 +147,23 @@ class MoveExtractor:
                                        end=end)
                 self._known_sounds[sound].append(profile)
 
-    def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
+    def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: Sound) -> List[float]:
         """
         Computes the sum of the absolute distances between the spectrogram
         of the given audio signal and those of the known sounds in a moving-window fashion.
 
         Args:
             audio: A 2d audio signal where the last dimension is the channel.
-            sound: The name of the known sound to use
+            sound: The (known) sound to use
         Returns:
             An array of the moving-window distances
         """
-        assert sound in SOUNDS, 'Unknown sound: {}'.format(sound)
-
         # Create the spectrogram from the known signal
         channel0 = create_spectrogram(signal=audio[:, 0])
         channel1 = create_spectrogram(signal=audio[:, 1])
 
         # Create the constellations (if needed)
-        if sound in ('key_select', 'select'):
+        if sound in (Sound.KEY_SELECT, Sound.SELECT):
             sound_profile = self._known_sounds[sound][0]
             start, end = sound_profile.start, sound_profile.end
             constellation_params = CONSTELLATION_PARAMS[sound]
@@ -178,7 +186,7 @@ class MoveExtractor:
         for sound_profile in self._known_sounds[sound]:
             start, end = sound_profile.start, sound_profile.end
 
-            if sound in ('key_select', 'select'):
+            if sound in (Sound.KEY_SELECT, Sound.SELECT):
                 _, channel0_sim = match_constellations(target_times=channel0_constellation[0],
                                                        target_freq=channel0_constellation[1],
                                                        ref_times=sound_profile.channel0_constellation[0],
@@ -195,58 +203,48 @@ class MoveExtractor:
                                                        time_tol=constellation_params.time_tol,
                                                        time_steps=channel1.shape[1])
             else:
-                if sound in ('move', 'double_move'):
-                    channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
-                    channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
-                    should_match_binary = True
-                else:
-                    channel0_clipped = channel0[start:end, :]
-                    channel1_clipped = channel1[start:end, :]
-                    should_match_binary = False
+                channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+                channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
 
                 channel0_sim = moving_window_similarity(target=channel0_clipped,
                                                         known=sound_profile.channel0,
                                                         should_smooth=True,
-                                                        should_match_binary=should_match_binary)
+                                                        should_match_binary=True)
 
                 channel1_sim = moving_window_similarity(target=channel1_clipped,
                                                         known=sound_profile.channel1,
                                                         should_smooth=True,
-                                                        should_match_binary=should_match_binary)
+                                                        should_match_binary=True)
 
             similarities = [max(c0, c1) for c0, c1 in zip(channel0_sim, channel1_sim)]
             similarity_lists.append(similarities)
 
         return np.max(similarity_lists, axis=0)
 
-    def find_instances_of_sound(self, audio: np.ndarray, sound: str) -> Tuple[List[int], List[float]]:
+    def find_instances_of_sound(self, audio: np.ndarray, sound: Sound) -> Tuple[List[int], List[float]]:
         """
         Finds instances of the given sound in the provided audio signal
         by finding peaks in the spectrogram distance chart.
 
         Args:
             audio: A 2d audio signal where the last dimension is the channel.
-            sound: The name of the sound. Must be in SOUNDS.
+            sound: The sound to find
         Return:
             A tuple of 3 elements:
                 (1) A list of the `times` in which the peaks occur in the distance graph
                 (2) A list of the peak values in the distance graph
         """
-        assert sound in SOUNDS, 'The provided sound must be in [{}]. Got: {}'.format(','.join(SOUNDS), sound)
         similarity = self.compute_spectrogram_similarity_for_sound(audio=audio, sound=sound)
 
         (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
         threshold = min_threshold
 
-        #if sound == 'key_select':
-        #    threshold = min(max(np.mean(similarity) + 4 * np.std(similarity), min_threshold), max_threshold)
-
-        distance = KEY_SELECT_DISTANCE if sound == 'key_select' else MIN_DISTANCE
+        distance = KEY_SELECT_DISTANCE if sound == Sound.KEY_SELECT else MIN_DISTANCE
         peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
 
         # Filter out duplicate double moves
-        if sound == 'double_move' and len(peaks) > 0:
+        if (sound == Sound.DOUBLE_MOVE) and (len(peaks) > 0):
             filtered_peaks = [peaks[0]]
             filtered_peak_heights = [peak_heights[0]]
 
@@ -261,7 +259,7 @@ class MoveExtractor:
         else:
             return peaks, peak_heights
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[int], bool]:
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
@@ -270,16 +268,16 @@ class MoveExtractor:
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        raw_key_select_times, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound='key_select')
+        raw_key_select_times, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound=Sound.KEY_SELECT)
 
         # Signals without any key selections do not interact with the keyboard
         if len(raw_key_select_times) == 0:
             return [], False
 
         # Get occurances of the other two sounds
-        move_times, move_heights = self.find_instances_of_sound(audio=audio, sound='move')
-        double_move_times, double_move_heights = self.find_instances_of_sound(audio=audio, sound='double_move')
-        raw_select_times, raw_select_heights = self.find_instances_of_sound(audio=audio, sound='select')
+        move_times, move_heights = self.find_instances_of_sound(audio=audio, sound=Sound.MOVE)
+        double_move_times, double_move_heights = self.find_instances_of_sound(audio=audio, sound=Sound.DOUBLE_MOVE)
+        raw_select_times, raw_select_heights = self.find_instances_of_sound(audio=audio, sound=Sound.SELECT)
 
         select_times: List[int] = []
         select_heights: List[int] = []
@@ -321,9 +319,11 @@ class MoveExtractor:
         # TODO: Handle sequences with multiple keyboard interactions
         clipped_move_times = list(filter(lambda t: t > start_time, move_times))
         clipped_double_move_times = list(filter(lambda t: t > start_time, double_move_times))
+        clipped_select_times = list(filter(lambda t: (t > start_time) and any(True for s in key_select_times if s > t), select_times))
 
         move_idx = 0
         key_idx = 0
+        select_idx = 0
         double_move_idx = 0
         num_moves = 0
         last_num_moves = 0
@@ -331,8 +331,13 @@ class MoveExtractor:
 
         while move_idx < len(clipped_move_times):
             while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
-                result.append(num_moves)
+                result.append(Move(num_moves=num_moves, end_sound=Sound.KEY_SELECT))
                 key_idx += 1
+                num_moves = 0
+
+            while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
+                result.append(Move(num_moves=num_moves, end_sound=Sound.SELECT))
+                select_idx += 1
                 num_moves = 0
 
             if (double_move_idx < len(clipped_double_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
@@ -348,7 +353,7 @@ class MoveExtractor:
 
         # Write out the last group if we haven't reached the last key
         if key_idx < len(key_select_times):
-            result.append(num_moves)
+            result.append(Move(num_moves=num_moves, end_sound=Sound.KEY_SELECT))
 
         # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
         # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
@@ -367,11 +372,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-no-suggestions-50/altogether.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-2-word/in_a.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = 'key_select'
+    sound = Sound.KEY_SELECT
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)

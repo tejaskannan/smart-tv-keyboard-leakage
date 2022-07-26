@@ -2,7 +2,7 @@ import unittest
 from typing import List
 
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_autocomplete
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode
 from smarttvleakage.dictionary import EnglishDictionary
 
 
@@ -52,6 +52,14 @@ class SearchWithAutocomplete(unittest.TestCase):
             results.append(string)
 
         return results
+
+
+class GraphMoveCounts(unittest.TestCase):
+
+    def test_a_space(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='a', num_moves=4, mode=KeyboardMode.STANDARD, use_space=True)
+        expected = ['3', '<SPACE>', 'g', 'r', 'v']
+        self.assertEqual(neighbors, expected)
 
 
 if __name__ == '__main__':
