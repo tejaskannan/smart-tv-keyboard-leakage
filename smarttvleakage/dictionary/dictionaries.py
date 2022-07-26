@@ -5,20 +5,24 @@ import gzip
 from collections import Counter
 from typing import Dict, List, Optional, Iterable, Tuple
 
-from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
-from smarttvleakage.dictionary.trie import Trie
-
+# from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
+# from smarttvleakage.dictionary.trie import Trie
+from utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
+from dictionary.trie import Trie
 
 standard_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung_keyboard.json'))
 special_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung_keyboard_special_1.json'))
 
 CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
 UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' }
+SELECT_SOUND_KEYS = { '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>' }
+
 
 CAPS = '<CAPS>'
 CHANGE = '<CHANGE>'
 BACKSPACE = '<BACK>'
 NEXT = '<NEXT>'
+SPACE = '<SPACE>'
 
 
 CHARACTER_TRANSLATION = {
@@ -69,7 +73,11 @@ class EnglishDictionary(CharacterDictionary):
                         string_dictionary[line] = 1
                     else:
                         tokens = line.strip().split()
-                        count = int(tokens[1])
+                        count = int(tokens[-1])
+                        print('tokens: ', tokens)
+                        print('count: ', count)
+                        string = ' '.join(tokens[0:-1])
+                        print(string)
 
                         if count > min_count:
                             string_dictionary[tokens[0]] = count

@@ -1,8 +1,8 @@
 from typing import Set, Dict, List
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
-from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE
+from graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
+from dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from dictionary import CHANGE, CAPS, BACKSPACE
 
 
 def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str]) -> Dict[str, float]:

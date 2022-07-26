@@ -4,14 +4,23 @@ import numpy as np
 import json
 import random
 
-def findPath(word, error):
+def findPath(word, error, wraparound):
+	active = []
 	path = []
-	f = open('../graphs/samsung_keyboard.csv')
-	active = list(csv.reader(f))
-	f.close()
-	f = open('../graphs/samsung_keyboard_special_1.csv')
-	inactive = list(csv.reader(f))
-	f.close()
+	if not wraparound:
+		f = open('samsung_keyboard.csv')
+		active = list(csv.reader(f))
+		f.close()
+		f = open('samsung_keyboard_special_1.csv')
+		inactive = list(csv.reader(f))
+		f.close()
+	else:
+		f = open('samsung_keyboard_wraparound.csv')
+		active = list(csv.reader(f))
+		f.close()
+		f = open('samsung_keyboard_special_1_wraparound.csv')
+		inactive = list(csv.reader(f))
+		f.close()
 	prev = 'q'
 	for i in list(word.lower()):
 		if i in active[0]:
@@ -45,7 +54,10 @@ if __name__ == '__main__':
 	words = open(args.i, 'r')
 	output = []
 	for i in words:
-		path = findPath(i.strip(), args.e)
+		path = findPath(i.strip(), args.e, True)
+		path.insert(0, i.strip())
+		output.append(path)
+		path = findPath(i.strip(), args.e, False)
 		path.insert(0, i.strip())
 		output.append(path)
 	with open(args.o, 'w') as f: 

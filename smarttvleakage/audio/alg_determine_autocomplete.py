@@ -15,9 +15,10 @@ from smarttvleakage.audio.manual_score_dict import get_word_from_ms
 
 
 
+
 # Non-autocomplete Dict
 ms_dict_non = {}
-
+#ms_dict_non["a"] = [1]
 # Dec of Ind
 ms_dict_non["we"] = [1, 1]
 ms_dict_non["hold"] = [6, 4, 1, 6]
@@ -90,7 +91,7 @@ ms_dict_non["do"] = [3, 7]
 ms_dict_non["earth"] = [2, 3, 4, 1, 2]
 ms_dict_non["endure"] = [2, 5, 4, 5, 3, 1]
 ms_dict_non["equal"] = [2, 2, 6, 7, 8]
-ms_dict_non["fathers"] = [4, 3, 5, 2, 4, 1, 3]
+ms_dict_non["fathers"] = [4, 3, 4, 2, 3, 1, 3]
 ms_dict_non["final"] = [4, 5, 4, 6, 8]
 ms_dict_non["for"] = [4, 6, 5]
 ms_dict_non["forget"] = [4, 6, 5, 2, 3, 2]
@@ -101,7 +102,7 @@ ms_dict_non["god"] = [5, 5, 7]
 ms_dict_non["ground"] = [5, 2, 5, 2, 3, 4]
 ms_dict_non["hallow"] = [6, 5, 8, 0, 1, 7]
 ms_dict_non["have"] = [6, 5, 4, 3]
-ms_dict_non["here"] = [6, 4, 1, 1]
+ms_dict_non["here"] = [6, 3, 1, 1]
 ms_dict_non["highly"] = [6, 3, 4, 1, 3, 4]
 ms_dict_non["in"] = [7, 4]
 ms_dict_non["last"] = [9, 8, 1, 4]
@@ -110,13 +111,13 @@ ms_dict_non["lives"] = [9, 2, 6, 3, 2]
 ms_dict_non["long"] = [9, 1, 5, 2]
 ms_dict_non["measure"] = [8, 6, 3, 1, 6, 3, 1]
 ms_dict_non["met"] = [8, 6, 2]
-ms_dict_non["nation"] = [7, 6, 5, 3, 1, 5]
+ms_dict_non["nation"] = [7, 5, 4, 3, 1, 5]
 ms_dict_non["never"] = [7, 5, 3, 3, 1]
 ms_dict_non["new"] = [7, 5, 1]
 ms_dict_non["nobly"] = [7, 5, 6, 5, 4]
 ms_dict_non["nor"] = [7, 5, 5]
 ms_dict_non["note"] = [7, 5, 4, 2]
-ms_dict_non["now"] = [7, 5, 7]
+ms_dict_non["now"] = [7, 5, 8]
 ms_dict_non["proper"] = [9, 6, 5, 1, 7, 1]
 ms_dict_non["rather"] = [3, 4, 5, 2, 4, 1]
 ms_dict_non["remember"] = [3, 1, 6, 6, 6, 2, 4, 1]
@@ -262,8 +263,6 @@ ms_dict_auto["year"] = [5, 1, 0, 1]
 
 
 
-
-
 # returns a score adjusted for length, provided a strategy number 
 def adjust_for_len(raw : float, word : str, strategy : int) -> float:
     if strategy == 0: # linear
@@ -287,7 +286,7 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
 
     graph = MultiKeyboardGraph()
     dictionary = UniformDictionary()
-    englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
+    englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
     # englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
 
 
@@ -303,11 +302,20 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
 
     return word_list
 
-# This improved version uses a pre-built dictionary from ms -> highest scoring word
 def get_score_from_ms_improved(ms : list[int], strategy : int) -> list[tuple[str, float]]:
     print(ms)
-  
-    word, raw_score = get_word_from_ms(ms)
+
+
+    
+    graph = MultiKeyboardGraph()
+    dictionary = UniformDictionary()
+    englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
+
+    word = get_word_from_ms(ms)
+    if word == "":
+        return 0
+
+    raw_score = englishDictionary.get_score_for_string(word, False) 
     score = adjust_for_len(raw_score, word, strategy)
     return [(word, score)]
 

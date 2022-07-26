@@ -4,8 +4,9 @@ from queue import PriorityQueue
 from collections import namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
+from smarttvleakage.audio.move_extractor import Move, Sound
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 
@@ -17,7 +18,7 @@ SUGGESTION_THRESHOLD = 8
 SUGGESTION_FACTOR = 2.0
 
 
-def get_words_from_moves(move_sequence: List[int], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
+def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     target_length = len(move_sequence)
 
     candidate_queue = PriorityQueue()
@@ -26,7 +27,6 @@ def get_words_from_moves(move_sequence: List[int], graph: MultiKeyboardGraph, di
                              score=1.0,
                              keyboard_mode=KeyboardMode.STANDARD)
     candidate_queue.put((-1 * init_state.score, init_state))
-
     scores: Dict[str, float] = dict()
     visited: Set[str] = set()
 
@@ -55,35 +55,41 @@ def get_words_from_moves(move_sequence: List[int], graph: MultiKeyboardGraph, di
             continue
 
         move_idx = len(current_state.keys)
-        num_moves = move_sequence[move_idx]
+        num_moves = move_sequence[move_idx].num_moves
+        end_sound = move_sequence[move_idx].end_sound
         prev_key = current_state.keys[-1] if move_idx > 0 else START_KEYS[current_state.keyboard_mode]
 
         move_candidates: Dict[int, float] = {
             num_moves: 1.0
         }
 
-        if num_moves > 3:
-            move_candidates[num_moves - 1] = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                                            num_moves=num_moves,
-                                                                            num_mistakes=1)
-
-        if num_moves > 4:
-            move_candidates[num_moves - 2] = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                                            num_moves=num_moves,
-                                                                            num_mistakes=2)
-
+        if num_moves > 2:
+            tmp = num_moves - 2
+            counter = 0
+            while tmp>=1:
+                move_candidates[tmp] = mistake_model.get_mistake_prob(move_num=move_idx,
+                                                                    num_moves=num_moves,
+                                                                    num_mistakes=counter)
+                counter+=1
+                tmp-=2
         for candidate_moves, adjustment_factor in move_candidates.items():
 
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_moves,
-                                                      mode=current_state.keyboard_mode)
+                                                      mode=current_state.keyboard_mode,
+                                                      use_space=(end_sound == Sound.SELECT) or (prev_key == SPACE))
 
             next_key_counts = dictionary.get_letter_counts(prefix=current_string,
                                                            length=target_length,
                                                            should_smooth=True)
 
-            filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
-                                                         candidate_keys=neighbors)
+            if end_sound == Sound.SELECT:
+                neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))
+                filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+            else:
+                neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS), neighbors))
+                filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
+                                                             candidate_keys=neighbors)
 
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
