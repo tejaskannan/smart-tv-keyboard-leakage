@@ -51,7 +51,7 @@ ms_dict_non["their"] = [4, 2, 4, 5, 4]
 ms_dict_non["creator"] = [4, 3, 1, 3, 5, 4, 5]
 ms_dict_non["with"] = [1, 6, 3, 2]
 ms_dict_non["certain"] = [4, 2, 1, 1, 5, 8, 4]
-ms_dict_non["unalienable"] = [6, 3, 6, 8, 2, 5, 5, 6, 5, 5, 7]
+#ms_dict_non["unalienable"] = [6, 3, 6, 8, 2, 5, 5, 6, 5, 5, 7]
 ms_dict_non["rights"] = [3, 4, 4, 1, 2, 4]
 ms_dict_non["life"] = [9, 2, 5, 2]
 ms_dict_non["liberty"] = [9, 2, 5, 4, 1, 1, 1]
@@ -59,10 +59,10 @@ ms_dict_non["and"] = [1, 6, 4]
 # ms_dict_non["the"] = [4, 2, 4]
 ms_dict_non["pursuit"] = [9, 3, 3, 3, 6, 1, 3]
 ms_dict_non["of"] = [8, 6]
-ms_dict_non["happiness"] = [6, 5, 10, 0, 2, 4, 5, 2, 0]
+#ms_dict_non["happiness"] = [6, 5, 10, 0, 2, 4, 5, 2, 0]
 ms_dict_non["secure"] = [2, 2, 2, 6, 3, 1]
-ms_dict_non["governments"] = [5, 5, 7, 3, 1, 4, 1, 6, 5, 3, 4]
-ms_dict_non["instituted"] = [7, 4, 5, 4, 3, 3, 2, 2, 2, 1]
+#ms_dict_non["governments"] = [5, 5, 7, 3, 1, 4, 1, 6, 5, 3, 4]
+#ms_dict_non["instituted"] = [7, 4, 5, 4, 3, 3, 2, 2, 2, 1]
 ms_dict_non["among"] = [1, 7, 4, 5, 2]
 ms_dict_non["deriving"] = [3, 1, 1, 4, 6, 6, 4, 2]
 ms_dict_non["just"] = [7, 1, 6, 4]
@@ -74,7 +74,7 @@ ms_dict_non["whenever"] = [1, 5, 4, 5, 5, 3, 3, 1]
 ms_dict_non["any"] = [1, 6, 2]
 ms_dict_non["form"] = [4, 6, 5, 5]
 ms_dict_non["becomes"] = [6, 4, 2, 8, 4, 6, 2]
-ms_dict_non["destructive"] = [3, 1, 2, 4, 1, 3, 6, 4, 3, 6, 3]
+#ms_dict_non["destructive"] = [3, 1, 2, 4, 1, 3, 6, 4, 3, 6, 3]
 # ms_dict_non["ends"] = [2, 5, 4, 1]
 ms_dict_non["it"] = [7, 3]
 ms_dict_non["is"] = [7, 7]
@@ -93,7 +93,7 @@ ms_dict_non["brought"] = [6, 3, 5, 2, 3, 1, 2]
 ms_dict_non["carrot"] = [4, 3, 4, 0, 5, 4]
 ms_dict_non["cause"] = [4, 3, 7, 6, 2]
 ms_dict_non["civil"] = [4, 7, 6, 6, 2]
-ms_dict_non["continent"] = [4, 8, 5, 3, 3, 4, 5, 5, 3]
+#ms_dict_non["continent"] = [4, 8, 5, 3, 3, 4, 5, 5, 3]
 ms_dict_non["dedicate"] = [3, 1, 1, 6, 7, 3, 5, 2]
 ms_dict_non["devotion"] = [3, 1, 3, 7, 4, 3, 1, 5]
 ms_dict_non["did"] = [3, 6, 6]
@@ -101,7 +101,7 @@ ms_dict_non["do"] = [3, 7]
 ms_dict_non["earth"] = [2, 3, 4, 1, 2]
 ms_dict_non["endure"] = [2, 5, 4, 5, 3, 1]
 ms_dict_non["equal"] = [2, 2, 6, 7, 8]
-ms_dict_non["fathers"] = [4, 3, 5, 2, 4, 1, 3]
+ms_dict_non["fathers"] = [4, 3, 4, 2, 3, 1, 3]
 ms_dict_non["final"] = [4, 5, 4, 6, 8]
 ms_dict_non["for"] = [4, 6, 5]
 ms_dict_non["forget"] = [4, 6, 5, 2, 3, 2]
@@ -112,7 +112,7 @@ ms_dict_non["god"] = [5, 5, 7]
 ms_dict_non["ground"] = [5, 2, 5, 2, 3, 4]
 ms_dict_non["hallow"] = [6, 5, 8, 0, 1, 7]
 ms_dict_non["have"] = [6, 5, 4, 3]
-ms_dict_non["here"] = [6, 4, 1, 1]
+ms_dict_non["here"] = [6, 3, 1, 1]
 ms_dict_non["highly"] = [6, 3, 4, 1, 3, 4]
 ms_dict_non["in"] = [7, 4]
 ms_dict_non["last"] = [9, 8, 1, 4]
@@ -121,13 +121,13 @@ ms_dict_non["lives"] = [9, 2, 6, 3, 2]
 ms_dict_non["long"] = [9, 1, 5, 2]
 ms_dict_non["measure"] = [8, 6, 3, 1, 6, 3, 1]
 ms_dict_non["met"] = [8, 6, 2]
-ms_dict_non["nation"] = [7, 6, 5, 3, 1, 5]
+ms_dict_non["nation"] = [7, 5, 4, 3, 1, 5]
 ms_dict_non["never"] = [7, 5, 3, 3, 1]
 ms_dict_non["new"] = [7, 5, 1]
 ms_dict_non["nobly"] = [7, 5, 6, 5, 4]
 ms_dict_non["nor"] = [7, 5, 5]
 ms_dict_non["note"] = [7, 5, 4, 2]
-ms_dict_non["now"] = [7, 5, 7]
+ms_dict_non["now"] = [7, 5, 8]
 ms_dict_non["proper"] = [9, 6, 5, 1, 7, 1]
 ms_dict_non["rather"] = [3, 4, 5, 2, 4, 1]
 ms_dict_non["remember"] = [3, 1, 6, 6, 6, 2, 4, 1]
@@ -173,7 +173,7 @@ ms_dict_auto["their"] = [4, 1, 0, 1, 0]
 ms_dict_auto["creator"] = [4, 1, 3, 1, 1, 1, 0]
 ms_dict_auto["with"] = [1, 1, 0, 0]
 ms_dict_auto["certain"] = [4,3, 1, 0, 0, 0, 0]
-ms_dict_auto["unalienable"] = [6, 1, 9, 9, 1, 0, 0, 0, 0, 0, 0]
+#ms_dict_auto["unalienable"] = [6, 1, 9, 9, 1, 0, 0, 0, 0, 0, 0]
 ms_dict_auto["rights"] = [3, 1, 0, 0, 0, 0]
 ms_dict_auto["life"] = [9, 1, 1, 0]
 ms_dict_auto["liberty"] = [9, 1, 5, 1, 0, 0, 0]
@@ -181,10 +181,10 @@ ms_dict_auto["and"] = [1, 1, 0]
 # ms_dict_auto["the"] = []
 ms_dict_auto["pursuit"] = [9, 1, 8, 1, 1, 0, 1]
 ms_dict_auto["of"] = [8, 1]
-ms_dict_auto["happiness"] = [6, 1, 2, 6, 1, 0, 0, 0, 10]
+#ms_dict_auto["happiness"] = [6, 1, 2, 6, 1, 0, 0, 0, 10]
 ms_dict_auto["secure"] = [2, 1, 0, 1, 0, 1]
-ms_dict_auto["governments"] = [5, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0]
-ms_dict_auto["instituted"] = [7, 1, 1, 1, 1, 1, 0, 0, 1, 0]
+#ms_dict_auto["governments"] = [5, 1, 4, 1, 0, 0, 0, 0, 0, 0, 0]
+#ms_dict_auto["instituted"] = [7, 1, 1, 1, 1, 1, 0, 0, 1, 0]
 ms_dict_auto["among"] = [1, 8, 1, 0, 0]
 ms_dict_auto["deriving"] = [3, 1, 2, 1, 1, 0, 0, 0]
 ms_dict_auto["just"] = [7, 1, 0, 0]
@@ -196,7 +196,7 @@ ms_dict_auto["whenever"] = [1, 1, 2, 0, 0, 0, 0, 0]
 ms_dict_auto["any"] = [1, 1, 1]
 ms_dict_auto["form"] = [4, 1, 0, 5]
 ms_dict_auto["becomes"] = [6, 1, 0, 1, 0, 0, 0]
-ms_dict_auto["destructive"] = [3, 1, 3, 1, 0, 1, 0, 0, 0, 1, 0]
+#ms_dict_auto["destructive"] = [3, 1, 3, 1, 0, 1, 0, 0, 0, 1, 0]
 # ms_dict_auto["ends"] = []
 ms_dict_auto["it"] = [7, 1]
 ms_dict_auto["is"] = [7, 1]
@@ -216,7 +216,7 @@ ms_dict_auto["brought"] = [6, 6, 4, 1, 1, 0, 0, 0]
 ms_dict_auto["carrot"] = [4, 1, 0, 5, 1, 0]
 ms_dict_auto["cause"] = [4, 1, 8, 1, 0]
 ms_dict_auto["civil"] = [4, 8, 7, 1, 0]
-ms_dict_auto["continent"] = [4, 1, 1, 0, 1, 0, 1, 0, 0]
+#ms_dict_auto["continent"] = [4, 1, 1, 0, 1, 0, 1, 0, 0]
 ms_dict_auto["dedicate"] = [3, 1, 1, 1, 0, 0, 0, 0]
 ms_dict_auto["devotion"] = [3, 1, 2, 1, 0, 2, 0, 0]
 ms_dict_auto["did"] = [3, 1, 0]
@@ -823,7 +823,7 @@ def analyze_params_new(final_dict : dict[tuple[str, str], tuple[str, float, floa
 
 
 def build_model():
-    bins = 5
+    bins = 3
     weight = 4
 
     df = make_df(range(bins), weight)
@@ -839,9 +839,9 @@ def build_model():
 
 # takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
 def classify_ms(model, ms : list[int]) -> int:
-    bins = 5
+    bins = 3
     weight = 4
-    certainty_cutoff = .26
+    certainty_cutoff = .3
     manual_cutoff = 0.00067
 
 
@@ -873,8 +873,8 @@ def classify_ms(model, ms : list[int]) -> int:
             return 1
 
 
-#bins: 5; weight: double weighted, normalized; certainty_cutoff: 0.26
-#accuracy: 0.9809523809523809
+                    
+
 
 if __name__ == '__main__':
     
@@ -955,18 +955,18 @@ if __name__ == '__main__':
 
     if test == 3:
         print("test 3")
-        bins_list = [3, 4, 5]
-        weights = [4, 3, 5]
-        certainty_cutoffs = [.22, .24, .26, .28, .30, .32, .34, .36]
+        bins_list = [3]
+        weights = [4, 3]
+        certainty_cutoffs = [.23, .26, .29, .32, .35, .38, .41]
         max_length = -1
-        iters = 60
+        iters = 20
 
         param_dict = eval_params(bins_list, weights, certainty_cutoffs, max_length, iters)
         results = []
         for key in param_dict:
             bins, weight, certainty_cutoff = key
             print("bins: " + str(bins), end="; ")
-            print("weight: " + str(weight) + " (" + id_to_weight(weight) + ")", end="; ")
+            print("weight: " + id_to_weight(weight), end="; ")
             print("certainty_cutoff: " + str(certainty_cutoff))
             acc = analyze_params(param_dict[key], 0.00067)
             results.append((key, acc))

@@ -27,7 +27,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                              score=1.0,
                              keyboard_mode=KeyboardMode.STANDARD)
     candidate_queue.put((-1 * init_state.score, init_state))
-
     scores: Dict[str, float] = dict()
     visited: Set[str] = set()
 
@@ -64,16 +63,15 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             num_moves: 1.0
         }
 
-        if num_moves > 3:
-            move_candidates[num_moves - 1] = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                                            num_moves=num_moves,
-                                                                            num_mistakes=1)
-
-        if num_moves > 4:
-            move_candidates[num_moves - 2] = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                                            num_moves=num_moves,
-                                                                            num_mistakes=2)
-
+        if num_moves > 2:
+            tmp = num_moves - 2
+            counter = 0
+            while tmp>=1:
+                move_candidates[tmp] = mistake_model.get_mistake_prob(move_num=move_idx,
+                                                                    num_moves=num_moves,
+                                                                    num_mistakes=counter)
+                counter+=1
+                tmp-=2
         for candidate_moves, adjustment_factor in move_candidates.items():
 
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,

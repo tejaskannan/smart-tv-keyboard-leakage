@@ -2,10 +2,10 @@ import os.path
 from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set
+import csv
 
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
 from smarttvleakage.utils.file_utils import read_json
-
 
 
 class KeyboardMode(Enum):
@@ -22,12 +22,28 @@ START_KEYS = {
 FILTERED_KEYS = [BACKSPACE]
 
 
+def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
+    with open(path, 'r') as fin:
+        distance_matrix = list(csv.reader(fin))
+
+    result: Dict[str, DefaultDict[int, Set[str]]] = dict()
+
+    for start_idx, start_key in enumerate(distance_matrix[0]):
+        result[start_key] = defaultdict(set)
+
+        for end_idx, end_key in enumerate(distance_matrix[0]):
+            distance = int(result[start_idx + 1][end_idx])
+            result[start_key][distance].add(end_key)
+
+    return result
+
+
 class MultiKeyboardGraph:
 
     def __init__(self):
         dir_name = os.path.dirname(__file__)
-        standard_path = os.path.join(dir_name, 'samsung_keyboard.json')
-        special_one_path = os.path.join(dir_name, 'samsung_keyboard_special_1.json')
+        standard_path = os.path.join(dir_name, 'samsung_keyboard.csv')
+        special_one_path = os.path.join(dir_name, 'samsung_keyboard_special_1.csv')
 
         self._keyboards = {
             KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
@@ -40,77 +56,41 @@ class MultiKeyboardGraph:
 
         return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_space=use_space)
 
+    def printerthing(self, num_moves: int, mode: KeyboardMode) -> List[str]:
+        return self._keyboards[mode].get_keys_for_moves(num_moves)
+
 
 class SingleKeyboardGraph:
 
     def __init__(self, path: str, start_key: str):
-        self._adjacency_list = read_json(path)
+        self._start_key = start_key
 
-        # Verify that all edges go two ways
-        #for key, neighbors in self._adjacency_list.items():
-        #    for neighbor in neighbors:
-        #        assert (key in self._adjacency_list[neighbor]), '{} should be a neighbor of {}'.format(key, neighbor)
+        # Get the graph without wraparound
+        with open(path, 'r') as fin:
+            self._no_wraparound = list(csv.reader(fin))
 
-        # Get the shortest paths to all nodes
-        self._shortest_distances: Dict[str, int] = dict()
-        self._keys_for_distance: DefaultDict[int, List[str]] = defaultdict(list)
+        # Get the graph with wraparound
+        with open(path.replace('.csv', '_wraparound.csv'), 'r') as fin:
+            self._wraparound = list(csv.reader(fin))
 
-        visited: Set[str] = set()
+        # Read in the precomputed shortest paths map
+        start_idx = self._no_wraparound[0].index(start_key)
 
-        frontier = deque()
-        frontier.append((start_key, 0))
-
-        while len(frontier) > 0:
-            (key, dist) = frontier.popleft()
-
-            if key in visited:
-                continue
-
-            self._shortest_distances[key] = dist
-            self._keys_for_distance[dist].append(key)
-            visited.add(key)
-
-            for neighbor in self._adjacency_list[key]:
-                if neighbor not in visited:
-                    frontier.append((neighbor, dist + 1))
+        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path)
+        self._wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_wraparound.csv')
 
     def get_keys_for_moves(self, num_moves: int) -> List[str]:
-        return self._keys_for_distance.get(num_moves, [])
-
-    def get_moves_for_key(self, key: str) -> int:
-        return self._shortest_distances.get(key, -1)
+        return self.get_keys_for_moves_from(start_key=self._start_key, num_moves=num_moves, use_space=False)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_space: bool) -> List[str]:
-        visited: Set[str] = set()
+        no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
+        wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
 
-        frontier = deque()
-        frontier.append((start_key, 0))
+        if (len(no_wraparound_distance_dict) == 0) and (len(wraparound_distance_dict) == 0):
+            return []
 
-        candidates: Set[str] = set()
+        no_wraparound_neighbors = no_wraparound_distance_dict.get(num_moves, set())
+        wraparound_neighbors = wraparound_distance_dict.get(num_moves, set())
 
-        while len(frontier) > 0:
-            (key, dist) = frontier.popleft()
-
-            if not key.startswith('<'):
-                key = key.lower()
-
-            if key in visited:
-                continue
-
-            if (key == SPACE) and (not use_space):
-                continue
-
-            visited.add(key)
-
-            if dist > num_moves:
-                continue
-            elif (dist == num_moves) and (key not in FILTERED_KEYS):
-                candidates.add(key)
-
-            assert key in self._adjacency_list, 'Found invalid key: {}. Start Key: {}, Num Moves: {}'.format(key, start_key, num_moves)
-
-            for neighbor in self._adjacency_list[key]:
-                if neighbor not in visited:
-                    frontier.append((neighbor, dist + 1))
-
-        return list(sorted(candidates))
+        combined = no_wraparound_neighbors.union(wraparound_neighbors)
+        return list(sorted(combined))

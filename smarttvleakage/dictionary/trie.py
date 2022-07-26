@@ -4,8 +4,8 @@ from dataclasses import dataclass, field
 from queue import PriorityQueue
 from typing import Optional, Dict, Any, List, DefaultDict, Set, Iterable
 
-from smarttvleakage.utils.file_utils import read_jsonl_gz, append_jsonl_gz
-from smarttvleakage.utils.constants import BIG_NUMBER
+from utils.file_utils import read_jsonl_gz, append_jsonl_gz
+from utils.constants import BIG_NUMBER
 
 
 @dataclass(order=True)
