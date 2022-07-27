@@ -66,18 +66,20 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         if num_moves > 2:
             tmp = num_moves - 2
             counter = 0
-            while tmp>=1:
+
+            while tmp >= 1:
                 move_candidates[tmp] = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                                    num_moves=num_moves,
-                                                                    num_mistakes=counter)
-                counter+=1
-                tmp-=2
+                                                                      num_moves=num_moves,
+                                                                      num_mistakes=counter)
+                counter += 1
+                tmp -= 2
+
         for candidate_moves, adjustment_factor in move_candidates.items():
 
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_moves,
                                                       mode=current_state.keyboard_mode,
-                                                      use_space=(end_sound == Sound.SELECT) or (prev_key == SPACE),
+                                                      use_shortcuts=False,
                                                       use_wraparound=False)
 
             next_key_counts = dictionary.get_letter_counts(prefix=current_string,
@@ -95,8 +97,9 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_word = get_string_from_keys(candidate_keys)
+                visited_state = ' '.join(candidate_keys)
 
-                if candidate_word not in visited:
+                if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
                                                       mode=current_state.keyboard_mode)
 
@@ -105,13 +108,14 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                              keyboard_mode=next_keyboard)
 
                     candidate_queue.put((-1 * next_state.score, next_state))
-                    visited.add(candidate_word)
+                    visited.add(visited_state)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
+    parser.add_argument('--sounds-list', type=str, nargs='*', choices=['select', 'key_select'], help='An optional space-separated sequence of end sounds. If none, we assume all sounds are `key_select`.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     args = parser.parse_args()
 
@@ -122,7 +126,13 @@ if __name__ == '__main__':
     else:
         dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
-    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(args.moves_list, graph=graph, dictionary=dictionary, max_num_results=None)):
+    if (args.sounds_list is None) or (len(args.sounds_list) == 0):
+        moves = [Move(num_moves=num_moves, end_sound=Sound.KEY_SELECT) for num_moves in args.moves_list]
+    else:
+        assert len(args.moves_list) == len(args.sounds_list), 'Must provide the same number of moves ({}) and sounds ({})'.format(len(args.moves_list), len(args.sounds_list))
+        moves = [Move(num_moves=num_moves, end_sound=Sound[end_sound.upper()]) for num_moves, end_sound in zip(args.moves_list, args.sounds_list)]
+
+    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(moves, graph=graph, dictionary=dictionary, max_num_results=None)):
         print('Guess: {}, Score: {}'.format(guess, score))
 
         if args.target == guess:
