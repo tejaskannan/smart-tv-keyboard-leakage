@@ -43,11 +43,11 @@ class MultiKeyboardGraph:
     def __init__(self):
         dir_name = os.path.dirname(__file__)
         standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.csv')
-        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.csv')
+        #special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.csv')
 
         self._keyboards = {
-            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
-            KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
+            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD])
+            #KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
         }
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
@@ -79,25 +79,19 @@ class SingleKeyboardGraph:
         self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path)
         self._wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_wraparound.csv'))
 
-        self._no_wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = dict()
-        self._wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = dict()
-
-        if os.path.exists(path.replace('.csv', '_space.csv')):
-            self._no_wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_space.csv'))
-
-        if os.path.exists(path.replace('.csv', '_space.csv')):
-            self._wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_wraparound_space.csv'))
+        self._no_wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_shortcuts.csv'))
+        self._wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_shortcuts_wraparound.csv'))
 
     def get_keys_for_moves(self, num_moves: int) -> List[str]:
         return self.get_keys_for_moves_from(start_key=self._start_key, num_moves=num_moves, use_space=False)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+        no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
+        wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
+
         if use_shortcuts:
-            no_wraparound_distance_dict = self._no_wraparound_distances_space.get(start_key, dict())
-            wraparound_distance_dict = self._wraparound_distances_space.get(start_key, dict())
-        else:
-            no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
-            wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
+            no_wraparound_distance_dict.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()))
+            wraparound_distance_dict.update(self._wraparound_distances_shortcuts.get(start_key, dict()))
 
         if (len(no_wraparound_distance_dict) == 0) and (len(wraparound_distance_dict) == 0):
             return []
