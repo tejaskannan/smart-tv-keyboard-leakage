@@ -42,8 +42,8 @@ class MultiKeyboardGraph:
 
     def __init__(self):
         dir_name = os.path.dirname(__file__)
-        standard_path = os.path.join(dir_name, '..', 'keyboard_utils', 'samsung_keyboard.csv')
-        special_one_path = os.path.join(dir_name, '..', 'keyboard_utils', 'samsung_keyboard_special_1.csv')
+        standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.csv')
+        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.csv')
 
         self._keyboards = {
             KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),

@@ -8,8 +8,8 @@ from typing import Dict, List, Optional, Iterable, Tuple
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
 
-standard_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung_keyboard.json'))
-special_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung_keyboard_special_1.json'))
+standard_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung', 'samsung_keyboard.json'))['adjacency_list']
+special_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung', 'samsung_keyboard_special_1.json'))['adjacency_list']
 
 CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
 UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' }
