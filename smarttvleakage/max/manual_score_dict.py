@@ -24,7 +24,7 @@ def default_value():
 def buildDict(min_count):
     print("building dict...")
     word_counts = defaultdict(default_value)
-    path = "..\local\dictionaries\enwiki-20210820-words-frequency.txt"
+    path = "local\dictionaries\enwiki-20210820-words-frequency.txt"
 
     with open(path, 'rb') as fin:
         io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
