@@ -59,18 +59,18 @@
         "<RIGHT>": ["<DOWN>", "-", "<CANCEL>"],
         "<CAPS>": ["1", "<CHANGE>"],
         "<CHANGE>": ["<CAPS>", "q"],
-        "<SPACE>": ["c", "<SETTINGS>"],
+        "<SPACE>": ["c"],
         "<LANGUAGE>": ["a"],
-        "<SETTINGS>" : ["z", "<SPACE>"]
+        "<SETTINGS>" : ["z"]
     },
     "shortcuts": {
         "<CHANGE>": ["<LANGUAGE>"],
         "<LANGUAGE>": ["<CHANGE>"],
-        "<SETTINGS>": ["<LANGUAGE>"],
+        "<SETTINGS>": ["<LANGUAGE>", "<SPACE>"],
         "v": ["<SPACE>"],
         "b": ["<SPACE>"],
         "n": ["<SPACE>"],
-        "<SPACE>": ["<WWW>"],
+        "<SPACE>": ["<WWW>", "<SETTINGS>"],
         "<WWW>": ["<SPACE>"],
         "-": ["<DONE>"],
         "*": ["<BACK>"]

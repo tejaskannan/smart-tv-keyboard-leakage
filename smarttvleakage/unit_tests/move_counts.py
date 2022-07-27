@@ -119,6 +119,51 @@ class GraphMoveCounts(unittest.TestCase):
         expected = ['?', '@', '*', '<DOWN>', '<RETURN>', '<CANCEL>']
         self.list_equal(neighbors, expected)
 
+    def test_change_special_four(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='<CHANGE>',
+                                                  num_moves=4,
+                                                  mode=KeyboardMode.SPECIAL_ONE,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=False)
+        expected = ['3', '$', ':', '+', '<SETTINGS>']
+        self.list_equal(neighbors, expected)
+
+    def test_change_special_four(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='<CHANGE>',
+                                                  num_moves=4,
+                                                  mode=KeyboardMode.SPECIAL_ONE,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=True)
+        expected = ['3', '$', ':', '+', '<SETTINGS>', '0', ')', '<<', '<CENT>', '<RIGHT>']
+        self.list_equal(neighbors, expected)
+
+    def test_space_special_one(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='<SPACE>',
+                                                  num_moves=1,
+                                                  mode=KeyboardMode.SPECIAL_ONE,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=False)
+        expected = ['<MULT>']
+        self.list_equal(neighbors, expected)
+
+    def test_space_special_two(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='<SPACE>',
+                                                  num_moves=2,
+                                                  mode=KeyboardMode.SPECIAL_ONE,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=False)
+        expected = ['+', ':', '<DIV>']
+        self.list_equal(neighbors, expected)
+
+    def test_space_special_two_shortcuts(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='<SPACE>',
+                                                  num_moves=2,
+                                                  mode=KeyboardMode.SPECIAL_ONE,
+                                                  use_shortcuts=True,
+                                                  use_wraparound=False)
+        expected = ['+', ':', '<DIV>', '-', '\\', '<COM>', '<LANGUAGE>']
+        self.list_equal(neighbors, expected)
+
     def list_equal(self, observed: List[str], expected: List[str]):
         self.assertEqual(list(sorted(observed)), list(sorted(expected)))
 

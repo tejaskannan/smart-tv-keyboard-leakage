@@ -41,11 +41,11 @@ class MultiKeyboardGraph:
     def __init__(self):
         dir_name = os.path.dirname(__file__)
         standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json.gz')
-        #special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.csv')
+        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json.gz')
 
         self._keyboards = {
-            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD])
-            #KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
+            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
+            KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
         }
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
