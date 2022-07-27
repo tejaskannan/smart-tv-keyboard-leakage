@@ -8,17 +8,17 @@ def findPath(word, error, wraparound):
 	active = []
 	path = []
 	if not wraparound:
-		f = open('samsung_keyboard.csv')
+		f = open('../graphs/samsung/samsung_keyboard.csv')
 		active = list(csv.reader(f))
 		f.close()
-		f = open('samsung_keyboard_special_1.csv')
+		f = open('../graphs/samsung/samsung_keyboard_special_1.csv')
 		inactive = list(csv.reader(f))
 		f.close()
 	else:
-		f = open('samsung_keyboard_wraparound.csv')
+		f = open('../graphs/samsung/samsung_keyboard_wraparound.csv')
 		active = list(csv.reader(f))
 		f.close()
-		f = open('samsung_keyboard_special_1_wraparound.csv')
+		f = open('../graphs/samsung/samsung_keyboard_special_1_wraparound.csv')
 		inactive = list(csv.reader(f))
 		f.close()
 	prev = 'q'

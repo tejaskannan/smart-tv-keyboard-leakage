@@ -82,7 +82,7 @@ def build_file():
 # maybe build this as a dictionary??
 
 def make_msfd():
-    path = "audio/manual_score_dict_2.txt"
+    path = "manual_score_dict_2.txt"
     d = {}
     with open(path) as f:
         lines = f.readlines()
@@ -99,7 +99,7 @@ def get_word_from_ms(ms):
         ms_string += str(m) + ","
     ms_string += ";"
 
-    path = "audio/manual_score_dict_2.txt"
+    path = "manual_score_dict_2.txt"
     with open(path) as f:
         lines = f.readlines()
     
