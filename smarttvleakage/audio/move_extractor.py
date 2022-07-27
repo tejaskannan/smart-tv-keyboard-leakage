@@ -39,7 +39,7 @@ class Sound(Enum):
 CONSTELLATION_PARAMS = {
     #'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
     Sound.KEY_SELECT: ConstellationParams(threshold=-70, freq_delta=5, time_delta=5, freq_tol=3, time_tol=2),
-    Sound.SELECT: ConstellationParams(threshold=-60, freq_delta=3, time_delta=5, freq_tol=3, time_tol=3),
+    Sound.SELECT: ConstellationParams(threshold=-67, freq_delta=3, time_delta=5, freq_tol=1, time_tol=2),
     Sound.MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
     Sound.DOUBLE_MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
     Sound.DELETE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
@@ -380,7 +380,7 @@ if __name__ == '__main__':
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = Sound.DELETE
+    sound = Sound.MOVE
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)

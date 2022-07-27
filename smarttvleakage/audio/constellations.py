@@ -1,6 +1,10 @@
 import numpy as np
+from collections import namedtuple
 from scipy.ndimage import maximum_filter
 from typing import List, Tuple
+
+
+ConstellationMatch = namedtuple('ConstellationMatch', ['step', 'match_frac', 'match_dist'])
 
 
 def compute_constellation_map(spectrogram: np.ndarray, freq_delta: int, time_delta: int, threshold: float, freq_range: Tuple[int, int]) -> Tuple[List[int], List[int]]:
@@ -21,26 +25,6 @@ def compute_constellation_map(spectrogram: np.ndarray, freq_delta: int, time_del
             filtered_freq_peaks.append(freq)
 
     return filtered_time_peaks, filtered_freq_peaks
-
-    #freq_dims, time_dims = spectrogram.shape
-
-    #time_peaks: List[int] = []
-    #freq_peaks: List[int] = []
-
-    #for time_idx in range(0, time_dims, time_delta):
-    #    for freq_idx in range(freq_range[0], freq_range[1], freq_delta):
-    #        freq_limit = freq_idx + freq_delta
-    #        time_limit = time_idx + time_delta
-
-    #        spectrogram_window = spectrogram[freq_idx:freq_limit, time_idx:time_limit]
-    #        (max_freq_idx, max_time_idx) = np.unravel_index(np.argmax(spectrogram_window, axis=None), spectrogram_window.shape)
-    #        max_val = spectrogram_window[max_freq_idx, max_time_idx]
-
-    #        if max_val > threshold:
-    #            time_peaks.append(max_time_idx + time_idx)
-    #            freq_peaks.append(max_freq_idx + freq_idx)
-
-    #return time_peaks, freq_peaks
 
 
 def filter_points_by_time(times: np.ndarray, freqs: np.ndarray, start_time: int, end_time: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -64,16 +48,18 @@ def match_constellations(target_times: np.ndarray,
                          ref_freq: np.ndarray,
                          freq_tol: float,
                          time_tol: float,
-                         time_steps: int) -> Tuple[List[int], Tuple[int]]:
+                         window_size: int,
+                         time_steps: int) -> ConstellationMatch:
     result_steps: List[int] = []
     result_matches: List[float] = []
+    result_distances: List[float] = []
 
     min_ref_time = min(ref_times) - time_tol
     max_ref_time = max(ref_times) + time_tol
     ref_times = [(t - min_ref_time) for t in ref_times]
     num_ref_points = len(ref_times)
 
-    window_size = max_ref_time - min_ref_time
+    window_size = max(max_ref_time - min_ref_time, window_size)
 
     for base_time in range(time_steps):
         window_times, window_freqs = filter_points_by_time(times=target_times,
@@ -93,6 +79,7 @@ def match_constellations(target_times: np.ndarray,
 
         matched_targets: Set[int] = set()
         matched_refs: Set[int] = set()
+        matched_distances: List[float] = []
 
         target_match_indices, ref_match_indices = np.nonzero(comparison)
         num_matches = 0
@@ -102,6 +89,9 @@ def match_constellations(target_times: np.ndarray,
                 num_matches += 2
                 matched_targets.add(target_idx)
                 matched_refs.add(ref_idx)
+
+                # TODO: Fill this in (as an exploration)
+                #matched_distances.append()
 
         #target_matches = np.sum(np.max(comparison, axis=-1))  # [W]
         #comparison *= np.expand_dims(1 - target_matches, axis=-1)  # [W, K]
