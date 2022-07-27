@@ -372,7 +372,7 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-2-word/in_a.MOV')
+    video_clip = mp.VideoFileClip('/home/abebdm/Downloads/Ns$aZ2.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
