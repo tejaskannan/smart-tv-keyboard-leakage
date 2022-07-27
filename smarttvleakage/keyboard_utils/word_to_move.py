@@ -10,17 +10,18 @@ def findPath(word, error, wraparound):
 	active = []
 	path = []
 	if not wraparound:
-		f = open('/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/graphs/samsung/samsung_keyboard_new_normal.csv')
+		f = open('../graphs/samsung/samsung_keyboard.csv')
 		active = list(csv.reader(f))
 		f.close()
-		f = open('/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/graphs/samsung/samsung_keyboard_special_1.csv')
+		f = open('../graphs/samsung/samsung_keyboard_special_1.csv')
 		inactive = list(csv.reader(f))
 		f.close()
 	else:
-		f = open('/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/graphs/samsung/samsung_keyboard_new_wraparound.csv')
+		f = open('../graphs/samsung/samsung_keyboard_wraparound.csv')
 		active = list(csv.reader(f))
 		f.close()
-		f = open('/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/graphs/samsung/samsung_keyboard_special_1_wraparound.csv')
+		f = open('../graphs/samsung/samsung_keyboard_special_1_wraparound.csv')
+
 		inactive = list(csv.reader(f))
 		f.close()
 	prev = 'q'

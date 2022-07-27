@@ -61,7 +61,7 @@ class EnglishDictionary(CharacterDictionary):
         elif path.endswith('.txt'):
             string_dictionary: Dict[str, int] = dict()
 
-            with open(path, 'rb') as fin:
+            with open(path, 'rb', encoding="utf-8") as fin:
                 io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
 
                 for line in io_wrapper:
@@ -81,7 +81,7 @@ class EnglishDictionary(CharacterDictionary):
                             string_dictionary[tokens[0]] = count
         elif path.endswith('.gz'):
             string_dictionary: Dict[str, int] = dict()
-            with gzip.open(path, 'rt') as fin:
+            with gzip.open(path, 'rt', encoding="utf-8") as fin:
                 for line in fin:
                     line = line.strip()
                     if len(line) > 0:
@@ -98,7 +98,7 @@ class EnglishDictionary(CharacterDictionary):
     def iterate_words(self, path: str) -> Iterable[str]:
         assert path.endswith('txt'), 'Must provide a text file'
 
-        with open(path, 'r') as fin:
+        with open(path, 'r', encoding="utf-8") as fin:
             for line in fin:
                 line = line.strip()
                 if len(line) > 0:

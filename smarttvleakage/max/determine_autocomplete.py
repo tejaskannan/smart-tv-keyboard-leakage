@@ -634,6 +634,7 @@ def classify_ms(model, ms : list[int]) -> int:
 
 #bins: 5; weight: double weighted, normalized; certainty_cutoff: 0.26
 #accuracy: 0.9809523809523809
+# best fs
 
 if __name__ == '__main__':
 
