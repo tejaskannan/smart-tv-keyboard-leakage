@@ -76,7 +76,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
         for candidate_moves, adjustment_factor in move_candidates.items():
 
-            print(current_state.keyboard_mode)
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_moves,
                                                       mode=current_state.keyboard_mode,
