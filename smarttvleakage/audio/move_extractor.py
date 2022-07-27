@@ -25,6 +25,7 @@ WINDOW_SIZE = 8
 SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
 SELECT_MOVE_DISTANCE = 30
+MOVE_DELETE_THRESHOLD = 315
 
 
 class Sound(Enum):
@@ -32,6 +33,7 @@ class Sound(Enum):
     DOUBLE_MOVE = auto()
     SELECT = auto()
     KEY_SELECT = auto()
+    DELETE = auto()
 
 
 CONSTELLATION_PARAMS = {
@@ -39,7 +41,8 @@ CONSTELLATION_PARAMS = {
     Sound.KEY_SELECT: ConstellationParams(threshold=-70, freq_delta=5, time_delta=5, freq_tol=3, time_tol=2),
     Sound.SELECT: ConstellationParams(threshold=-60, freq_delta=3, time_delta=5, freq_tol=3, time_tol=3),
     Sound.MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
-    Sound.DOUBLE_MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
+    Sound.DOUBLE_MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
+    Sound.DELETE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
 }
 
 
@@ -47,7 +50,8 @@ SOUND_THRESHOLDS = {
     Sound.MOVE: (275, 600),
     Sound.DOUBLE_MOVE: (450, 600),
     Sound.SELECT: (0.79, 0.85),
-    Sound.KEY_SELECT: (0.79, 0.9)
+    Sound.KEY_SELECT: (0.79, 0.9),
+    Sound.DELETE: (0.95, 0.95)
 }
 
 
@@ -163,7 +167,7 @@ class MoveExtractor:
         channel1 = create_spectrogram(signal=audio[:, 1])
 
         # Create the constellations (if needed)
-        if sound in (Sound.KEY_SELECT, Sound.SELECT):
+        if sound in (Sound.KEY_SELECT, Sound.SELECT, Sound.DELETE):
             sound_profile = self._known_sounds[sound][0]
             start, end = sound_profile.start, sound_profile.end
             constellation_params = CONSTELLATION_PARAMS[sound]
@@ -186,7 +190,7 @@ class MoveExtractor:
         for sound_profile in self._known_sounds[sound]:
             start, end = sound_profile.start, sound_profile.end
 
-            if sound in (Sound.KEY_SELECT, Sound.SELECT):
+            if sound in (Sound.KEY_SELECT, Sound.SELECT, Sound.DELETE):
                 _, channel0_sim = match_constellations(target_times=channel0_constellation[0],
                                                        target_freq=channel0_constellation[1],
                                                        ref_times=sound_profile.channel0_constellation[0],
@@ -372,11 +376,11 @@ class MoveExtractor:
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-2-word/in_a.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-backspace/tet.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = Sound.KEY_SELECT
+    sound = Sound.DELETE
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
