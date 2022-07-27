@@ -35,6 +35,12 @@ class Sound(Enum):
     DELETE = auto()
 
 
+class AppleTvSound(Enum):
+    KEYBOARD_MOVE = auto()
+    KEYBOARD_SELECT = auto()
+    SYSTEM_MOVE = auto()
+
+
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:
     assert len(signal.shape) == 1, 'Must provide a 1d signal'
 
@@ -82,6 +88,9 @@ class MoveExtractor:
     def __init__(self, tv_type: SmartTVType):
         directory = os.path.dirname(__file__)
         sound_directory = os.path.join(directory, '..', 'sounds', tv_type.name.lower())
+
+        
+
 
         self._known_sounds: DefaultDict[Sound, List[SoundProfile]] = defaultdict(list)
 

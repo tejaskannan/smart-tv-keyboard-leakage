@@ -9,7 +9,7 @@ from scipy.ndimage import maximum_filter
 from typing import List, Tuple
 
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
-from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram
+from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram, compute_masked_spectrogram, moving_window_similarity
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
 # Key Select Parameters: (20, 40), threshold -75, constellation deltas (10, 10), TOL (2, 2)
@@ -20,13 +20,13 @@ from smarttvleakage.utils.file_utils import read_pickle_gz
 
 FREQ_DELTA = 3
 TIME_DELTA = 5
-THRESHOLD = -67
-FREQ_RANGE = (0, 30)
+THRESHOLD = -65
+FREQ_RANGE = (0, 40)
 FREQ_TOL = 2
 TIME_TOL = 2
 
-PLOT_DISTANCES = False
-PLOT_TARGET = True
+PLOT_DISTANCES = True
+PLOT_TARGET = False
 
 
 if __name__ == '__main__':
@@ -48,32 +48,40 @@ if __name__ == '__main__':
     target = create_spectrogram(channel0)
     known = create_spectrogram(known_channel0)
 
-    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
+#    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
+#
+#    known_times, known_freq = compute_constellation_map(known, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
+#
+#    match_times, match_fracs = match_constellations(target_times=target_times,
+#                                                    target_freq=target_freq,
+#                                                    ref_times=known_times,
+#                                                    ref_freq=known_freq,
+#                                                    freq_tol=FREQ_TOL,
+#                                                    time_tol=TIME_TOL,
+#                                                    window_size=25,
+#                                                    time_steps=target.shape[1])
+#
 
-    known_times, known_freq = compute_constellation_map(known, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
+    target_masked = compute_masked_spectrogram(target, threshold=THRESHOLD, min_freq=FREQ_RANGE[0], max_freq=FREQ_RANGE[1])
+    known_masked = compute_masked_spectrogram(known, threshold=THRESHOLD, min_freq=FREQ_RANGE[0], max_freq=FREQ_RANGE[1])
+    
+    similarity = moving_window_similarity(target=target_masked, known=known_masked, should_smooth=True, should_match_binary=True)
 
-    match_times, match_fracs = match_constellations(target_times=target_times,
-                                                    target_freq=target_freq,
-                                                    ref_times=known_times,
-                                                    ref_freq=known_freq,
-                                                    freq_tol=FREQ_TOL,
-                                                    time_tol=TIME_TOL,
-                                                    window_size=25,
-                                                    time_steps=target.shape[1])
 
     if PLOT_DISTANCES:
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
         ax1.plot(list(range(len(channel0))), channel0)
-        ax2.plot(match_times, match_fracs)
+        #ax2.plot(match_times, match_fracs)
+        ax2.plot(list(range(len(similarity))), similarity)
     else:
         fig, ax = plt.subplots()
 
         if PLOT_TARGET:
-            ax.imshow(target, cmap='gray_r')
-            ax.scatter(target_times, target_freq, color='red', marker='o')
+            ax.imshow(target_masked, cmap='gray_r')
+            #ax.scatter(target_times, target_freq, color='red', marker='o')
         else:
-            ax.imshow(known, cmap='gray_r')
-            ax.scatter(known_times, known_freq, color='red', marker='o')
+            ax.imshow(known_masked, cmap='gray_r')
+            #ax.scatter(known_times, known_freq, color='red', marker='o')
 
     plt.tight_layout()
     plt.show()
