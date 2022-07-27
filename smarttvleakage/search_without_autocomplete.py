@@ -77,7 +77,8 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_moves,
                                                       mode=current_state.keyboard_mode,
-                                                      use_space=(end_sound == Sound.SELECT) or (prev_key == SPACE))
+                                                      use_space=(end_sound == Sound.SELECT) or (prev_key == SPACE),
+                                                      use_wraparound=False)
 
             next_key_counts = dictionary.get_letter_counts(prefix=current_string,
                                                            length=target_length,

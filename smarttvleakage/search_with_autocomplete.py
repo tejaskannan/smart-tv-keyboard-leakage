@@ -203,7 +203,8 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
                 neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                           num_moves=move_count,
                                                           mode=current_state.keyboard_mode,
-                                                          use_space=(end_sound == Sound.SELECT) or (current_state.current_key == SPACE))
+                                                          use_space=(end_sound == Sound.SELECT) or (current_state.current_key == SPACE),
+                                                          use_wraparound=False)
 
                 if end_sound == Sound.SELECT:
                     neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))

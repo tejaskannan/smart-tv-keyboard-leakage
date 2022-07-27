@@ -54,13 +54,5 @@ class SearchWithAutocomplete(unittest.TestCase):
         return results
 
 
-class GraphMoveCounts(unittest.TestCase):
-
-    def test_a_space(self):
-        neighbors = graph.get_keys_for_moves_from(start_key='a', num_moves=4, mode=KeyboardMode.STANDARD, use_space=True)
-        expected = ['3', '<SPACE>', 'g', 'r', 'v']
-        self.assertEqual(neighbors, expected)
-
-
 if __name__ == '__main__':
     unittest.main()
