@@ -2,7 +2,7 @@ import search_without_autocomplete
 import argparse
 import csv
 from dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
-from graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
 from datetime import datetime, timedelta
 from smarttvleakage.utils.file_utils import read_jsonl_gz
 from smarttvleakage.audio.move_extractor import Move, Sound
