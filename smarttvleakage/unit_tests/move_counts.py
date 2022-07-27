@@ -10,6 +10,15 @@ graph = MultiKeyboardGraph()
 
 class GraphMoveCounts(unittest.TestCase):
 
+    def test_a_zero(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='a',
+                                                  num_moves=0,
+                                                  mode=KeyboardMode.STANDARD,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=False)
+        expected = ['a']
+        self.list_equal(neighbors, expected)
+
     def test_a_four(self):
         neighbors = graph.get_keys_for_moves_from(start_key='a',
                                                   num_moves=4,
