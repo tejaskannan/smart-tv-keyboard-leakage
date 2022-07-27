@@ -16,7 +16,7 @@ class GraphMoveCounts(unittest.TestCase):
                                                   mode=KeyboardMode.STANDARD,
                                                   use_shortcuts=False,
                                                   use_wraparound=False)
-        expected = ['3', '<SPACE>', 'g', 'r', 'v']
+        expected = ['3', 'g', 'r', 'v']
         self.list_equal(neighbors, expected)
 
     def test_a_four_wraparound(self):
@@ -52,7 +52,7 @@ class GraphMoveCounts(unittest.TestCase):
                                                   mode=KeyboardMode.STANDARD,
                                                   use_shortcuts=False,
                                                   use_wraparound=False)
-        expected = ['z', 's', 'e', 'f', 'b']
+        expected = ['z', 's', 'e', 'f', 'b', '<SETTINGS>']
         self.list_equal(neighbors, expected)
 
     def test_c_two_shortcuts(self):
@@ -61,7 +61,7 @@ class GraphMoveCounts(unittest.TestCase):
                                                   mode=KeyboardMode.STANDARD,
                                                   use_shortcuts=True,
                                                   use_wraparound=False)
-        expected = ['z', 's', 'e', 'f', 'b', '<SETTINGS>', 'n', '<WWW>']
+        expected = ['z', 's', 'e', 'f', 'b', '<SETTINGS>', '<WWW>']
         self.list_equal(neighbors, expected)
 
 
@@ -69,9 +69,9 @@ class GraphMoveCounts(unittest.TestCase):
         neighbors = graph.get_keys_for_moves_from(start_key='z',
                                                   num_moves=2,
                                                   mode=KeyboardMode.STANDARD,
-                                                  use_shortcuts=True,
+                                                  use_shortcuts=False,
                                                   use_wraparound=False)
-        expected = ['q', 's', 'c']
+        expected = ['q', 's', 'c', '<SPACE>']
         self.list_equal(neighbors, expected)
 
     def test_z_two_shortcuts(self):
@@ -90,6 +90,24 @@ class GraphMoveCounts(unittest.TestCase):
                                                   use_shortcuts=True,
                                                   use_wraparound=True)
         expected = ['q', 's', 'c', '<CHANGE>', '<SPACE>', '<DONE>']
+        self.list_equal(neighbors, expected)
+
+    def test_dash_two(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='-',
+                                                  num_moves=2,
+                                                  mode=KeyboardMode.STANDARD,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=False)
+        expected = ['?', '@', '*', '<DOWN>', '<DONE>', '<CANCEL>']
+        self.list_equal(neighbors, expected)
+
+    def test_dash_two_shortcuts(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='-',
+                                                  num_moves=2,
+                                                  mode=KeyboardMode.STANDARD,
+                                                  use_shortcuts=True,
+                                                  use_wraparound=False)
+        expected = ['?', '@', '*', '<DOWN>', '<RETURN>', '<CANCEL>']
         self.list_equal(neighbors, expected)
 
     def list_equal(self, observed: List[str], expected: List[str]):

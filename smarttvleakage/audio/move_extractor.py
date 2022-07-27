@@ -12,8 +12,7 @@ from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_d
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 
 
-SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'channel0_constellation', 'channel1_constellation', 'start', 'end'])
-ConstellationParams = namedtuple('ConstellationParams', ['threshold', 'freq_delta', 'time_delta', 'freq_tol', 'time_tol'])
+SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end', 'match_threshold'])
 Move = namedtuple('Move', ['num_moves', 'end_sound'])
 
 
@@ -25,6 +24,7 @@ WINDOW_SIZE = 8
 SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
 SELECT_MOVE_DISTANCE = 30
+MOVE_DELETE_THRESHOLD = 315
 
 
 class Sound(Enum):
@@ -32,23 +32,13 @@ class Sound(Enum):
     DOUBLE_MOVE = auto()
     SELECT = auto()
     KEY_SELECT = auto()
+    DELETE = auto()
 
 
-CONSTELLATION_PARAMS = {
-    #'key_select': ConstellationParams(threshold=-75, freq_delta=10, time_delta=10, freq_tol=2, time_tol=2),
-    Sound.KEY_SELECT: ConstellationParams(threshold=-70, freq_delta=5, time_delta=5, freq_tol=3, time_tol=2),
-    Sound.SELECT: ConstellationParams(threshold=-60, freq_delta=3, time_delta=5, freq_tol=3, time_tol=3),
-    Sound.MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2),
-    Sound.DOUBLE_MOVE: ConstellationParams(threshold=-65, freq_delta=3, time_delta=5, freq_tol=2, time_tol=2)
-}
-
-
-SOUND_THRESHOLDS = {
-    Sound.MOVE: (275, 600),
-    Sound.DOUBLE_MOVE: (450, 600),
-    Sound.SELECT: (0.79, 0.85),
-    Sound.KEY_SELECT: (0.79, 0.9)
-}
+class AppleTvSound(Enum):
+    KEYBOARD_MOVE = auto()
+    KEYBOARD_SELECT = auto()
+    SYSTEM_MOVE = auto()
 
 
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:
@@ -99,10 +89,13 @@ class MoveExtractor:
         directory = os.path.dirname(__file__)
         sound_directory = os.path.join(directory, '..', 'sounds', tv_type.name.lower())
 
+        
+
+
         self._known_sounds: DefaultDict[Sound, List[SoundProfile]] = defaultdict(list)
 
         # Read in the start / end indices (known beforehand)
-        freq_range_dict = read_json(os.path.join(sound_directory, 'freq_ranges.json'))
+        config = read_json(os.path.join(sound_directory, 'config.json'))
 
         for sound in Sound:
             sound_name = sound.name.lower()
@@ -114,37 +107,20 @@ class MoveExtractor:
                 
                 audio = read_pickle_gz(path)
 
-                start, end = freq_range_dict[sound_name]['start'], freq_range_dict[sound_name]['end']
+                start, end = config[sound_name]['start'], config[sound_name]['end']
                 channel0 = create_spectrogram(signal=audio[:, 0])
                 channel1 = create_spectrogram(signal=audio[:, 1])
 
-                if sound in (Sound.MOVE, Sound.DOUBLE_MOVE):
-                    channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
-                    channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
-                else:
-                    channel0_clipped = channel0[start:end, :]
-                    channel1_clipped = channel1[start:end, :]
+                threshold = config[sound_name]['mask_threshold']
 
-                constellation_params = CONSTELLATION_PARAMS[sound]
-
-                channel0_constellation = compute_constellation_map(spectrogram=channel0,
-                                                                   freq_delta=constellation_params.freq_delta,
-                                                                   time_delta=constellation_params.time_delta,
-                                                                   threshold=constellation_params.threshold,
-                                                                   freq_range=(start, end))
-
-                channel1_constellation = compute_constellation_map(spectrogram=channel1,
-                                                                   freq_delta=constellation_params.freq_delta,
-                                                                   time_delta=constellation_params.time_delta,
-                                                                   threshold=constellation_params.threshold,
-                                                                   freq_range=(start, end))
+                channel0_clipped = compute_masked_spectrogram(channel0, threshold=threshold, min_freq=start, max_freq=end)
+                channel1_clipped = compute_masked_spectrogram(channel1, threshold=threshold, min_freq=start, max_freq=end)
 
                 profile = SoundProfile(channel0=channel0_clipped,
                                        channel1=channel1_clipped,
-                                       channel0_constellation=channel0_constellation,
-                                       channel1_constellation=channel1_constellation,
                                        start=start,
-                                       end=end)
+                                       end=end,
+                                       match_threshold=config[sound_name]['match_threshold'])
                 self._known_sounds[sound].append(profile)
 
     def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: Sound) -> List[float]:
@@ -162,59 +138,24 @@ class MoveExtractor:
         channel0 = create_spectrogram(signal=audio[:, 0])
         channel1 = create_spectrogram(signal=audio[:, 1])
 
-        # Create the constellations (if needed)
-        if sound in (Sound.KEY_SELECT, Sound.SELECT):
-            sound_profile = self._known_sounds[sound][0]
-            start, end = sound_profile.start, sound_profile.end
-            constellation_params = CONSTELLATION_PARAMS[sound]
-
-            channel0_constellation = compute_constellation_map(spectrogram=channel0,
-                                                               freq_delta=constellation_params.freq_delta,
-                                                               time_delta=constellation_params.time_delta,
-                                                               threshold=constellation_params.threshold,
-                                                               freq_range=(start, end))
-
-            channel1_constellation = compute_constellation_map(spectrogram=channel1,
-                                                               freq_delta=constellation_params.freq_delta,
-                                                               time_delta=constellation_params.time_delta,
-                                                               threshold=constellation_params.threshold,
-                                                               freq_range=(start, end))
-
         # For each sound type, compute the moving average distances
         similarity_lists: List[List[float]] = []
 
         for sound_profile in self._known_sounds[sound]:
             start, end = sound_profile.start, sound_profile.end
 
-            if sound in (Sound.KEY_SELECT, Sound.SELECT):
-                _, channel0_sim = match_constellations(target_times=channel0_constellation[0],
-                                                       target_freq=channel0_constellation[1],
-                                                       ref_times=sound_profile.channel0_constellation[0],
-                                                       ref_freq=sound_profile.channel0_constellation[1],
-                                                       freq_tol=constellation_params.freq_tol,
-                                                       time_tol=constellation_params.time_tol,
-                                                       time_steps=channel0.shape[1])
+            channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+            channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
 
-                _, channel1_sim = match_constellations(target_times=channel1_constellation[0],
-                                                       target_freq=channel1_constellation[1],
-                                                       ref_times=sound_profile.channel1_constellation[0],
-                                                       ref_freq=sound_profile.channel1_constellation[1],
-                                                       freq_tol=constellation_params.freq_tol,
-                                                       time_tol=constellation_params.time_tol,
-                                                       time_steps=channel1.shape[1])
-            else:
-                channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
-                channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+            channel0_sim = moving_window_similarity(target=channel0_clipped,
+                                                    known=sound_profile.channel0,
+                                                    should_smooth=True,
+                                                    should_match_binary=True)
 
-                channel0_sim = moving_window_similarity(target=channel0_clipped,
-                                                        known=sound_profile.channel0,
-                                                        should_smooth=True,
-                                                        should_match_binary=True)
-
-                channel1_sim = moving_window_similarity(target=channel1_clipped,
-                                                        known=sound_profile.channel1,
-                                                        should_smooth=True,
-                                                        should_match_binary=True)
+            channel1_sim = moving_window_similarity(target=channel1_clipped,
+                                                    known=sound_profile.channel1,
+                                                    should_smooth=True,
+                                                    should_match_binary=True)
 
             similarities = [max(c0, c1) for c0, c1 in zip(channel0_sim, channel1_sim)]
             similarity_lists.append(similarities)
@@ -236,8 +177,8 @@ class MoveExtractor:
         """
         similarity = self.compute_spectrogram_similarity_for_sound(audio=audio, sound=sound)
 
-        (min_threshold, max_threshold) = SOUND_THRESHOLDS[sound]
-        threshold = min_threshold
+        sound_profile = self._known_sounds[sound][0]
+        threshold = sound_profile.match_threshold
 
         distance = KEY_SELECT_DISTANCE if sound == Sound.KEY_SELECT else MIN_DISTANCE
         peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
@@ -376,7 +317,7 @@ if __name__ == '__main__':
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = Sound.KEY_SELECT
+    sound = Sound.MOVE
 
     extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
