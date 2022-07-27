@@ -15,8 +15,8 @@ import random
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import RandomizedSearchCV
-from smarttvleakage.audio.alg_determine_autocomplete import get_score_from_ms, get_score_from_ms_improved, adjust_for_len
-from smarttvleakage.audio.manual_score_dict import build_msfd, build_ms_dict
+from smarttvleakage.max.alg_determine_autocomplete import get_score_from_ms, get_score_from_ms_improved, adjust_for_len
+from smarttvleakage.max.manual_score_dict import build_msfd, build_ms_dict
 import math
 
 
