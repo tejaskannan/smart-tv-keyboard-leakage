@@ -1,0 +1,33 @@
+{
+    "alphabet": {
+        "<CHANGE>": { "numbers": "<CHANGE>", "special": "<CHANGE>" },
+        "<SPACE>": { "numbers": "<CHANGE>", "special": "<SPACE>" },
+        "a": { "numbers": "<CHANGE>", "special": "`" },
+        "b": { "numbers": "<CHANGE>", "special": "'" },
+        "c": { "numbers": "<CHANGE>", "special": "\"" },
+        "d": { "numbers": "<CHANGE>", "special": ";" },
+        "e": { "numbers": "<CHANGE>", "special": ":" },
+        "f": { "numbers": "<CHANGE>", "special": "~" },
+        "g": { "numbers": "<SPACE>", "special": "=" },
+        "h": { "numbers": "<SPACE>", "special": "*" },
+        "i": { "numbers": "1", "special": "+" },
+        "j": { "numbers": "2", "special": "-" },
+        "k": { "numbers": "3", "special": "_" },
+        "l": { "numbers": "4", "special": "," },
+        "m": { "numbers": "5", "special": "." },
+        "n": { "numbers": "6", "special": "?" },
+        "o": { "numbers": "7", "special": "!" },
+        "p": { "numbers": "8", "special": "@" }, 
+        "q": { "numbers": "9", "special": "#" },
+        "r": { "numbers": "0", "special": "$" },
+        "s": { "numbers": "<BACK>", "special": "%" }, 
+        "t": { "numbers": "<BACK>", "special": "^" },
+        "u": { "numbers": "<BACK>", "special": "&" }, 
+        "v": { "numbers": "<BACK>", "special": "|" }, 
+        "w": { "numbers": "<BACK>", "special": "/" }, 
+        "x": { "numbers": "<BACK>", "special": "\\" }, 
+        "y": { "numbers": "<BACK>", "special": "(" }, 
+        "z": { "numbers": "<BACK>", "special": ")" }, 
+        "<BACK>": { "numbers": "<BACK>", "special": "<BACK>" }
+    }
+}

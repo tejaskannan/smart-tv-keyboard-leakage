@@ -20,6 +20,7 @@ SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end
 Move = namedtuple('Move', ['num_moves', 'end_sound'])
 
 
+APPLETV_MOVE_DISTANCE = 5
 MIN_DISTANCE = 12
 KEY_SELECT_DISTANCE = 30
 MIN_DOUBLE_MOVE_DISTANCE = 30
@@ -177,8 +178,10 @@ class MoveExtractor:
         sound_profile = self._known_sounds[sound][0]
         threshold = sound_profile.match_threshold
 
-        if (self._tv_type == SmartTVType.APPLE_TV) or (sound == SAMSUNG_KEY_SELECT):
+        if (self._tv_type == SmartTVType.SAMSUNG) and (sound == SAMSUNG_KEY_SELECT):
             distance = KEY_SELECT_DISTANCE
+        elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_KEYBOARD_MOVE):
+            distance = APPLETV_MOVE_DISTANCE
         else:
             distance = MIN_DISTANCE
 
@@ -344,15 +347,29 @@ class AppleTVMoveExtractor(MoveExtractor):
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        keyboard_select_times, keyboard_select_heights = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
+        keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
 
         # Signals without any key selections do not interact with the keyboard
         if len(keyboard_select_times) == 0:
             return [], False
 
         # Get occurances of the other sounds
-        keyboard_move_times, keyboard_move_heights = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_MOVE)
-        system_move_times, system_move_heights = self.find_instances_of_sound(audio=audio, sound=APPLETV_SYSTEM_MOVE)
+        raw_keyboard_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_MOVE)
+        raw_system_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_SYSTEM_MOVE)
+
+        # Filter out conflicting sounds
+        system_move_times: List[int] = []
+        for move_time in raw_system_move_times:
+            diff = np.abs(np.subtract(keyboard_select_times, move_time))
+            if np.all(diff > MIN_DISTANCE):
+                system_move_times.append(move_time)
+
+        keyboard_move_times: List[int] = []
+        for move_time in raw_keyboard_move_times:
+            keyboard_diff = np.abs(np.subtract(keyboard_select_times, move_time))
+            system_diff = np.abs(np.subtract(system_move_times, move_time))
+            if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE):
+                keyboard_move_times.append(move_time)
 
         # Get the end time as the last system move
         end_time = system_move_times[-1] if len(system_move_times) > 0 else BIG_NUMBER
@@ -385,11 +402,11 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/apple-tv/test_strings/severance.MOV')
+    video_clip = mp.VideoFileClip('/local/apple-tv/ten/wecrashed.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = APPLETV_SYSTEM_MOVE
+    sound = APPLETV_KEYBOARD_SELECT
 
     extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)

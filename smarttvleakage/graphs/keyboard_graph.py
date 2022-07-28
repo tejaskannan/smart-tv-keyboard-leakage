@@ -56,9 +56,13 @@ class MultiKeyboardGraph:
             }
         elif tv_type == SmartTVType.APPLE_TV:
             alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json.gz')
+            numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json.gz')
+            special_path = os.path.join(dir_name, 'apple_tv', 'special.json.gz')
 
             self._keyboards = {
-                APPLETV_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_ALPHABET])
+                APPLETV_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_ALPHABET]),
+                APPLETV_NUMBERS: SingleKeyboardGraph(path=numbers_path, start_key=START_KEYS[APPLETV_NUMBERS]),
+                APPLETV_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_SPECIAL])
             }
         else:
             raise ValueError('Unknown TV type: {}'.format(tv_type.name))

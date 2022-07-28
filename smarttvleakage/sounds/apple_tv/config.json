@@ -1,0 +1,20 @@
+{
+    "keyboard_move": {
+        "start": 0,
+        "end": 40,
+        "mask_threshold": -65,
+        "match_threshold": 175
+    },
+    "keyboard_select": {
+        "start": 0,
+        "end": 40,
+        "mask_threshold": -65,
+        "match_threshold": 210
+    },
+    "system_move": {
+        "start": 0,
+        "end": 40,
+        "mask_threshold": -65,
+        "match_threshold": 150
+    }
+}

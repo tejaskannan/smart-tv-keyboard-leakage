@@ -6,8 +6,8 @@ from queue import PriorityQueue
 from collections import namedtuple, defaultdict, Counter
 from typing import Set, List, Dict, Optional, Iterable, Tuple, DefaultDict
 
-from smarttvleakage.audio.move_extractor import Move, Sound
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS, SPACE
+from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SPACE
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SELECT_SOUND_KEYS
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.file_utils import read_json
@@ -93,13 +93,13 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
         count = 0
 
         for move in move_sequence:
-            if move.end_sound == Sound.SELECT:
+            if move.end_sound == SAMSUNG_SELECT:
                 string_lengths.append(count)
                 count = 0
             else:
                 count += 1
 
-        if move_sequence[-1].end_sound != Sound.SELECT:
+        if move_sequence[-1].end_sound != SAMSUNG_SELECT:
             string_lengths.append(count)
 
     #string_length = target_length if (not did_use_autocomplete) else None
@@ -180,7 +180,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
         #if num_moves > 3:
         #    move_score_factors[num_moves - 2] = INCORRECT_FACTOR
 
-        string_length_idx = sum(int(sound == Sound.SELECT) for sound in move_sequence[0:move_idx + 1])
+        string_length_idx = sum(int(sound == SAMSUNG_SELECT) for sound in move_sequence[0:move_idx + 1])
         string_length = string_lengths[string_length_idx] if (not did_use_autocomplete) else None
 
         # Get the unnormalized scores for the next keys
@@ -203,10 +203,10 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
                 neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                           num_moves=move_count,
                                                           mode=current_state.keyboard_mode,
-                                                          use_space=(end_sound == Sound.SELECT) or (current_state.current_key == SPACE),
+                                                          use_space=(end_sound == SAMSUNG_SELECT) or (current_state.current_key == SPACE),
                                                           use_wraparound=False)
 
-                if end_sound == Sound.SELECT:
+                if end_sound == SAMSUNG_SELECT:
                     neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))
                     filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
                 else:
@@ -287,7 +287,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
-    parser.add_argument('--sounds-list', type=str, required=True, nargs='+', choices=['select', 'key_select'], help='A space-separated sequence of sounds for each selection (either `select` or `key_select`)')
+    parser.add_argument('--sounds-list', type=str, required=True, nargs='+', choices=[SAMSUNG_SELECT, SAMSUNG_KEY_SELECT], help='A space-separated sequence of sounds for each selection')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     args = parser.parse_args()
 
@@ -298,7 +298,7 @@ if __name__ == '__main__':
     else:
         dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
-    moves = [Move(num_moves=m, end_sound=Sound[s.upper()]) for m, s in zip(args.moves_list, args.sounds_list)]
+    moves = [Move(num_moves=m, end_sound=s) for m, s in zip(args.moves_list, args.sounds_list)]
 
     for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves_autocomplete(move_sequence=moves, graph=graph, dictionary=dictionary, max_num_results=None, did_use_autocomplete=False)):
         if idx >= 25:
