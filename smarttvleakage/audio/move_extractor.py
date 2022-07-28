@@ -10,6 +10,10 @@ from typing import List, Dict, Tuple, DefaultDict
 from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
+from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, SAMSUNG_KEY_SELECT
+from smarttvleakage.audio.constants import SAMSUNG_MOVE, SAMSUNG_SELECT, APPLETV_KEYBOARD_DELETE
+from smarttvleakage.audio.constants import APPLETV_KEYBOARD_MOVE, APPLETV_KEYBOARD_SELECT, APPLETV_SYSTEM_MOVE
+from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS
 
 
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end', 'match_threshold'])
@@ -25,20 +29,6 @@ SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
 SELECT_MOVE_DISTANCE = 30
 MOVE_DELETE_THRESHOLD = 315
-
-
-class Sound(Enum):
-    MOVE = auto()
-    DOUBLE_MOVE = auto()
-    SELECT = auto()
-    KEY_SELECT = auto()
-    DELETE = auto()
-
-
-class AppleTvSound(Enum):
-    KEYBOARD_MOVE = auto()
-    KEYBOARD_SELECT = auto()
-    SYSTEM_MOVE = auto()
 
 
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:
@@ -89,29 +79,32 @@ class MoveExtractor:
         directory = os.path.dirname(__file__)
         sound_directory = os.path.join(directory, '..', 'sounds', tv_type.name.lower())
 
-        
-
-
-        self._known_sounds: DefaultDict[Sound, List[SoundProfile]] = defaultdict(list)
+        self._known_sounds: DefaultDict[str, List[SoundProfile]] = defaultdict(list)
+        self._tv_type = tv_type
 
         # Read in the start / end indices (known beforehand)
         config = read_json(os.path.join(sound_directory, 'config.json'))
 
-        for sound in Sound:
-            sound_name = sound.name.lower()
+        if tv_type == SmartTVType.SAMSUNG:
+            self._sound_names = SAMSUNG_SOUNDS
+        elif tv_type == SmartTVType.APPLE_TV:
+            self._sound_names = APPLETV_SOUNDS
+        else:
+            raise ValueError('Unknown TV Type: {}'.format(tv_type.name))
 
+        for sound in self._sound_names:
             for path in iterate_dir(sound_directory):
                 file_name = os.path.basename(path)
-                if not file_name.startswith(sound_name):
+                if not file_name.startswith(sound):
                     continue
                 
                 audio = read_pickle_gz(path)
 
-                start, end = config[sound_name]['start'], config[sound_name]['end']
+                start, end = config[sound]['start'], config[sound]['end']
                 channel0 = create_spectrogram(signal=audio[:, 0])
                 channel1 = create_spectrogram(signal=audio[:, 1])
 
-                threshold = config[sound_name]['mask_threshold']
+                threshold = config[sound]['mask_threshold']
 
                 channel0_clipped = compute_masked_spectrogram(channel0, threshold=threshold, min_freq=start, max_freq=end)
                 channel1_clipped = compute_masked_spectrogram(channel1, threshold=threshold, min_freq=start, max_freq=end)
@@ -120,20 +113,22 @@ class MoveExtractor:
                                        channel1=channel1_clipped,
                                        start=start,
                                        end=end,
-                                       match_threshold=config[sound_name]['match_threshold'])
+                                       match_threshold=config[sound]['match_threshold'])
                 self._known_sounds[sound].append(profile)
 
-    def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: Sound) -> List[float]:
+    def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
         """
         Computes the sum of the absolute distances between the spectrogram
         of the given audio signal and those of the known sounds in a moving-window fashion.
 
         Args:
             audio: A 2d audio signal where the last dimension is the channel.
-            sound: The (known) sound to use
+            sound: The name of the sound to use
         Returns:
             An array of the moving-window distances
         """
+        assert sound in self._sound_names, 'Unknown sound {}. The sound must be one of {}'.format(sound, self._sound_names)
+
         # Create the spectrogram from the known signal
         channel0 = create_spectrogram(signal=audio[:, 0])
         channel1 = create_spectrogram(signal=audio[:, 1])
@@ -162,30 +157,36 @@ class MoveExtractor:
 
         return np.max(similarity_lists, axis=0)
 
-    def find_instances_of_sound(self, audio: np.ndarray, sound: Sound) -> Tuple[List[int], List[float]]:
+    def find_instances_of_sound(self, audio: np.ndarray, sound: str) -> Tuple[List[int], List[float]]:
         """
         Finds instances of the given sound in the provided audio signal
         by finding peaks in the spectrogram distance chart.
 
         Args:
             audio: A 2d audio signal where the last dimension is the channel.
-            sound: The sound to find
+            sound: The name of the sound to find
         Return:
             A tuple of 3 elements:
                 (1) A list of the `times` in which the peaks occur in the distance graph
                 (2) A list of the peak values in the distance graph
         """
+        assert sound in self._sound_names, 'Unknown sound {}. The sound must be one of {}'.format(sound, self._sound_names)
+
         similarity = self.compute_spectrogram_similarity_for_sound(audio=audio, sound=sound)
 
         sound_profile = self._known_sounds[sound][0]
         threshold = sound_profile.match_threshold
 
-        distance = KEY_SELECT_DISTANCE if sound == Sound.KEY_SELECT else MIN_DISTANCE
+        if (self._tv_type == SmartTVType.APPLE_TV) or (sound == SAMSUNG_KEY_SELECT):
+            distance = KEY_SELECT_DISTANCE
+        else:
+            distance = MIN_DISTANCE
+
         peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
 
         # Filter out duplicate double moves
-        if (sound == Sound.DOUBLE_MOVE) and (len(peaks) > 0):
+        if (sound == SAMSUNG_DOUBLE_MOVE) and (len(peaks) > 0):
             filtered_peaks = [peaks[0]]
             filtered_peak_heights = [peak_heights[0]]
 
@@ -209,16 +210,33 @@ class MoveExtractor:
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        raw_key_select_times, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound=Sound.KEY_SELECT)
+        raise NotImplementedError()
+
+
+class SamsungMoveExtractor(MoveExtractor):
+
+    def __init__(self):
+        super().__init__(SmartTVType.SAMSUNG)
+
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool]:
+        """
+        Extracts the number of moves between key selections in the given audio sequence.
+
+        Args:
+            audio: A 2d aduio signal where the last dimension is the channel.
+        Returns:
+            A list of moves before selections. The length of this list is the number of selections.
+        """
+        raw_key_select_times, raw_key_select_heights = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_KEY_SELECT)
 
         # Signals without any key selections do not interact with the keyboard
         if len(raw_key_select_times) == 0:
             return [], False
 
         # Get occurances of the other two sounds
-        move_times, move_heights = self.find_instances_of_sound(audio=audio, sound=Sound.MOVE)
-        double_move_times, double_move_heights = self.find_instances_of_sound(audio=audio, sound=Sound.DOUBLE_MOVE)
-        raw_select_times, raw_select_heights = self.find_instances_of_sound(audio=audio, sound=Sound.SELECT)
+        move_times, move_heights = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_MOVE)
+        double_move_times, double_move_heights = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_DOUBLE_MOVE)
+        raw_select_times, raw_select_heights = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_SELECT)
 
         select_times: List[int] = []
         select_heights: List[int] = []
@@ -272,12 +290,12 @@ class MoveExtractor:
 
         while move_idx < len(clipped_move_times):
             while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=Sound.KEY_SELECT))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT))
                 key_idx += 1
                 num_moves = 0
 
             while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=Sound.SELECT))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT))
                 select_idx += 1
                 num_moves = 0
 
@@ -294,7 +312,7 @@ class MoveExtractor:
 
         # Write out the last group if we haven't reached the last key
         if key_idx < len(key_select_times):
-            result.append(Move(num_moves=num_moves, end_sound=Sound.KEY_SELECT))
+            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT))
 
         # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
         # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
@@ -312,14 +330,68 @@ class MoveExtractor:
         return result, did_use_autocomplete
 
 
+class AppleTVMoveExtractor(MoveExtractor):
+
+    def __init__(self):
+        super().__init__(SmartTVType.APPLE_TV)
+
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool]:
+        """
+        Extracts the number of moves between key selections in the given audio sequence.
+
+        Args:
+            audio: A 2d aduio signal where the last dimension is the channel.
+        Returns:
+            A list of moves before selections. The length of this list is the number of selections.
+        """
+        keyboard_select_times, keyboard_select_heights = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
+
+        # Signals without any key selections do not interact with the keyboard
+        if len(keyboard_select_times) == 0:
+            return [], False
+
+        # Get occurances of the other sounds
+        keyboard_move_times, keyboard_move_heights = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_MOVE)
+        system_move_times, system_move_heights = self.find_instances_of_sound(audio=audio, sound=APPLETV_SYSTEM_MOVE)
+
+        # Get the end time as the last system move
+        end_time = system_move_times[-1] if len(system_move_times) > 0 else BIG_NUMBER
+
+        # Extract the move sequence
+        move_sequence: List[Move] = []
+
+        num_moves = 0
+        move_idx = 0
+        key_select_idx = 0
+
+        while (move_idx < len(keyboard_move_times)) and (keyboard_move_times[move_idx] < end_time):
+            # Write move elements
+            while (key_select_idx < len(keyboard_select_times)) and (keyboard_move_times[move_idx] > keyboard_select_times[key_select_idx]):
+                # A quirk of Apple TV -> The entry to the keyboard makes the keyboard move sound. We remove this move
+                if len(move_sequence) == 0:
+                    num_moves -= 1
+
+                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
+                num_moves = 0
+                key_select_idx += 1
+
+            num_moves += 1
+            move_idx += 1
+
+        if key_select_idx < len(keyboard_select_times):
+            move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
+
+        return move_sequence, False
+
+
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/home/abebdm/Downloads/Ns$aZ2.MOV')
+    video_clip = mp.VideoFileClip('/local/apple-tv/test_strings/severance.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = Sound.MOVE
+    sound = APPLETV_SYSTEM_MOVE
 
-    extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+    extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
