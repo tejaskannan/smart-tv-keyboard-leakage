@@ -5,21 +5,24 @@ from typing import Dict, DefaultDict, List, Set
 import csv
 
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
+from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
 
 
-class KeyboardMode(Enum):
-    STANDARD = auto()
-    SPECIAL_ONE = auto()
+SAMSUNG_STANDARD = 'standard'
+SAMSUNG_SPECIAL_ONE = 'special_1'
+APPLETV_ALPHABET = 'alphabet'
+APPLETV_NUMBERS = 'numbers'
+APPLETV_SPECIAL = 'special'
 
 
 START_KEYS = {
-    KeyboardMode.STANDARD: 'q',
-    KeyboardMode.SPECIAL_ONE: CHANGE
+    SAMSUNG_STANDARD: 'q',
+    SAMSUNG_SPECIAL_ONE: CHANGE,
+    APPLETV_ALPHABET: 't',
+    APPLETV_NUMBERS: CHANGE,
+    APPLETV_SPECIAL: CHANGE
 }
-
-
-FILTERED_KEYS = [BACKSPACE]
 
 
 def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
@@ -38,23 +41,35 @@ def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
 
 class MultiKeyboardGraph:
 
-    def __init__(self):
+    def __init__(self, tv_type: SmartTVType):
+        self._tv_type = tv_type
+
         dir_name = os.path.dirname(__file__)
-        standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json.gz')
-        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json.gz')
 
-        self._keyboards = {
-            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
-            KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
-        }
+        if tv_type == SmartTVType.SAMSUNG:
+            standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json.gz')
+            special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json.gz')
 
-    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+            self._keyboards = {
+                SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
+                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
+            }
+        elif tv_type == SmartTVType.APPLE_TV:
+            alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json.gz')
+
+            self._keyboards = {
+                APPLETV_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_ALPHABET])
+            }
+        else:
+            raise ValueError('Unknown TV type: {}'.format(tv_type.name))
+
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
         if num_moves < 0:
             return []
 
         return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
 
-    def printerthing(self, num_moves: int, mode: KeyboardMode) -> List[str]:
+    def printerthing(self, num_moves: int, mode: str) -> List[str]:
         return self._keyboards[mode].get_keys_for_moves(num_moves)
 
 
