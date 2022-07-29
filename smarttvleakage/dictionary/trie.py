@@ -145,7 +145,7 @@ class Trie:
                 length -= 1
 
             if node is None:
-                return child_dict
+                return dict()  # If we couldn't find the prefix, return an empty dictionary
             else:
                 if idx == (len(prefix) - 1):
                     next_dict = node.get_child_characters(length=length)

@@ -47,17 +47,17 @@ class MultiKeyboardGraph:
         dir_name = os.path.dirname(__file__)
 
         if tv_type == SmartTVType.SAMSUNG:
-            standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json.gz')
-            special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json.gz')
+            standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json')
+            special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json')
 
             self._keyboards = {
                 SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
                 SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
             }
         elif tv_type == SmartTVType.APPLE_TV:
-            alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json.gz')
-            numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json.gz')
-            special_path = os.path.join(dir_name, 'apple_tv', 'special.json.gz')
+            alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json')
+            numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json')
+            special_path = os.path.join(dir_name, 'apple_tv', 'special.json')
 
             self._keyboards = {
                 APPLETV_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_ALPHABET]),
@@ -66,6 +66,17 @@ class MultiKeyboardGraph:
             }
         else:
             raise ValueError('Unknown TV type: {}'.format(tv_type.name))
+
+    def is_unclickable(self, key: str, mode: str) -> bool:
+        return self._keyboards[mode].is_unclickable(key)
+
+    def get_characters(self) -> List[str]:
+        merged: Set[str] = set()
+
+        for keyboard in self._keyboards.values():
+            merged.update(keyboard.get_characters())
+
+        return list(merged)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
         if num_moves < 0:
@@ -83,22 +94,33 @@ class SingleKeyboardGraph:
         # Set the start key
         self._start_key = start_key
 
-        # Read in the precomputed shortest paths maps
-        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json.gz', '_normal.json.gz'))
-        self._no_wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json.gz', '_shortcuts.json.gz'))
+        # Read in the graph config to get the unclickable keys
+        graph_config = read_json(path)
+        self._characters = list(graph_config['adjacency_list'].keys())
+        self._unclickable_keys: Set[str] = set(graph_config['unclickable'])
 
-        wraparound_path = path.replace('.json.gz', '_wraparound.json.gz')
+        # Read in the precomputed shortest paths maps
+        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json', '_normal.json.gz'))
+        self._no_wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json', '_shortcuts.json.gz'))
+
+        wraparound_path = path.replace('.json', '_wraparound.json.gz')
         self._wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=wraparound_path)
         if os.path.exists(wraparound_path):
             self._wraparound_distances = parse_graph_distances(path=wraparound_path)
 
-        wraparound_shortcuts_path = path.replace('.json.gz', '_all.json.gz')
+        wraparound_shortcuts_path = path.replace('.json', '_all.json.gz')
         self._wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = dict()
         if os.path.exists(wraparound_shortcuts_path):
             self._wraparound_distances_shortcuts = parse_graph_distances(path=wraparound_shortcuts_path)
 
     def get_keys_for_moves(self, num_moves: int) -> List[str]:
         return self.get_keys_for_moves_from(start_key=self._start_key, num_moves=num_moves, use_space=False)
+
+    def get_characters(self) -> List[str]:
+        return self._characters
+
+    def is_unclickable(self, key: str) -> bool:
+        return (key in self._unclickable_keys)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
         assert num_moves >= 0, 'Must provide a non-negative number of moves. Got {}'.format(num_moves)

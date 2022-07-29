@@ -31,5 +31,6 @@
         "<BACK>": ["z"]
     },
     "shortcuts": {},
-    "wraparound": {}
+    "wraparound": {},
+    "unclickable": []
 }

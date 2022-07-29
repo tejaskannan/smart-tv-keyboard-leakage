@@ -15,5 +15,6 @@
         "<BACK>": ["0"]
     },
     "shortcuts": {},
-    "wraparound": {}
+    "wraparound": {},
+    "unclickable": []
 }

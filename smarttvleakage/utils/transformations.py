@@ -2,7 +2,7 @@ from typing import Set, Dict, List
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_ALPHABET, APPLETV_NUMBERS, APPLETV_SPECIAL
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE
 from .constants import SmartTVType
 

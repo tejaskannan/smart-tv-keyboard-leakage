@@ -34,13 +34,14 @@ if __name__ == '__main__':
 
     tv_type = SmartTVType[args.tv_type.upper()]
     graph = MultiKeyboardGraph(tv_type=tv_type)
+    characters = graph.get_characters()
 
     print('Starting to load the dictionary...')
     
     if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary()
+        dictionary = UniformDictionary(characters=characters)
     else:
-        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
+        dictionary = EnglishDictionary.restore(characters=characters, path=args.dictionary_path)
 
     print('Finished loading dictionary.')
 

@@ -292,11 +292,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     graph = MultiKeyboardGraph()
+    characters = graph.get_characters()
 
     if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary()
+        dictionary = UniformDictionary(characters=characters)
     else:
-        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
+        dictionary = EnglishDictionary.restore(characters=characters, path=args.dictionary_path)
 
     moves = [Move(num_moves=m, end_sound=s) for m, s in zip(args.moves_list, args.sounds_list)]
 

@@ -8,12 +8,8 @@ from typing import Dict, List, Optional, Iterable, Tuple
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
 
-standard_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung', 'samsung_keyboard.json'))['adjacency_list']
-special_graph = read_json(os.path.join(os.path.dirname(__file__), '..', 'graphs', 'samsung', 'samsung_keyboard_special_1.json'))['adjacency_list']
-
-CHARACTERS: List[str] = list(sorted(standard_graph.keys())) + list(sorted(special_graph.keys()))
-UNPRINTED_CHARACTERS = { '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' }
-SELECT_SOUND_KEYS = { '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>' }
+UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
+SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>' })
 
 
 CAPS = '<CAPS>'
@@ -28,11 +24,21 @@ CHARACTER_TRANSLATION = {
     '<DIV>': '÷',
     '<SPACE>': ' ',
     '<WWW>': 'www',
-    '<COM>': 'com'
+    '<COM>': 'com',
+    '<POUND>': '#'
 }
+
+REVERSE_CHARACTER_TRANSLATION = { value: key for key, value in CHARACTER_TRANSLATION.items() }
 
 
 class CharacterDictionary:
+
+    def __init__(self, characters: List[str]):
+        self._characters = characters
+
+    @property
+    def characters(self) -> List[str]:
+        return self._characters
 
     def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
         raise NotImplementedError()
@@ -41,12 +47,13 @@ class CharacterDictionary:
 class UniformDictionary(CharacterDictionary):
 
     def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
-        return { c: 1 for c in CHARACTERS }
+        return { REVERSE_CHARACTER_TRANSLATION.get(char, char): 1 for char in self.characters }
 
 
 class EnglishDictionary(CharacterDictionary):
 
-    def __init__(self, max_depth: int):
+    def __init__(self, max_depth: int, characters: List[str]):
+        super().__init__(characters=characters)
         self._trie = Trie(max_depth=max_depth)
         self._is_built = False
         self._max_depth = max_depth
@@ -75,7 +82,7 @@ class EnglishDictionary(CharacterDictionary):
                         string = ' '.join(tokens[0:-1])
 
                         if count >= min_count:
-                            string_dictionary[tokens[0]] = count
+                            string_dictionary[string] = count
         elif path.endswith('.gz'):
             string_dictionary: Dict[str, int] = dict()
             with gzip.open(path, 'rt', encoding="utf-8") as fin:
@@ -116,16 +123,19 @@ class EnglishDictionary(CharacterDictionary):
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix, length=length)
 
+        # Convert any needed characters
+        character_counts = { REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items() }
+
         # Use laplace smoothing
         if should_smooth:
-            for c in CHARACTERS:
+            for c in self.characters:
                 character_counts[c] = character_counts.get(c, 0) + 1
 
         return character_counts
 
     @classmethod
-    def restore(cls, path: str):
-        dictionary = cls(max_depth=1)
+    def restore(cls, characters: List[str], path: str):
+        dictionary = cls(max_depth=1, characters=characters)
         dictionary._trie = read_pickle_gz(path)
         dictionary._is_built = True
         dictionary._max_depth = dictionary._trie.max_depth

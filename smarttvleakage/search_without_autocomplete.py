@@ -75,7 +75,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         current_string = get_string_from_keys(keys=current_state.keys)
         candidate_count += 1
 
-        #print('Current String: {}, Current Keys: {}'.format(current_string, current_state.keys))
+        #print('Current String: {}, Current Keys: {}, Score: {}'.format(current_string, current_state.keys, current_state.score))
 
         if len(current_state.keys) == target_length:
 
@@ -118,6 +118,9 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       use_shortcuts=False,
                                                       use_wraparound=False)
 
+            # Filter out any unclickable keys (could not have selected those)
+            neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
+
             next_key_counts = dictionary.get_letter_counts(prefix=current_string,
                                                            length=target_length,
                                                            should_smooth=True)
@@ -134,6 +137,12 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                 filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                              candidate_keys=neighbors)
 
+            #if current_string == 'ted':
+            #    print('Neighbors: {}'.format(neighbors))
+            #    print('Filtered Probs: {}'.format(filtered_probs))
+            #    print('Next Key Counts: {}'.format(next_key_counts))
+            #    print('Keys: {}, Current Key: {}'.format(current_state.keys, current_state.current_key))
+
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_word = get_string_from_keys(candidate_keys)
@@ -148,7 +157,8 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       tv_type=tv_type)
 
                     #string_score = get_score_for_string(candidate_word, dictionary=dictionary, should_aggregate_score=should_aggregate_score)
-                    next_state_score = (current_state.score + score) * adjustment_factor
+                    #next_state_score = current_state.score + score * adjustment_factor
+                    next_state_score=  current_state.score * score * adjustment_factor
 
                     next_state = SearchState(keys=candidate_keys,
                                              score=next_state_score,
@@ -174,17 +184,18 @@ if __name__ == '__main__':
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
     parser.add_argument('--sounds-list', type=str, nargs='*', choices=[SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT], help='An optional space-separated sequence of end sounds. If none, we assume all sounds are `key_select`.')
-    parser.add_argument('--tv-type', type=str, choices=[SmartTVType.SAMSUNG.name.lower(), SmartTVType.APPLE_TV.name.lower()], help='The name of the TV type to use.')
+    parser.add_argument('--tv-type', type=str, required=True, choices=[SmartTVType.SAMSUNG.name.lower(), SmartTVType.APPLE_TV.name.lower()], help='The name of the TV type to use.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     args = parser.parse_args()
 
     tv_type = SmartTVType[args.tv_type.upper()]
     graph = MultiKeyboardGraph(tv_type=tv_type)
+    characters = graph.get_characters()
 
     if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary()
+        dictionary = UniformDictionary(characters=characters)
     else:
-        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
+        dictionary = EnglishDictionary.restore(characters=characters, path=args.dictionary_path)
 
     if tv_type == SmartTVType.SAMSUNG:
         default_sound = SAMSUNG_KEY_SELECT

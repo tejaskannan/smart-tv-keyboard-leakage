@@ -169,6 +169,33 @@ class TrieTests(unittest.TestCase):
         expected = ['warriors', 'desert', 'pelicans']
         self.assertEqual(words, expected)
 
+    def test_add_get_spaces(self):
+        trie = Trie(max_depth=12)
+
+        trie.add_string('ted lasso', count=1)
+        trie.add_string('ted 3', count=1)
+        trie.add_string('tedx', count=1)
+        trie.add_string('warriors', count=4)
+
+        next_characters = trie.get_next_characters('ted', length=None)
+        self.assertEqual(next_characters, { ' ': 2, 'x': 1 })
+
+        next_characters = trie.get_next_characters('ted ', length=None)
+        self.assertEqual(next_characters, { 'l': 1, '3': 1 })
+
+    def test_add_get_unknown(self):
+        trie = Trie(max_depth=12)
+
+        trie.add_string('ted lasso', count=1)
+        trie.add_string('ted 3', count=1)
+        trie.add_string('tedx', count=1)
+        trie.add_string('warriors', count=4)
+
+        next_characters = trie.get_next_characters('ted', length=None)
+        self.assertEqual(next_characters, { ' ': 2, 'x': 1 })
+
+        next_characters = trie.get_next_characters('tedr', length=None)
+        self.assertEqual(next_characters, { })
 
     #def test_dictionary(self):
     #    trie = read_pickle_gz('/local/dictionaries/wikipedia.pkl.gz')
