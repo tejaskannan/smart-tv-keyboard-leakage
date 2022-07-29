@@ -57,6 +57,8 @@ class MultiKeyboardGraph:
     def printerthing(self, num_moves: int, mode: KeyboardMode) -> List[str]:
         return self._keyboards[mode].get_keys_for_moves(num_moves)
 
+    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool, mode: KeyboardMode) -> int:
+        return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
 
 class SingleKeyboardGraph:
 
@@ -105,3 +107,27 @@ class SingleKeyboardGraph:
             return list(sorted(combined))
         else:
             return list(sorted(no_wraparound_neighbors))
+
+    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool) -> int:
+        if end_key not in list(self._no_wraparound_distances.keys()):
+            return -1
+        if end_key==start_key:
+            return 0
+        if use_shortcuts:
+            if use_wraparound:
+                for i in self._wraparound_distances_shortcuts[start_key]:
+                    if end_key in self._wraparound_distances_shortcuts[start_key][i]:
+                        return i
+            else:
+                for i in self._no_wraparound_distances_shortcuts[start_key]:
+                    if end_key in self._no_wraparound_distances_shortcuts[start_key][i]:
+                        return i
+        else:
+            if use_wraparound:
+                for i in self._wraparound_distances[start_key]:
+                    if end_key in self._wraparound_distances[start_key][i]:
+                        return i
+            else:
+                for i in self._no_wraparound_distances[start_key]:
+                    if end_key in self._no_wraparound_distances[start_key][i]:
+                        return i
