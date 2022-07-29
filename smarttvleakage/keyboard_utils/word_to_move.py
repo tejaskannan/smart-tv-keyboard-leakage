@@ -57,8 +57,8 @@ if __name__ == '__main__':
 	words = open(args.i, 'r')
 	output = []
 	for i in words:
-		path = findPath(i.strip(), args.e, True)
-		output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
+		# path = findPath(i.strip(), args.e, True)
+		# output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
 		path = findPath(i.strip(), args.e, False)
 		output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
 	save_jsonl_gz(output, args.o)
