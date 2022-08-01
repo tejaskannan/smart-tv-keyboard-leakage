@@ -98,8 +98,6 @@ if __name__ == '__main__':
         did_find_word = False
 
         for rank, (guess, score, num_candidates) in enumerate(ranked_candidates):
-            print('Guess: {}, Score: {}'.format(guess, score))
-
             if guess == true_word:
                 rank_list.append(rank + 1)
                 rank_dict[true_word] = rank + 1

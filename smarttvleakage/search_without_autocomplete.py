@@ -4,21 +4,24 @@ from queue import PriorityQueue
 from collections import namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
-from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
+from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_ALPHABET, SAMSUNG_STANDARD
 from smarttvleakage.graphs.keyboard_linker import KeyboardLinker, make_keyboard_linker
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS
+from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 
 
-SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode', 'current_key'])
+SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode', 'current_key', 'move_idx'])
 VisitedState = namedtuple('VisitedState', ['keys', 'current_key'])
+CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment', 'increment'])
+
 MISTAKE_RATE = 1e-3
 DECAY_RATE = 0.9
 SUGGESTION_THRESHOLD = 8
 SUGGESTION_FACTOR = 2.0
+CUTOFF = 0.05
 
 
 def get_score_for_string(string: str, dictionary: CharacterDictionary, should_aggregate_score: bool) -> float:
@@ -41,10 +44,13 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     candidate_queue = PriorityQueue()
 
     # Set the default keyboard mode
+    delete_sound_name = ''
     if tv_type == SmartTVType.SAMSUNG:
         keyboard_mode = SAMSUNG_STANDARD
+        delete_sound_name = SAMSUNG_DELETE
     elif tv_type == SmartTVType.APPLE_TV:
         keyboard_mode = APPLETV_ALPHABET
+        delete_sound_name = APPLETV_KEYBOARD_DELETE
     else:
         raise ValueError('Unknown TV type: {}'.format(tv_type.name))
 
@@ -54,7 +60,8 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     init_state = SearchState(keys=[],
                              score=1.0,
                              keyboard_mode=keyboard_mode,
-                             current_key=START_KEYS[keyboard_mode])
+                             current_key=START_KEYS[keyboard_mode],
+                             move_idx=0)
     candidate_queue.put((-1 * init_state.score, init_state))
 
     scores: Dict[str, float] = dict()
@@ -90,30 +97,41 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
             continue
 
-        move_idx = len(current_state.keys)
+        move_idx = current_state.move_idx
+
+        if move_idx >= len(move_sequence):
+            continue
+
         num_moves = move_sequence[move_idx].num_moves
         end_sound = move_sequence[move_idx].end_sound
         prev_key = current_state.current_key
 
-        move_candidates: Dict[int, float] = {
-            num_moves: 1.0
-        }
+        move_candidates: List[CandidateMove] = [CandidateMove(num_moves=num_moves, adjustment=1.0, increment=1)]
 
         if num_moves > 2:
-            tmp = num_moves - 2
-            counter = 0
+            candidate_num_moves = num_moves - 1
+            num_mistakes = 0
 
-            while tmp >= 1:
-                move_candidates[tmp] = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                                      num_moves=num_moves,
-                                                                      num_mistakes=counter)
-                counter += 1
-                tmp -= 2
+            while candidate_num_moves >= 1:
+                adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
+                                                            num_moves=num_moves,
+                                                            num_mistakes=num_mistakes)
 
-        for candidate_moves, adjustment_factor in move_candidates.items():
+                candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
+                move_candidates.append(candidate_move)
 
+                num_mistakes += 1
+                candidate_num_moves -= 1
+
+        # Get the counts for the next keys
+        next_key_counts = dictionary.get_letter_counts(prefix=current_string,
+                                                       length=target_length,
+                                                       should_smooth=True)
+
+        for candidate_move in move_candidates:
+            # Get the neighboring keys for this number of moves
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
-                                                      num_moves=candidate_moves,
+                                                      num_moves=candidate_move.num_moves,
                                                       mode=current_state.keyboard_mode,
                                                       use_shortcuts=False,
                                                       use_wraparound=False)
@@ -121,27 +139,21 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
 
-            next_key_counts = dictionary.get_letter_counts(prefix=current_string,
-                                                           length=target_length,
-                                                           should_smooth=True)
-
-            if (tv_type == SmartTVType.SAMSUNG) and (end_sound == SAMSUNG_SELECT):
+            if (end_sound == delete_sound_name):
+                neighbors = list(filter(lambda n: (n in DELETE_SOUND_KEYS), neighbors))
+                filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+            elif (tv_type == SmartTVType.SAMSUNG) and (end_sound == SAMSUNG_SELECT):
                 neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))
                 filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
             else:
                 if tv_type == SmartTVType.SAMSUNG:
                     neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS), neighbors))
                 elif tv_type == SmartTVType.APPLE_TV:
-                    neighbors = list(filter(lambda n: n != '<BACK>', neighbors))
+                    neighbors = list(filter(lambda n: (n not in DELETE_SOUND_KEYS), neighbors))
 
                 filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                              candidate_keys=neighbors)
 
-            #if current_string == 'ted':
-            #    print('Neighbors: {}'.format(neighbors))
-            #    print('Filtered Probs: {}'.format(filtered_probs))
-            #    print('Next Key Counts: {}'.format(next_key_counts))
-            #    print('Keys: {}, Current Key: {}'.format(current_state.keys, current_state.current_key))
 
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
@@ -156,14 +168,14 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       mode=current_state.keyboard_mode,
                                                       tv_type=tv_type)
 
-                    #string_score = get_score_for_string(candidate_word, dictionary=dictionary, should_aggregate_score=should_aggregate_score)
-                    #next_state_score = current_state.score + score * adjustment_factor
-                    next_state_score=  current_state.score * score * adjustment_factor
+                    next_state_score = current_state.score * score * candidate_move.adjustment
+                    next_move_idx = move_idx + candidate_move.increment
 
                     next_state = SearchState(keys=candidate_keys,
                                              score=next_state_score,
                                              keyboard_mode=next_keyboard,
-                                             current_key=neighbor_key)
+                                             current_key=neighbor_key,
+                                             move_idx=next_move_idx)
 
                     candidate_queue.put((-1 * next_state.score, next_state))
                     visited.add(visited_state)
@@ -173,7 +185,8 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                         next_state = SearchState(keys=candidate_keys,
                                                  score=next_state_score,
                                                  keyboard_mode=linked_state.mode,
-                                                 current_key=linked_state.key)
+                                                 current_key=linked_state.key,
+                                                 move_idx=next_move_idx)
 
                         candidate_queue.put((-1 * next_state.score, next_state))
                         visited_state = VisitedState(keys=visited_str, current_key=linked_state.key)

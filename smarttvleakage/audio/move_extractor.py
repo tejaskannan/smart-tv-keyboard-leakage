@@ -400,22 +400,8 @@ class AppleTVMoveExtractor(MoveExtractor):
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        # Extract the double moves
-        keyboard_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DOUBLE_MOVE)
-
         # Get the raw keyboard select times
-        raw_keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
-
-        # Filter out duplicates with the double moves
-        keyboard_select_times: List[int] = []
-
-        if len(keyboard_double_move_times) == 0:
-            keyboard_select_times = raw_keyboard_select_times
-        else:
-            for select_time in raw_keyboard_select_times:
-                diff = np.abs(np.subtract(keyboard_double_move_times, select_time))
-                if np.all(diff > MIN_DISTANCE):
-                    keyboard_select_times.append(select_time)
+        keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
 
         # Signals without any key selections do not interact with the keyboard
         if len(keyboard_select_times) == 0:
@@ -424,6 +410,8 @@ class AppleTVMoveExtractor(MoveExtractor):
         # Get occurances of the other sounds
         raw_keyboard_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_MOVE)
         raw_system_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_SYSTEM_MOVE)
+        raw_keyboard_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DOUBLE_MOVE)
+        keyboard_delete_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DELETE)
 
         # Filter out conflicting sounds
         system_move_times: List[int] = []
@@ -431,6 +419,12 @@ class AppleTVMoveExtractor(MoveExtractor):
             diff = np.abs(np.subtract(keyboard_select_times, move_time))
             if np.all(diff > MIN_DISTANCE):
                 system_move_times.append(move_time)
+
+        keyboard_double_move_times: List[int] = []
+        for move_time in raw_keyboard_double_move_times:
+            diff = np.abs(np.subtract(system_move_times, move_time))
+            if np.all(diff > MIN_DISTANCE):
+                keyboard_double_move_times.append(move_time)
 
         keyboard_move_times: List[int] = []
         for move_time in raw_keyboard_move_times:
@@ -450,6 +444,7 @@ class AppleTVMoveExtractor(MoveExtractor):
         move_idx = 0
         double_move_idx = 0
         key_select_idx = 0
+        delete_idx = 0
 
         while (move_idx < len(keyboard_move_times)) and (keyboard_move_times[move_idx] < end_time):
             # Write move elements
@@ -461,6 +456,11 @@ class AppleTVMoveExtractor(MoveExtractor):
                 move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
                 num_moves = 0
                 key_select_idx += 1
+
+            while (delete_idx < len(keyboard_delete_times)) and (keyboard_move_times[move_idx] > keyboard_delete_times[delete_idx]):
+                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_DELETE))
+                num_moves = 0
+                delete_idx += 1
 
             if (double_move_idx < len(keyboard_double_move_times)) and (move_idx < (len(keyboard_move_times) - 1)) and (keyboard_double_move_times[double_move_idx] > keyboard_move_times[move_idx]) and (keyboard_double_move_times[double_move_idx] < keyboard_move_times[move_idx + 1]):
                 double_move_idx += 1
@@ -476,13 +476,13 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-backspace/warr.MOV')
+    video_clip = mp.VideoFileClip('/local/apple-tv/ten/star_trek.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_DELETE
+    sound = APPLETV_KEYBOARD_DELETE
 
-    extractor = SamsungMoveExtractor()
+    extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 

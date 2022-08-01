@@ -25,6 +25,7 @@ ThresholdRange = namedtuple('ThresholdRange', ['min_threshold', 'max_threshold',
 KEY_SELECT_RANGES = [ThresholdRange(-60, -40, 0, 20), ThresholdRange(-75, -65, 20, 40)]
 MOVE_RANGES = [ThresholdRange(-55, -45, 0, 20), ThresholdRange(-65, -55, 20, 30)]
 SELECT_RANGES = [ThresholdRange(-60, -55, 0, 10), ThresholdRange(-60, -45, 10, 30)]
+SAMSUNG_DELETE_RANGES = [ThresholdRange(-70, -45, 0, 30)]
 
 # Apple
 SYSTEM_MOVE_RANGES = [ThresholdRange(-65, -55, 0, 12), ThresholdRange(-60, -40, 12, 40)]
@@ -97,7 +98,7 @@ if __name__ == '__main__':
 
     target = create_spectrogram(channel0)
     known = create_spectrogram(known_channel0)
-    threshold_ranges = SELECT_RANGES
+    threshold_ranges = SAMSUNG_DELETE_RANGES
 
 #    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
 #
