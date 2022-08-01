@@ -1,0 +1,37 @@
+{
+    "move": {
+        "match_params": [
+            { "min_freq": 0, "max_freq": 20, "min_threshold": -55, "max_threshold": -45 },
+            { "min_freq": 20, "max_freq": 40, "min_threshold": -65, "max_threshold": -55 }
+        ],
+        "match_threshold": 0.5
+    },
+    "key_select": {
+        "match_params": [
+            { "min_freq": 0, "max_freq": 20, "min_threshold": -60, "max_threshold": -40 },
+            { "min_freq": 20, "max_freq": 40, "min_threshold": -75, "max_threshold": -65 }
+        ],
+        "match_threshold": 1.2
+    },
+    "select": {
+        "match_params": [
+            { "min_freq": 0, "max_freq": 10, "min_threshold": -60, "max_threshold": -55 },
+            { "min_freq": 10, "max_freq": 30, "min_threshold": -60, "max_threshold": -45 }
+        ],
+        "match_threshold": 0.9
+    },
+    "double_move": {
+        "match_params": [
+            { "min_freq": 0, "max_freq": 10, "min_threshold": -60, "max_threshold": -55 },
+            { "min_freq": 10, "max_freq": 30, "min_threshold": -60, "max_threshold": -45 }
+        ],
+        "match_threshold": 1.2
+    },
+    "delete": {
+        "match_params": [
+            { "min_freq": 0, "max_freq": 20, "min_threshold": -55, "max_threshold": -45 },
+            { "min_freq": 20, "max_freq": 40, "min_threshold": -65, "max_threshold": -55 }
+        ],
+        "match_threshold": 1.25
+    }
+}

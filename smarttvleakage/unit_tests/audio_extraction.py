@@ -1,6 +1,6 @@
 import unittest
 import time
-from smarttvleakage.audio.move_extractor import MoveExtractor
+from smarttvleakage.audio import make_move_extractor
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
@@ -10,7 +10,7 @@ class AudioExtraction(unittest.TestCase):
     def test_bed(self):
         audio_signal = read_pickle_gz('sounds/bed.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -19,7 +19,7 @@ class AudioExtraction(unittest.TestCase):
     def test_elk(self):
         audio_signal = read_pickle_gz('sounds/elk.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -28,7 +28,7 @@ class AudioExtraction(unittest.TestCase):
     def test_dog(self):
         audio_signal = read_pickle_gz('sounds/dog.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -37,7 +37,7 @@ class AudioExtraction(unittest.TestCase):
     def test_good(self):
         audio_signal = read_pickle_gz('sounds/good.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -46,7 +46,7 @@ class AudioExtraction(unittest.TestCase):
     def test_tree(self):
         audio_signal = read_pickle_gz('sounds/tree.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -55,7 +55,7 @@ class AudioExtraction(unittest.TestCase):
     def test_soccer3(self):
         audio_signal = read_pickle_gz('sounds/soccer3.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -64,7 +64,7 @@ class AudioExtraction(unittest.TestCase):
     def test_full_interaction(self):
         audio_signal = read_pickle_gz('sounds/full-interaction.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -73,7 +73,7 @@ class AudioExtraction(unittest.TestCase):
     def test_earth_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/earth.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -82,7 +82,7 @@ class AudioExtraction(unittest.TestCase):
     def test_add_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/add.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -91,7 +91,7 @@ class AudioExtraction(unittest.TestCase):
     def test_be_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/be.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, did_use_autocomplete = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -101,7 +101,7 @@ class AudioExtraction(unittest.TestCase):
     def test_remember_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/remember.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -110,7 +110,7 @@ class AudioExtraction(unittest.TestCase):
     def test_note_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/note.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -119,7 +119,7 @@ class AudioExtraction(unittest.TestCase):
     def test_now_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/now.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -128,7 +128,7 @@ class AudioExtraction(unittest.TestCase):
     def test_measure_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/measure.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -137,7 +137,7 @@ class AudioExtraction(unittest.TestCase):
     def test_year_autocomplete(self):
         audio_signal = read_pickle_gz('sounds/year.pkl.gz')
 
-        extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
         moves, _ = extractor.extract_move_sequence(audio=audio_signal)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
@@ -146,7 +146,7 @@ class AudioExtraction(unittest.TestCase):
     #def test_vol_50(self):
     #    audio_signal = read_pickle_gz('sounds/half_volume.pkl.gz')
 
-    #    extractor = MoveExtractor(tv_type=SmartTVType.SAMSUNG)
+    #    extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
     #    move_seq, _ = extractor.extract_move_sequence(audio=audio_signal)
 
     #    self.assertEqual(move_seq, [4, 2, 2, 4])

@@ -3,18 +3,24 @@
         "start": 0,
         "end": 40,
         "mask_threshold": -65,
-        "match_threshold": 175
+        "match_threshold": 115
+    },
+    "keyboard_double_move": {
+        "start": 0,
+        "end": 40,
+        "mask_threshold": -35,
+        "match_threshold": 1
     },
     "keyboard_select": {
         "start": 0,
         "end": 40,
         "mask_threshold": -65,
-        "match_threshold": 210
+        "match_threshold": 170
     },
     "system_move": {
         "start": 0,
         "end": 40,
-        "mask_threshold": -65,
-        "match_threshold": 150
+        "mask_threshold": -55,
+        "match_threshold": 100
     }
 }

@@ -13,10 +13,11 @@ from smarttvleakage.audio.constellations import compute_constellation_map, match
 from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, SAMSUNG_KEY_SELECT
 from smarttvleakage.audio.constants import SAMSUNG_MOVE, SAMSUNG_SELECT, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.audio.constants import APPLETV_KEYBOARD_MOVE, APPLETV_KEYBOARD_SELECT, APPLETV_SYSTEM_MOVE
-from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS
+from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLETV_KEYBOARD_DOUBLE_MOVE
 
 
-SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'start', 'end', 'match_threshold'])
+MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
+SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold'])
 Move = namedtuple('Move', ['num_moves', 'end_sound'])
 
 
@@ -41,12 +42,12 @@ def create_spectrogram(signal: np.ndarray) -> np.ndarray:
     return Pxx  # X is frequency, Y is time
 
 
-def compute_masked_spectrogram(spectrogram: float, threshold: float, min_freq: int, max_freq: int) -> np.ndarray:
-    clipped_spectrogram = spectrogram[min_freq:max_freq, :]
-    return (clipped_spectrogram > threshold).astype(int)
+def compute_masked_spectrogram(spectrogram: float, params: MatchParams) -> np.ndarray:
+    clipped_spectrogram = spectrogram[params.min_freq:params.max_freq, :]
+    return np.logical_and(clipped_spectrogram >= params.min_threshold, clipped_spectrogram <= params.max_threshold).astype(int)
 
 
-def moving_window_similarity(target: np.ndarray, known: np.ndarray, should_smooth: bool, should_match_binary: bool) -> List[float]:
+def moving_window_similarity(target: np.ndarray, known: np.ndarray) -> List[float]:
     target = target.T
     known = known.T
 
@@ -60,18 +61,51 @@ def moving_window_similarity(target: np.ndarray, known: np.ndarray, should_smoot
         if len(target_segment) < segment_size:
             target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
 
-        if not should_match_binary:
-            sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
+        #sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
+        if np.all(target_segment == known):
+            sim_score = 1.0
         else:
-            sim_score = np.sum(target_segment * known)
+            sim_score = 2 * np.sum(target_segment * known) / (np.sum(target_segment) + np.sum(known))
 
         similarity.append(sim_score)
 
-    if should_smooth:
-        smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
-        similarity = convolve(similarity, smooth_filter).astype(float).tolist()
+    smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
+    similarity = convolve(similarity, smooth_filter).astype(float).tolist()
 
     return similarity
+
+
+#def compute_masked_spectrogram(spectrogram: float, threshold: float, min_freq: int, max_freq: int) -> np.ndarray:
+#    clipped_spectrogram = spectrogram[min_freq:max_freq, :]
+#    return (clipped_spectrogram >= threshold).astype(int)
+#
+#
+#def moving_window_similarity(target: np.ndarray, known: np.ndarray, should_smooth: bool, should_match_binary: bool) -> List[float]:
+#    target = target.T
+#    known = known.T
+#
+#    segment_size = known.shape[0]
+#    similarity: List[float] = []
+#
+#    for start in range(target.shape[0]):
+#        end = start + segment_size
+#        target_segment = target[start:end]
+#
+#        if len(target_segment) < segment_size:
+#            target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
+#
+#        if not should_match_binary:
+#            sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
+#        else:
+#            sim_score = np.sum(target_segment * known)
+#
+#        similarity.append(sim_score)
+#
+#    if should_smooth:
+#        smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
+#        similarity = convolve(similarity, smooth_filter).astype(float).tolist()
+#
+#    return similarity
 
 
 class MoveExtractor:
@@ -94,26 +128,28 @@ class MoveExtractor:
             raise ValueError('Unknown TV Type: {}'.format(tv_type.name))
 
         for sound in self._sound_names:
-            for path in iterate_dir(sound_directory):
-                file_name = os.path.basename(path)
-                if not file_name.startswith(sound):
-                    continue
-                
-                audio = read_pickle_gz(path)
 
-                start, end = config[sound]['start'], config[sound]['end']
-                channel0 = create_spectrogram(signal=audio[:, 0])
-                channel1 = create_spectrogram(signal=audio[:, 1])
+            # Read in the audio
+            path = os.path.join(sound_directory, '{}.pkl.gz'.format(sound))
+            audio = read_pickle_gz(path)
 
-                threshold = config[sound]['mask_threshold']
+            # Compute the spectrograms
+            channel0 = create_spectrogram(audio[:, 0])
+            channel1 = create_spectrogram(audio[:, 1])
 
-                channel0_clipped = compute_masked_spectrogram(channel0, threshold=threshold, min_freq=start, max_freq=end)
-                channel1_clipped = compute_masked_spectrogram(channel1, threshold=threshold, min_freq=start, max_freq=end)
+            # Parse the sound configuration and pre-compute the clipped spectrograms
+            for match_params_dict in config[sound]['match_params']:
+                match_params = MatchParams(min_freq=match_params_dict['min_freq'],
+                                           max_freq=match_params_dict['max_freq'],
+                                           min_threshold=match_params_dict['min_threshold'],
+                                           max_threshold=match_params_dict['max_threshold'])
+
+                channel0_clipped = compute_masked_spectrogram(channel0, params=match_params)
+                channel1_clipped = compute_masked_spectrogram(channel1, params=match_params)
 
                 profile = SoundProfile(channel0=channel0_clipped,
                                        channel1=channel1_clipped,
-                                       start=start,
-                                       end=end,
+                                       match_params=match_params,
                                        match_threshold=config[sound]['match_threshold'])
                 self._known_sounds[sound].append(profile)
 
@@ -138,25 +174,22 @@ class MoveExtractor:
         similarity_lists: List[List[float]] = []
 
         for sound_profile in self._known_sounds[sound]:
-            start, end = sound_profile.start, sound_profile.end
+            match_params = sound_profile.match_params
 
-            channel0_clipped = compute_masked_spectrogram(channel0, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
-            channel1_clipped = compute_masked_spectrogram(channel1, threshold=MOVE_BINARY_THRESHOLD, min_freq=start, max_freq=end)
+            channel0_clipped = compute_masked_spectrogram(channel0, params=match_params)
+            #channel1_clipped = compute_masked_spectrogram(channel1, params=match_params)
 
             channel0_sim = moving_window_similarity(target=channel0_clipped,
-                                                    known=sound_profile.channel0,
-                                                    should_smooth=True,
-                                                    should_match_binary=True)
+                                                    known=sound_profile.channel0)
+            similarity_lists.append(channel0_sim)
 
-            channel1_sim = moving_window_similarity(target=channel1_clipped,
-                                                    known=sound_profile.channel1,
-                                                    should_smooth=True,
-                                                    should_match_binary=True)
+            #channel1_sim = moving_window_similarity(target=channel1_clipped,
+            #                                        known=sound_profile.channel1)
 
-            similarities = [max(c0, c1) for c0, c1 in zip(channel0_sim, channel1_sim)]
-            similarity_lists.append(similarities)
+            #similarities = [max(c0, c1) for c0, c1 in zip(channel0_sim, channel1_sim)]
+            #similarity_lists.append(similarities)
 
-        return np.max(similarity_lists, axis=0)
+        return np.sum(similarity_lists, axis=0)
 
     def find_instances_of_sound(self, audio: np.ndarray, sound: str) -> Tuple[List[int], List[float]]:
         """
@@ -343,11 +376,26 @@ class AppleTVMoveExtractor(MoveExtractor):
         Extracts the number of moves between key selections in the given audio sequence.
 
         Args:
-            audio: A 2d aduio signal where the last dimension is the channel.
+            audio: A 2d audio signal where the last dimension is the channel.
         Returns:
             A list of moves before selections. The length of this list is the number of selections.
         """
-        keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
+        # Extract the double moves
+        keyboard_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DOUBLE_MOVE)
+
+        # Get the raw keyboard select times
+        raw_keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
+
+        # Filter out duplicates with the double moves
+        keyboard_select_times: List[int] = []
+
+        if len(keyboard_double_move_times) == 0:
+            keyboard_select_times = raw_keyboard_select_times
+        else:
+            for select_time in raw_keyboard_select_times:
+                diff = np.abs(np.subtract(keyboard_double_move_times, select_time))
+                if np.all(diff > MIN_DISTANCE):
+                    keyboard_select_times.append(select_time)
 
         # Signals without any key selections do not interact with the keyboard
         if len(keyboard_select_times) == 0:
@@ -368,7 +416,8 @@ class AppleTVMoveExtractor(MoveExtractor):
         for move_time in raw_keyboard_move_times:
             keyboard_diff = np.abs(np.subtract(keyboard_select_times, move_time))
             system_diff = np.abs(np.subtract(system_move_times, move_time))
-            if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE):
+            double_move_diff = np.abs(np.subtract(keyboard_double_move_times, move_time))
+            if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DISTANCE):
                 keyboard_move_times.append(move_time)
 
         # Get the end time as the last system move
@@ -379,6 +428,7 @@ class AppleTVMoveExtractor(MoveExtractor):
 
         num_moves = 0
         move_idx = 0
+        double_move_idx = 0
         key_select_idx = 0
 
         while (move_idx < len(keyboard_move_times)) and (keyboard_move_times[move_idx] < end_time):
@@ -392,6 +442,10 @@ class AppleTVMoveExtractor(MoveExtractor):
                 num_moves = 0
                 key_select_idx += 1
 
+            if (double_move_idx < len(keyboard_double_move_times)) and (move_idx < (len(keyboard_move_times) - 1)) and (keyboard_double_move_times[double_move_idx] > keyboard_move_times[move_idx]) and (keyboard_double_move_times[double_move_idx] < keyboard_move_times[move_idx + 1]):
+                double_move_idx += 1
+                num_moves += 2
+
             num_moves += 1
             move_idx += 1
 
@@ -402,13 +456,13 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/apple-tv/ten/wecrashed.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-4-letter/good.mp4')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = APPLETV_KEYBOARD_SELECT
+    sound = SAMSUNG_DOUBLE_MOVE
 
-    extractor = AppleTVMoveExtractor()
+    extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
