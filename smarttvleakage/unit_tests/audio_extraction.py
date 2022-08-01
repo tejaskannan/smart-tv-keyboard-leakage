@@ -1,6 +1,6 @@
 import unittest
 import time
-from smarttvleakage.audio import make_move_extractor
+from smarttvleakage.audio import make_move_extractor, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
@@ -142,6 +142,19 @@ class AudioExtraction(unittest.TestCase):
 
         move_seq = list(map(lambda t: t.num_moves, moves))
         self.assertEqual(move_seq, [5, 1, 0, 1])
+
+    def test_warr_backspace(self):
+        audio_signal = read_pickle_gz('sounds/warr.pkl.gz')
+
+        extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
+        moves, _ = extractor.extract_move_sequence(audio=audio_signal)
+
+        move_seq = list(map(lambda t: t.num_moves, moves))
+        self.assertEqual(move_seq, [1, 2, 4, 0, 0, 8])
+
+        sound_seq = list(map(lambda t: t.end_sound, moves))
+        expected = [SAMSUNG_KEY_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE]
+        self.assertEqual(sound_seq, expected)
 
     #def test_vol_50(self):
     #    audio_signal = read_pickle_gz('sounds/half_volume.pkl.gz')
