@@ -135,72 +135,176 @@ def test_ten_percent_down(target, lower_threshold):
 			idx.append(x)
 	return idx
 
+
 special_chars = string.punctuation
+letters = string.ascii_lowercase
+numbers = string.digits
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-i', type=str, required=True)
+parser.add_argument('-i1', type=str, required=True)
 args = parser.parse_args()
 
 
 truth = [[] for i in range(11)]
 prediction = [[] for i in range(11)]
 
+# data = read_jsonl(args.i)
+# for i in data:
+# 	b = ''
+# 	for x,j in enumerate(list(i[0])):
+# 		b=j
+# 		if j in special_chars:
+# 			truth[x].append(1)
+# 		else:
+# 			truth[x].append(0)
+# 	if b in special_chars:
+# 		truth[10].append(1)
+# 	else:
+# 		truth[10].append(0)
+# 	for x,j in enumerate(i[1]):
+# 		prediction[x].append(j)
+# 	prediction[10].append(i[1][-1])
+
+# threshold_for_position = [0 for i in range(11)]
+
+# for i in range(len(threshold_for_position)):
+# 	threshold_for_position[i] = binary_search(truth[i],prediction[i])
+
+# truth_full = []
+# prediction_full = []
+
+# for i in truth:
+# 	for j in i:
+# 		truth_full.append(j)
+# for i in prediction:
+# 	for j in i:
+# 		prediction_full.append(j)
+
+# threshold = binary_search(truth_full,prediction_full)
+# threshold_for_position.append(threshold)
+# print(threshold_for_position)
+# print('accuracy for letter: ',accuracy_score(truth_full, get_prediction_with_positions(prediction, threshold_for_position)))
+
+# print(threshold)
+# prediction1 = get_prediction(prediction_full, threshold)
+# print('accuracy: ',accuracy_score(truth_full,prediction1))
+# print('precision: ',precision_score(truth_full,prediction1))
+# print('recall: ',recall_score(truth_full,prediction1))
+# print('\n')
+# prediction2 = get_prediction(prediction_full, 0)
+# print('accuracy: ',accuracy_score(truth_full,prediction2))
+# print('precision: ',precision_score(truth_full,prediction2))
+# print('recall: ',recall_score(truth_full,prediction2))
+
+# thresholds = binary_search_2(truth_full, prediction_full, 0.99, 0.01)
+# print(thresholds)
+# mistakes = {"upper": [], "lower": []}
+# for i in data:
+# 	if test_ten_percent_up(i, thresholds[0])!=[]:
+# 		mistakes["upper"].append([i,test_ten_percent_up(i, thresholds[0])])
+# 	if test_ten_percent_down(i, thresholds[1])!=[]:
+# 		mistakes["lower"].append([i,test_ten_percent_down(i, thresholds[0])])
+
+# with open('mistakes.json', 'w') as f:
+# 	json.dump(mistakes, f)
+
 data = read_jsonl(args.i)
+letters_truth = []
+numbers_truth = []
+special_truth = []
+
+letters_pred = []
+numbers_pred = []
+special_pred = []
+
 for i in data:
-	b = ''
-	for x,j in enumerate(list(i[0])):
-		b=j
+	print(i)
+	letter = False
+	number = False
+	special = False
+	for z,j in enumerate(list(i[0])):
+		if j in letters:
+			if letter == False:
+				letters_truth.append(1)
+			letter = True
+		elif j in special_chars:
+			if special == False:
+				special_truth.append(1)
+			special = True
+		elif j in numbers:
+			if number == False:
+				numbers_truth.append(1)
+			number = True
+	if letter == False:
+		letters_truth.append(0)
+	if number == False:
+		numbers_truth.append(0)
+	if special == False:
+		special_truth.append(0)
+
+	for z,j in enumerate(i[1]):
+		print(j)
+		print(z)
+		if z%3==0:
+			letters_pred.append(j)
+		elif z%3==1:
+			numbers_pred.append(j)
+		elif z%3==2:
+			special_pred.append(j)
+
+letters_threshold = binary_search(letters_truth, letters_pred)
+numbers_threshold = binary_search(numbers_truth, numbers_pred)
+special_threshold = binary_search(special_truth, special_pred)
+print('letter: ', letters_threshold)
+print('accuracy: ',accuracy_score(letters_truth, get_prediction(letters_pred,letters_threshold)))
+print('number: ', numbers_threshold)
+print('accuracy: ',accuracy_score(numbers_truth, get_prediction(numbers_pred,numbers_threshold)))
+print('special: ', special_threshold)
+print('accuracy: ',accuracy_score(special_truth, get_prediction(special_pred,special_threshold)))
+
+special_truth_1 = []
+for x,i in enumerate(data):
+	special_truth_1.append([])
+	for j in list(i[0]):
 		if j in special_chars:
-			truth[x].append(1)
+			special_truth_1[x].append(1)
 		else:
-			truth[x].append(0)
-	if b in special_chars:
-		truth[10].append(1)
-	else:
-		truth[10].append(0)
-	for x,j in enumerate(i[1]):
-		prediction[x].append(j)
-	prediction[10].append(i[1][-1])
+			special_truth_1[x].append(0)
 
-threshold_for_position = [0 for i in range(11)]
+data1 = read_jsonl(args.i1)
 
-for i in range(len(threshold_for_position)):
-	threshold_for_position[i] = binary_search(truth[i],prediction[i])
+special_truth_1 = []
+special_pred_1 = []
+for x,i in enumerate(data1):
+	special_truth_1.append([])
+	for j in list(i[0]):
+		if j in special_chars:
+			special_truth_1[x].append(1)
+		else:
+			special_truth_1[x].append(0)
+	special_pred_1.append([])
+	for j in i[1]:
+		if j > 0.5467529296875:
+			special_pred_1[x].append(1)
+		else:
+			special_pred_1[x].append(0)
 
-truth_full = []
-prediction_full = []
-
-for i in truth:
+special_pred_2 = []
+for z,i in enumerate(special_pred_1):
+	special_pred_2.append(0)
 	for j in i:
-		truth_full.append(j)
-for i in prediction:
+		if j == 1:
+			special_pred_2[-1] = 1
+			break
+
+special_truth_2 = []
+for x,i in enumerate(special_truth_1):
+	special_truth_2.append(0)
 	for j in i:
-		prediction_full.append(j)
+		if j==1:
+			special_truth_2[x-1]
+print(len(special_truth_2))
+print(len(special_pred_2))
 
-threshold = binary_search(truth_full,prediction_full)
-threshold_for_position.append(threshold)
-print(threshold_for_position)
-print('accuracy for letter: ',accuracy_score(truth_full, get_prediction_with_positions(prediction, threshold_for_position)))
-
-print(threshold)
-prediction1 = get_prediction(prediction_full, threshold)
-print('accuracy: ',accuracy_score(truth_full,prediction1))
-print('precision: ',precision_score(truth_full,prediction1))
-print('recall: ',recall_score(truth_full,prediction1))
-print('\n')
-prediction2 = get_prediction(prediction_full, 0)
-print('accuracy: ',accuracy_score(truth_full,prediction2))
-print('precision: ',precision_score(truth_full,prediction2))
-print('recall: ',recall_score(truth_full,prediction2))
-
-thresholds = binary_search_2(truth_full, prediction_full, 0.99, 0.01)
-print(thresholds)
-mistakes = {"upper": [], "lower": []}
-for i in data:
-	if test_ten_percent_up(i, thresholds[0])!=[]:
-		mistakes["upper"].append([i,test_ten_percent_up(i, thresholds[0])])
-	if test_ten_percent_down(i, thresholds[1])!=[]:
-		mistakes["lower"].append([i,test_ten_percent_down(i, thresholds[0])])
-
-with open('mistakes.json', 'w') as f:
-	json.dump(mistakes, f)
+print('special 2: ', accuracy_score(special_truth_2,special_pred_2))

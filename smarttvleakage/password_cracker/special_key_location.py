@@ -1,5 +1,5 @@
 import argparse
-from search_without_autocomplete import get_words_from_moves
+from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.audio.move_extractor import Sound, Move
 from typing import Set, List, Dict, Optional, Iterable, Tuple

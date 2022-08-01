@@ -73,6 +73,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                                       num_mistakes=counter)
                 counter += 1
                 tmp -= 2
+            #print(move_candidates)
 
         for candidate_moves, adjustment_factor in move_candidates.items():
 

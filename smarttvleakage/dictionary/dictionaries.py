@@ -61,7 +61,7 @@ class EnglishDictionary(CharacterDictionary):
         elif path.endswith('.txt'):
             string_dictionary: Dict[str, int] = dict()
 
-            with open(path, 'rb', encoding="utf-8") as fin:
+            with open(path, 'rb') as fin:
                 io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
 
                 for line in io_wrapper:
