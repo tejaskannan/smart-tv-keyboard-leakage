@@ -73,6 +73,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                                       num_mistakes=counter)
                 counter += 1
                 tmp -= 2
+            #print(move_candidates)
 
         for candidate_moves, adjustment_factor in move_candidates.items():
 
@@ -80,7 +81,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       num_moves=candidate_moves,
                                                       mode=current_state.keyboard_mode,
                                                       use_shortcuts=False,
-                                                      use_wraparound=False)
+                                                      use_wraparound=True)
 
             next_key_counts = dictionary.get_letter_counts(prefix=current_string,
                                                            length=target_length,
@@ -125,6 +126,7 @@ if __name__ == '__main__':
         dictionary = UniformDictionary()
     else:
         dictionary = EnglishDictionary.restore(path=args.dictionary_path)
+    print(args.target)
 
     if (args.sounds_list is None) or (len(args.sounds_list) == 0):
         moves = [Move(num_moves=num_moves, end_sound=Sound.KEY_SELECT) for num_moves in args.moves_list]

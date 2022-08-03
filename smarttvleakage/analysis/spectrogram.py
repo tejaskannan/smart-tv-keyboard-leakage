@@ -3,38 +3,30 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os.path
 from argparse import ArgumentParser
+from collections import deque
 from matplotlib import image
-from scipy.signal import spectrogram
-from typing import List
+from scipy.ndimage import maximum_filter
+from typing import List, Tuple
 
+from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
+from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram, compute_masked_spectrogram, moving_window_similarity
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
-
-def moving_window_distances(target: np.ndarray, known: np.ndarray) -> List[float]:
-    target = target.T
-    known = known.T
-
-    segment_size = known.shape[0]
-
-    distances: List[float] = []
-    for start in range(target.shape[0] - segment_size):
-        end = start + segment_size
-        target_segment = target[start:end]
-        dist = np.linalg.norm(target_segment - known, ord=1)
-        distances.append(1.0 / dist)
-
-    return distances
+# Key Select Parameters: (20, 40), threshold -75, constellation deltas (10, 10), TOL (2, 2)
+# Select Parameters: (0, 20), threshold -67, constellation deltas (freq 3, time 5), TOL (1, 2)
+# Move -> THRESHOLD -67, DELTAS: (t = 5, f = 3)  RANGE (0, 20), TOL (f 2, t 1), window size 25 -> set cutoff at 0.45
+# DELETE -> THRESHOLD -67, DELTAS: (t = 5, f = 3), TOL: (t = 1, freq = 2) -> set cutoff at 0.95 (if move score below 315 and backspace -> pick backspace)
 
 
-def create_spectrogram(samples: np.ndarray, path: str):
-    fig, ax = plt.subplots()
-    ax.set_axis_off()
-    fig.add_axes(ax)
-    ax.specgram(samples, Fs=2, noverlap=128)
-    ax.xaxis.set_major_locator(plt.NullLocator())
-    ax.yaxis.set_major_locator(plt.NullLocator())
-    fig.savefig(path, bbox_inches='tight', pad_inches=0)
-    plt.close()
+FREQ_DELTA = 3
+TIME_DELTA = 5
+THRESHOLD = -65
+FREQ_RANGE = (0, 40)
+FREQ_TOL = 2
+TIME_TOL = 2
+
+PLOT_DISTANCES = True
+PLOT_TARGET = False
 
 
 if __name__ == '__main__':
@@ -51,24 +43,61 @@ if __name__ == '__main__':
     channel0, channel1 = audio_signal[:, 0], audio_signal[:, 1]
 
     known_sound = read_pickle_gz(args.sound_file)
-    known_sound_channel0 = known_sound[:, 0]
+    known_channel0 = known_sound[:, 0]
 
-    freq, times, known_Sxx = spectrogram(known_sound_channel0, fs=44100, nfft=1024)
-    known_Pxx = 10 * np.log10(known_Sxx)
+    target = create_spectrogram(channel0)
+    known = create_spectrogram(known_channel0)
 
-    _, _, Sxx = spectrogram(channel0, fs=44100, nfft=1024)
-    Pxx = 10 * np.log10(Sxx)
+#    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
+#
+#    known_times, known_freq = compute_constellation_map(known, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
+#
+#    match_times, match_fracs = match_constellations(target_times=target_times,
+#                                                    target_freq=target_freq,
+#                                                    ref_times=known_times,
+#                                                    ref_freq=known_freq,
+#                                                    freq_tol=FREQ_TOL,
+#                                                    time_tol=TIME_TOL,
+#                                                    window_size=25,
+#                                                    time_steps=target.shape[1])
+#
 
-    #distances = moving_window_distances(target=Pxx[0:100], known=known_Pxx[0:100])
+    target_masked = compute_masked_spectrogram(target, threshold=THRESHOLD, min_freq=FREQ_RANGE[0], max_freq=FREQ_RANGE[1])
+    known_masked = compute_masked_spectrogram(known, threshold=THRESHOLD, min_freq=FREQ_RANGE[0], max_freq=FREQ_RANGE[1])
+    
+    similarity = moving_window_similarity(target=target_masked, known=known_masked, should_smooth=True, should_match_binary=True)
 
-    plt.pcolormesh(times, freq[0:75], known_Pxx[0:75])
+
+    if PLOT_DISTANCES:
+        fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
+        ax1.plot(list(range(len(channel0))), channel0)
+        #ax2.plot(match_times, match_fracs)
+        ax2.plot(list(range(len(similarity))), similarity)
+    else:
+        fig, ax = plt.subplots()
+
+        if PLOT_TARGET:
+            ax.imshow(target_masked, cmap='gray_r')
+            #ax.scatter(target_times, target_freq, color='red', marker='o')
+        else:
+            ax.imshow(known_masked, cmap='gray_r')
+            #ax.scatter(known_times, known_freq, color='red', marker='o')
+
+    plt.tight_layout()
     plt.show()
+
+
+    #distances = moving_window_distances(target=target, known=known, should_smooth=True)
+
+    #peaks, peak_properties = find_peaks(distances, height=0.01, distance=3500)
+    #peak_heights = peak_properties['peak_heights']
+
+    #plt.pcolormesh(times, freq[0:100], Pxx[0:100])
+    #plt.show()
 
     #fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 
     #ax0.plot(list(range(len(channel0))), channel0)
     #ax1.plot(list(range(len(distances))), distances)
+    #ax1.scatter(peaks, peak_heights, color='orange')
     #plt.show()
-
-
-

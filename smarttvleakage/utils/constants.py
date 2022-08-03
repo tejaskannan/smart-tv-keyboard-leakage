@@ -3,7 +3,7 @@ from enum import Enum, auto
 
 class SmartTVType(Enum):
     SAMSUNG = auto()
-    ROKU = auto()
+    APPLE_TV = auto()
 
 
 CAPS = '<CAPS>'

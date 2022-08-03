@@ -5,7 +5,7 @@ from typing import Dict, DefaultDict, List, Set
 import csv
 
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
-from smarttvleakage.utils.file_utils import read_json
+from smarttvleakage.utils.file_utils import read_json, read_json_gz
 
 
 class KeyboardMode(Enum):
@@ -23,17 +23,15 @@ FILTERED_KEYS = [BACKSPACE]
 
 
 def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
-    with open(path, 'r') as fin:
-        distance_matrix = list(csv.reader(fin))
+    distance_matrix = read_json_gz(path)
 
     result: Dict[str, DefaultDict[int, Set[str]]] = dict()
 
-    for start_idx, start_key in enumerate(distance_matrix[0]):
+    for start_key, neighbors_dict in distance_matrix.items():
         result[start_key] = defaultdict(set)
 
-        for end_idx, end_key in enumerate(distance_matrix[0]):
-            distance = int(float(distance_matrix[start_idx + 1][end_idx]))
-            result[start_key][distance].add(end_key)
+        for neighbor, distance in neighbors_dict.items():
+            result[start_key][distance].add(neighbor)
 
     return result
 
@@ -42,8 +40,8 @@ class MultiKeyboardGraph:
 
     def __init__(self):
         dir_name = os.path.dirname(__file__)
-        standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.csv')
-        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.csv')
+        standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json.gz')
+        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json.gz')
 
         self._keyboards = {
             KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
@@ -59,45 +57,44 @@ class MultiKeyboardGraph:
     def printerthing(self, num_moves: int, mode: KeyboardMode) -> List[str]:
         return self._keyboards[mode].get_keys_for_moves(num_moves)
 
+    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool, mode: KeyboardMode) -> int:
+        return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
 
 class SingleKeyboardGraph:
 
     def __init__(self, path: str, start_key: str):
+        # Set the start key
         self._start_key = start_key
 
-        # Get the graph without wraparound
-        with open(path, 'r') as fin:
-            self._no_wraparound = list(csv.reader(fin))
+        # Read in the precomputed shortest paths maps
+        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json.gz', '_normal.json.gz'))
+        self._no_wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json.gz', '_shortcuts.json.gz'))
 
-        # Get the graph with wraparound
-        with open(path.replace('.csv', '_wraparound.csv'), 'r') as fin:
-            self._wraparound = list(csv.reader(fin))
+        wraparound_path = path.replace('.json.gz', '_wraparound.json.gz')
+        self._wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=wraparound_path)
+        if os.path.exists(wraparound_path):
+            self._wraparound_distances = parse_graph_distances(path=wraparound_path)
 
-        # Read in the precomputed shortest paths map
-        start_idx = self._no_wraparound[0].index(start_key)
-
-        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path)
-        self._wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_wraparound.csv'))
-
-        self._no_wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = dict()
-        self._wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = dict()
-
-        if os.path.exists(path.replace('.csv', '_space.csv')):
-            self._no_wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_space.csv'))
-
-        if os.path.exists(path.replace('.csv', '_space.csv')):
-            self._wraparound_distances_space: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.csv', '_wraparound_space.csv'))
+        wraparound_shortcuts_path = path.replace('.json.gz', '_all.json.gz')
+        self._wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = dict()
+        if os.path.exists(wraparound_shortcuts_path):
+            self._wraparound_distances_shortcuts = parse_graph_distances(path=wraparound_shortcuts_path)
 
     def get_keys_for_moves(self, num_moves: int) -> List[str]:
         return self.get_keys_for_moves_from(start_key=self._start_key, num_moves=num_moves, use_space=False)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+        assert num_moves >= 0, 'Must provide a non-negative number of moves. Got {}'.format(num_moves)
+
+        if num_moves == 0:
+            return [start_key]
+
+        no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
+        wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
+
         if use_shortcuts:
-            no_wraparound_distance_dict = self._no_wraparound_distances_space.get(start_key, dict())
-            wraparound_distance_dict = self._wraparound_distances_space.get(start_key, dict())
-        else:
-            no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
-            wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
+            no_wraparound_distance_dict.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()))
+            wraparound_distance_dict.update(self._wraparound_distances_shortcuts.get(start_key, dict()))
 
         if (len(no_wraparound_distance_dict) == 0) and (len(wraparound_distance_dict) == 0):
             return []
@@ -110,3 +107,27 @@ class SingleKeyboardGraph:
             return list(sorted(combined))
         else:
             return list(sorted(no_wraparound_neighbors))
+
+    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool) -> int:
+        if end_key not in list(self._no_wraparound_distances.keys()):
+            return -1
+        if end_key==start_key:
+            return 0
+        if use_shortcuts:
+            if use_wraparound:
+                for i in self._wraparound_distances_shortcuts[start_key]:
+                    if end_key in self._wraparound_distances_shortcuts[start_key][i]:
+                        return i
+            else:
+                for i in self._no_wraparound_distances_shortcuts[start_key]:
+                    if end_key in self._no_wraparound_distances_shortcuts[start_key][i]:
+                        return i
+        else:
+            if use_wraparound:
+                for i in self._wraparound_distances[start_key]:
+                    if end_key in self._wraparound_distances[start_key][i]:
+                        return i
+            else:
+                for i in self._no_wraparound_distances[start_key]:
+                    if end_key in self._no_wraparound_distances[start_key][i]:
+                        return i
