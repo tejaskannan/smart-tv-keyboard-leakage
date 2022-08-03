@@ -5,7 +5,7 @@ import os.path
 from argparse import ArgumentParser
 from typing import Tuple, List, Dict
 
-from smarttvleakage.audio import MoveExtractor, make_move_extractor
+from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVTypeClassifier
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
@@ -20,35 +20,28 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--video-path', type=str, required=True)
     parser.add_argument('--dictionary-path', type=str, required=True)
-    parser.add_argument('--tv-type', choices=[SmartTVType.SAMSUNG.name.lower(), SmartTVType.APPLE_TV.name.lower()], type=str, required=True)
+    #parser.add_argument('--tv-type', choices=[SmartTVType.SAMSUNG.name.lower(), SmartTVType.APPLE_TV.name.lower()], type=str, required=True)
     parser.add_argument('--max-num-results', type=int)
     parser.add_argument('--max-num-videos', type=int)
     args = parser.parse_args()
 
     if os.path.isdir(args.video_path):
         video_paths = list(iterate_dir(args.video_path))
-        should_plot = False
     else:
         video_paths = [args.video_path]
-        should_plot = True
 
-    # Make the default keyboard based on the TV type to get the character set
-    tv_type = SmartTVType[args.tv_type.upper()]
-    keyboard_type = KeyboardType.SAMSUNG if tv_type == SmartTVType.SAMSUNG else KeyboardType.APPLE_TV_SEARCH
-    graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
-    characters = graph.get_characters()
-
+    # Load the dictionary
     print('Starting to load the dictionary...')
 
     if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary(characters=characters)
+        dictionary = UniformDictionary()
     else:
-        dictionary = EnglishDictionary.restore(characters=characters, path=args.dictionary_path)
+        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
     print('Finished loading dictionary.')
 
-    # Create the move extractor
-    move_extractor = make_move_extractor(tv_type=tv_type)
+    # Make the TV Type classifier
+    tv_type_clf = SmartTVTypeClassifier()
 
     rank_list: List[int] = []
     num_candidates_list: List[int] = []
@@ -61,7 +54,7 @@ if __name__ == '__main__':
     num_not_found = 0
 
     print('Number of video files: {}'.format(len(video_paths)))
-    use_suggestions = True
+    use_suggestions = False
 
     for idx, video_path in enumerate(video_paths):
         if (args.max_num_videos is not None) and (idx >= args.max_num_videos):
@@ -69,12 +62,17 @@ if __name__ == '__main__':
 
         video_clip = mp.VideoFileClip(video_path)
         audio = video_clip.audio
+        signal = audio.to_soundarray()
 
         file_name = os.path.basename(video_path)
         true_word = file_name.replace('.mp4', '').replace('.MOV', '').replace('.mov', '')
         true_word = true_word.replace('_', ' ')
 
-        signal = audio.to_soundarray()
+        # Classify the TV type based on the sound profile
+        tv_type = tv_type_clf.get_tv_type(audio=signal)
+
+        # Extract the move sequence
+        move_extractor = make_move_extractor(tv_type=tv_type)
         move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal)
 
         #suggestions_model = build_model()
@@ -85,6 +83,9 @@ if __name__ == '__main__':
 
         # Make the graph based on the keyboard type
         graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
+
+        # Set the dictionary characters
+        dictionary.set_characters(graph.get_characters())
 
         if use_suggestions:
             ranked_candidates = get_words_from_moves_autocomplete(move_sequence=move_sequence,

@@ -1,5 +1,6 @@
 from smarttvleakage.utils.constants import SmartTVType
 from .move_extractor import MoveExtractor, SamsungMoveExtractor, AppleTVMoveExtractor, Move
+from .tv_classifier import SmartTVTypeClassifier
 from .constants import SAMSUNG_DELETE, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 from .constants import APPLETV_KEYBOARD_DELETE, APPLETV_KEYBOARD_SELECT
 

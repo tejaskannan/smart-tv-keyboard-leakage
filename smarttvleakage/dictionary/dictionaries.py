@@ -35,14 +35,18 @@ REVERSE_CHARACTER_TRANSLATION = { value: key for key, value in CHARACTER_TRANSLA
 
 class CharacterDictionary:
 
-    def __init__(self, characters: List[str]):
-        self._characters = characters
+    def __init__(self):
+        self._characters: List[str] = []
 
     @property
     def characters(self) -> List[str]:
         return self._characters
 
+    def set_characters(self, characters: List[str]):
+        self._characters = characters
+
     def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+        assert len(self.characters) > 0, 'Must call set_characters() first'
         raise NotImplementedError()
 
 
@@ -54,8 +58,8 @@ class UniformDictionary(CharacterDictionary):
 
 class EnglishDictionary(CharacterDictionary):
 
-    def __init__(self, max_depth: int, characters: List[str]):
-        super().__init__(characters=characters)
+    def __init__(self, max_depth: int):
+        super().__init__()
         self._trie = Trie(max_depth=max_depth)
         self._is_built = False
         self._max_depth = max_depth
@@ -136,8 +140,8 @@ class EnglishDictionary(CharacterDictionary):
         return character_counts
 
     @classmethod
-    def restore(cls, characters: List[str], path: str):
-        dictionary = cls(max_depth=1, characters=characters)
+    def restore(cls, path: str):
+        dictionary = cls(max_depth=1)
         dictionary._trie = read_pickle_gz(path)
         dictionary._is_built = True
         dictionary._max_depth = dictionary._trie.max_depth
