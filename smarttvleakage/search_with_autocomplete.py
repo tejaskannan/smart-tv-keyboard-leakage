@@ -6,9 +6,9 @@ from queue import PriorityQueue
 from collections import namedtuple, defaultdict, Counter
 from typing import Set, List, Dict, Optional, Iterable, Tuple, DefaultDict
 
-from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SPACE
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SELECT_SOUND_KEYS
+from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SPACE, SAMSUNG_STANDARD
+from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.file_utils import read_json
 
@@ -87,6 +87,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
     target_length = len(move_sequence)
 
     # Split the string by assuming 'select' keys correspond to spaces (TODO: Fix dynamically if we don't take a space)
+    # Note that we only use this routine for Samsung keyboards
     string_lengths = [None]
     if not did_use_autocomplete:
         string_lengths = []
@@ -102,8 +103,6 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
         if move_sequence[-1].end_sound != SAMSUNG_SELECT:
             string_lengths.append(count)
 
-    #string_length = target_length if (not did_use_autocomplete) else None
-
     # Initialize a minimum priority queue
     candidate_queue = PriorityQueue()
 
@@ -111,11 +110,13 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
     init_state = SearchState(keys=[],
                              score=1.0,
                              score_factor=1.0,
-                             keyboard_mode=KeyboardMode.STANDARD,
+                             keyboard_mode=SAMSUNG_STANDARD,
                              was_on_suggested=False,
                              current_key=None,
                              center_key=None)
     candidate_queue.put((-1 * init_state.score, init_state))
+
+    keyboard_type = graph.get_keyboard_type()
 
     scores: Dict[str, float] = dict()
     visited: Set[VisitedState] = set()
@@ -203,11 +204,14 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
                 neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                           num_moves=move_count,
                                                           mode=current_state.keyboard_mode,
-                                                          use_space=(end_sound == SAMSUNG_SELECT) or (current_state.current_key == SPACE),
-                                                          use_wraparound=False)
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True)
 
                 if end_sound == SAMSUNG_SELECT:
                     neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))
+                    filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+                elif end_sound == SAMSUNG_DELETE:
+                    neighbors = list(filter(lambda n: (n in DELETE_SOUND_KEYS), neighbors))
                     filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
                 else:
                     neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS), neighbors))
@@ -226,7 +230,8 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
                     # Make the next state
                     if visited_state not in visited:
                         next_keyboard = get_keyboard_mode(key=neighbor_key,
-                                                          mode=current_state.keyboard_mode)
+                                                          mode=current_state.keyboard_mode,
+                                                          keyboard_type=keyboard_type)
 
                         string_score = get_score_for_string(candidate_string, dictionary=dictionary, should_aggregate_score=should_aggregate_score)
 
@@ -269,7 +274,8 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
 
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
-                                                  mode=current_state.keyboard_mode)
+                                                      mode=current_state.keyboard_mode,
+                                                      keyboard_type=keyboard_type)
 
                     next_state = SearchState(keys=candidate_keys,
                                              score=get_score_for_string(candidate_string, dictionary=dictionary, should_aggregate_score=should_aggregate_score),

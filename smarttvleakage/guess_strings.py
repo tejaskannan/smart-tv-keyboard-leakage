@@ -32,13 +32,14 @@ if __name__ == '__main__':
         video_paths = [args.video_path]
         should_plot = True
 
+    # Make the default keyboard based on the TV type to get the character set
     tv_type = SmartTVType[args.tv_type.upper()]
     keyboard_type = KeyboardType.SAMSUNG if tv_type == SmartTVType.SAMSUNG else KeyboardType.APPLE_TV_SEARCH
     graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
 
     print('Starting to load the dictionary...')
-    
+
     if args.dictionary_path == 'uniform':
         dictionary = UniformDictionary(characters=characters)
     else:
@@ -60,7 +61,7 @@ if __name__ == '__main__':
     num_not_found = 0
 
     print('Number of video files: {}'.format(len(video_paths)))
-    use_suggestions = False
+    use_suggestions = True
 
     for idx, video_path in enumerate(video_paths):
         if (args.max_num_videos is not None) and (idx >= args.max_num_videos):
@@ -74,7 +75,6 @@ if __name__ == '__main__':
         true_word = true_word.replace('_', ' ')
 
         signal = audio.to_soundarray()
-        #move_sequence, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
         move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal)
 
         #suggestions_model = build_model()
@@ -102,8 +102,6 @@ if __name__ == '__main__':
         did_find_word = False
 
         for rank, (guess, score, num_candidates) in enumerate(ranked_candidates):
-            print('Guess: {}, Score: {}'.format(guess, score))
-
             if guess == true_word:
                 rank_list.append(rank + 1)
                 rank_dict[true_word] = rank + 1
