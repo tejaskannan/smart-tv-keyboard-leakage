@@ -15,8 +15,12 @@ import random
 import matplotlib.pyplot as plt
 
 from sklearn.model_selection import RandomizedSearchCV
+
+from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+
 from smarttvleakage.max.alg_determine_autocomplete import get_score_from_ms, get_score_from_ms_improved, adjust_for_len
-from smarttvleakage.max.manual_score_dict import build_msfd, build_ms_dict
+from smarttvleakage.max.manual_score_dict import build_msfd, build_ms_dict, buildDict
+from smarttvleakage.max.simulate_ms import grab_words, simulate_ms
 import math
 
 
@@ -106,9 +110,8 @@ def make_row_dist(moves : List[int], bins : List[int], weighted : int) -> List[i
 
 
 # [Int], Int -> DF
-def make_df(bins_dist : List[int], weighted : int):
-    ms_dict_auto = build_ms_dict("auto")
-    ms_dict_non = build_ms_dict("non")
+def make_df(bins_dist : List[int], weighted : int, ms_dict_auto : dict[str, list[int]], ms_dict_non : dict[str, list[int]]):
+
 
     data = np.empty((0, len(bins_dist) + 2), dtype=float)
 
@@ -138,11 +141,12 @@ def make_df(bins_dist : List[int], weighted : int):
     return df
 
 
+
+
 # Takes an ID and returns the corresponding (word, ty)
 # Int -> (String, String)
-def id_to_real(id : int) -> tuple[str, str]:
-    ms_dict_auto = build_ms_dict("auto")
-    ms_dict_non = build_ms_dict("non")
+def id_to_real(id : int, ms_dict_auto : dict[str, list[int]], ms_dict_non : dict[str, list[int]]) -> tuple[str, str]:
+
     full_list = []
     for key in ms_dict_auto:
         full_list.append((key, "auto"))
@@ -203,7 +207,7 @@ def get_word_results(df, model, iters):
         pred = get_pred(df, model, i)
         
         for (id, gt, res) in pred:
-            (word, x) = id_to_real(int(id))
+            (word, x) = id_to_real(int(id), build_ms_dict("auto"), build_ms_dict("non"))
             if (word, x) in results_dict:
                 (correct, total) = results_dict[(word, x)]
                 if gt == res:
@@ -221,7 +225,7 @@ def get_word_results(df, model, iters):
 
 # Returns a dictionary mapping (word, ty) to a sum of prediction chances and a total number of predictions
 # DF, Model, Int -> (Dict: (String, String) -> (Float, Float))
-def get_word_results_proba(df, model, iters : int) -> dict[tuple[str, str], tuple[float, float]]:
+def get_word_results_proba(df, model, iters : int, ms_dict_auto : dict[str, list[int]], ms_dict_non : dict[str, list[int]]) -> dict[tuple[str, str], tuple[float, float]]:
 
     results_dict = {}
     for i in range(iters):
@@ -229,7 +233,7 @@ def get_word_results_proba(df, model, iters : int) -> dict[tuple[str, str], tupl
         
         for (id, gt, res) in pred_probas:
             
-            (word, x) = id_to_real(int(id))
+            (word, x) = id_to_real(int(id), ms_dict_auto, ms_dict_non)
             if (word, x) in results_dict:
                 (correct, total) = results_dict[(word, x)]
                 if gt == 0:
@@ -280,43 +284,45 @@ def id_to_weight(id : int) -> str:
 # 0: unw, 1: w, 2: unw/nn, 3: w/nn, 4: dw, 5: dw/nn
 def eval_weighting(max_bins_dist : int, iters : int):
 
+    ms_dict_auto = build_ms_dict("auto")
+    ms_dict_non = build_ms_dict("non")
 
     data = np.empty((0, 6), dtype=float)
     for i in range(max_bins_dist):
         bins_dist = range(i + 1)
         row = []
        
-        df = make_df(bins_dist, 0)
+        df = make_df(bins_dist, 0, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("Testing dist: " + str(i+1) + ", unweighted")
         accRFC, _ = test_config(df, model, iters)
         row.append(accRFC)
 
-        df = make_df(bins_dist, 1)
+        df = make_df(bins_dist, 1, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("Testing dist: " + str(i+1) + ", weighted")
         accRFC, _ = test_config(df, model, iters)
         row.append(accRFC)
 
-        df = make_df(bins_dist, 2)
+        df = make_df(bins_dist, 2, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("Testing dist: " + str(i+1) + ", unweighted, no norm")
         accRFC, _ = test_config(df, model, iters)
         row.append(accRFC)
 
-        df = make_df(bins_dist, 3)
+        df = make_df(bins_dist, 3, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("Testing dist: " + str(i+1) + ", weighted, no norm")
         accRFC, _ = test_config(df, model, iters)
         row.append(accRFC)
 
-        df = make_df(bins_dist, 4)
+        df = make_df(bins_dist, 4, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("Testing dist: " + str(i+1) + ", dub weighted")
         accRFC, _ = test_config(df, model, iters)
         row.append(accRFC)
 
-        df = make_df(bins_dist, 5)
+        df = make_df(bins_dist, 5, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("Testing dist: " + str(i+1) + ", dub weighted, no norm")
         accRFC, _ = test_config(df, model, iters)
@@ -338,12 +344,13 @@ def eval_weighting(max_bins_dist : int, iters : int):
 # dict (word, ty) -> (method, ml_certainty, manual_score)
 def combine_algorithmic(results_dict : dict[tuple[str, str], 
                         tuple[float, int]], 
-                        certainty_cutoff : float) -> dict[tuple[str, str], tuple[str, float, float]]:
+                        certainty_cutoff : float,
+                        ms_dict_auto : dict[str, list[int]],
+                        ms_dict_non : dict[str, list[int]]) -> dict[tuple[str, str], tuple[str, float, float]]:
     print("combine_algorithmic")
 
     msfd = build_msfd()
-    ms_dict_auto = build_ms_dict("auto")
-    ms_dict_non = build_ms_dict("non")
+
     
     final_dict = {} # (method, certainty, manual_score)
     for key in results_dict:
@@ -416,18 +423,86 @@ def eval_params(bins_list : List[int],
         for weight in weights:
             print("eval new weight: " + id_to_weight(weight))
 
-            df = make_df(range(bins), weight)
+            df = make_df(range(bins), weight, ms_dict_auto, ms_dict_non)
             model = RandomForestClassifier()
-            results_dict = get_word_results_proba(df, model, iters) # dict (word, ty) -> (accuracy sum, total)
+            results_dict = get_word_results_proba(df, model, iters, ms_dict_auto, ms_dict_non) # dict (word, ty) -> (accuracy sum, total)
 
             for certainty_cutoff in certainty_cutoffs:
                 param_dict[(bins, weight, certainty_cutoff)] = {}
 
-                final_dict = combine_algorithmic(results_dict, certainty_cutoff)
+                final_dict = combine_algorithmic(results_dict, certainty_cutoff, ms_dict_auto, ms_dict_non)
                 for key in final_dict:
                     param_dict[(bins, weight, certainty_cutoff)][key] = final_dict[key]
 
     return param_dict
+
+
+# Same as above, but uses simulates move sequences
+# (bins, weight, certainty_cutoff) -> 
+# (dict: (word, ty) -> (method, ml_score, manual_score))
+def eval_params_sim(bins_list : List[int],
+                 weights : List[int], 
+                 certainty_cutoffs : List[float], 
+                 max_length : int, 
+                 iters : int) -> dict[tuple[int, int, float], dict[tuple[str, str], tuple[str, float, float]]]:
+
+
+    englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
+    wcs = buildDict(100)
+    words = grab_words(5000)
+    print("words grabbed")
+    ms_dict_auto = {}
+    ms_dict_non = {}
+    for word in words:
+        ms_dict_auto[word] = simulate_ms(englishDictionary, wcs, word, True, 1)
+        ms_dict_non[word] = simulate_ms(englishDictionary, wcs, word, False, 1)
+
+    print("ms_dicts formed")
+
+    # Limit word length for runtime
+    if max_length > 0:
+        to_remove = []
+        for key in ms_dict_auto:
+            if len(key) > max_length:
+                to_remove.append(key)
+        for key in to_remove:
+            del ms_dict_auto[key]
+        to_remove = []
+        for key in ms_dict_non:
+            if len(key) > max_length:
+                to_remove.append(key)
+        for key in to_remove:
+            del ms_dict_non[key]
+
+    # print word count
+    nons = 0
+    autos = 0
+    for key in ms_dict_auto:
+        autos = autos + 1
+    for key in ms_dict_non:
+        nons = nons + 1
+    print("autos: " + str(autos) + ", nons: " + str(nons))
+
+
+    param_dict = {}
+    for bins in bins_list:
+        print("eval new bins")
+        for weight in weights:
+            print("eval new weight: " + id_to_weight(weight))
+
+            df = make_df(range(bins), weight, ms_dict_auto, ms_dict_non)
+            model = RandomForestClassifier()
+            results_dict = get_word_results_proba(df, model, iters, ms_dict_auto, ms_dict_non) # dict (word, ty) -> (accuracy sum, total)
+
+            for certainty_cutoff in certainty_cutoffs:
+                param_dict[(bins, weight, certainty_cutoff)] = {}
+
+                final_dict = combine_algorithmic(results_dict, certainty_cutoff, ms_dict_auto, ms_dict_non)
+                for key in final_dict:
+                    param_dict[(bins, weight, certainty_cutoff)][key] = final_dict[key]
+
+    return param_dict
+
 
 
 # Takes a combined result dictionary and prints relevant analysis
@@ -585,7 +660,35 @@ def build_model():
     bins = 5
     weight = 4
 
-    df = make_df(range(bins), weight)
+    ms_dict_auto = build_ms_dict("auto")
+    ms_dict_non = build_ms_dict("non")
+
+    df = make_df(range(bins), weight, ms_dict_auto, ms_dict_non)
+    model = RandomForestClassifier()
+
+    y = df.ac
+    X = df.drop(["ac"], axis=1, inplace=False)
+    # Trains without ID
+    model.fit(X.drop(["id"], axis=1, inplace=False), y)
+
+    return model
+
+
+
+def build_model_sim():
+    bins = 3
+    weight = 3
+
+    englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
+    wcs = buildDict(100)
+    words = grab_words(5000)
+    ms_dict_auto = {}
+    ms_dict_non = {}
+    for word in words:
+        ms_dict_auto[word] = simulate_ms(englishDictionary, wcs, word, True, 1)
+        ms_dict_non[word] = simulate_ms(englishDictionary, wcs, word, False, 1)
+
+    df = make_df(range(bins), weight, ms_dict_auto, ms_dict_non)
     model = RandomForestClassifier()
 
     y = df.ac
@@ -631,10 +734,46 @@ def classify_ms(model, ms : list[int]) -> int:
         else:
             return 1
 
+# takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
+def classify_ms_sim(model, ms : list[int]) -> int:
+    bins = 3
+    weight = 3
+    certainty_cutoff = .24
+    manual_cutoff = 0.00067
+
+
+    data = np.empty((0, bins), dtype=float)
+    list_dist = make_row_dist(ms, range(bins), weight)
+    new_row = np.array(list_dist, dtype=float)
+    data = np.append(data, [new_row], axis=0)
+    
+
+    column_titles = make_column_titles_dist(range(bins))
+    df = pd.DataFrame(data = data, columns = column_titles)
+
+    print(df)
+    
+    # now predict from the dataframe, and then add manual
+
+    pred_probas = model.predict_proba(df)[0]
+
+    if pred_probas[0] > 1-certainty_cutoff:
+        return 0
+    elif pred_probas[1] > 1-certainty_cutoff:
+        return 1
+    # rn cc is .5, fixe the key[0] issue
+    else: # go into manual scoring
+        manual_score = get_score_from_ms_improved(ms, 1)[0][1]
+        if manual_score > manual_cutoff:
+            return 0
+        else:
+            return 1
+
+
 
 #bins: 5; weight: double weighted, normalized; certainty_cutoff: 0.26
 #accuracy: 0.9809523809523809
-# best fs
+# best fs 
 
 if __name__ == '__main__':
 
@@ -649,7 +788,9 @@ if __name__ == '__main__':
     # 4 - for predicting single ms
     # 5 - for testing score combinations
     # 6 - (analyze_params_new) - tests combining confidences
-    test = 3
+    # 7 - for testing combination parameters, simulated word model
+    # 8 - for testing simulated word model on gt words
+    test = 8
 
 
     
@@ -683,7 +824,7 @@ if __name__ == '__main__':
 
     # For testing which words cause issues  
     if test == 2:
-        df = make_df(range(6), 3)
+        df = make_df(range(6), 3, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
         print("test 2, 6 bins, weighted/nn")
 
@@ -749,15 +890,78 @@ if __name__ == '__main__':
         max_length = 9
         iters = 20
 
-        df = make_df(range(3), 4)
+        df = make_df(range(3), 4, ms_dict_auto, ms_dict_non)
         model = RandomForestClassifier()
-        results_dict = get_word_results_proba(df, model, iters) # dict (word, ty) -> (accuracy sum, total)
-        final_dict = combine_algorithmic(results_dict, certainty_cutoff)
+        results_dict = get_word_results_proba(df, model, iters, ms_dict_auto, ms_dict_non) # dict (word, ty) -> (accuracy sum, total)
+        final_dict = combine_algorithmic(results_dict, certainty_cutoff, ms_dict_auto, ms_dict_non)
 
         
         analyze_params_new(final_dict, .000067, certainty_cutoff)
 
 
+    if test == 7:
+        print("test 7")
+        bins_list = [3, 4, 5]
+        weights = [4, 3, 5]
+        certainty_cutoffs = [.22, .24, .26, .28, .30, .32, .34, .36]
+        max_length = -1
+        iters = 60
+
+        param_dict = eval_params_sim(bins_list, weights, certainty_cutoffs, max_length, iters)
+        results = []
+        for key in param_dict:
+            bins, weight, certainty_cutoff = key
+            print("bins: " + str(bins), end="; ")
+            print("weight: " + str(weight) + " (" + id_to_weight(weight) + ")", end="; ")
+            print("certainty_cutoff: " + str(certainty_cutoff))
+            acc = analyze_params(param_dict[key], 0.00067)
+            results.append((key, acc))
+            print("\n")
+        results.sort(key=(lambda x: x[1]))
+        for item in results:
+            bins, weight, certainty_cutoff = item[0]
+            print("bins: " + str(bins), end="; ")
+            print("weight: " + id_to_weight(weight), end="; ")
+            print("certainty_cutoff: " + str(certainty_cutoff))
+            print("accuracy: " + str(item[1]))
     
 
-    
+    if test == 8:
+        model = build_model_sim()
+
+        correct = (0, 0)
+        total = (0, 0)
+        fails = []
+
+        for word in ms_dict_auto:
+            print(word)
+            print(ms_dict_auto[word])
+            cls = classify_ms_sim(model, ms_dict_auto[word])
+            if cls == 1:
+                correct = (correct[0], correct[1] + 1)
+            else:
+                fails.append((word, "auto"))
+            total = (total[0], total[1] + 1)
+        for word in ms_dict_non:
+            print(word)
+            print(ms_dict_non[word])
+            cls = classify_ms_sim(model, ms_dict_non[word])
+            if cls == 0:
+                correct = (correct[0] + 1, correct[1])
+            else:
+                fails.append((word, "non"))
+            total = (total[0] + 1, total[1])
+        
+        print("non correct: " + str(correct[0]))
+        print("auto correct: " + str(correct[1]))
+        print("non total: " + str(total[0]))
+        print("auto total: " + str(total[1]))
+        print("non accuracy: " + str(correct[0]/total[0]))
+        print("auto accuracy: " + str(correct[1]/total[1]))
+
+        for fail, ty in fails:
+            print(fail + ", " + ty + ": ", end="")
+            if ty == "non":
+                print(ms_dict_non[fail])
+            else:
+                print(ms_dict_auto[fail])
