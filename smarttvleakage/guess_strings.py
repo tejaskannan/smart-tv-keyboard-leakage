@@ -10,7 +10,7 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_autocomplete
-from smarttvleakage.utils.constants import SmartTVType
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
 #from smarttvleakage.audio.determine_autocomplete import build_model, classify_ms
@@ -33,7 +33,8 @@ if __name__ == '__main__':
         should_plot = True
 
     tv_type = SmartTVType[args.tv_type.upper()]
-    graph = MultiKeyboardGraph(tv_type=tv_type)
+    keyboard_type = KeyboardType.SAMSUNG if tv_type == SmartTVType.SAMSUNG else KeyboardType.APPLE_TV_SEARCH
+    graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
 
     print('Starting to load the dictionary...')
@@ -74,13 +75,16 @@ if __name__ == '__main__':
 
         signal = audio.to_soundarray()
         #move_sequence, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
-        move_sequence, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
-        
+        move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal)
+
         #suggestions_model = build_model()
         #if (classify_ms(suggestions_model, move_sequence) == 1) and (tv_type == SmartTVType.SAMSUNG):
         #    use_suggestions = True
         #else:
         #    use_suggestions = False
+
+        # Make the graph based on the keyboard type
+        graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
 
         if use_suggestions:
             ranked_candidates = get_words_from_moves_autocomplete(move_sequence=move_sequence,
@@ -98,6 +102,8 @@ if __name__ == '__main__':
         did_find_word = False
 
         for rank, (guess, score, num_candidates) in enumerate(ranked_candidates):
+            print('Guess: {}, Score: {}'.format(guess, score))
+
             if guess == true_word:
                 rank_list.append(rank + 1)
                 rank_dict[true_word] = rank + 1

@@ -5,10 +5,9 @@ from collections import namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_ALPHABET, SAMSUNG_STANDARD
-from smarttvleakage.graphs.keyboard_linker import KeyboardLinker, make_keyboard_linker
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_SEARCH_ALPHABET, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
-from smarttvleakage.utils.constants import SmartTVType
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 
@@ -46,16 +45,15 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     # Set the default keyboard mode
     delete_sound_name = ''
     if tv_type == SmartTVType.SAMSUNG:
-        keyboard_mode = SAMSUNG_STANDARD
         delete_sound_name = SAMSUNG_DELETE
     elif tv_type == SmartTVType.APPLE_TV:
-        keyboard_mode = APPLETV_ALPHABET
         delete_sound_name = APPLETV_KEYBOARD_DELETE
     else:
         raise ValueError('Unknown TV type: {}'.format(tv_type.name))
 
-    # Create the keyboard linker
-    keyboard_linker = make_keyboard_linker(tv_type=tv_type)
+    # Create initial state
+    keyboard_mode = graph.get_start_keyboard_mode()
+    keyboard_type = graph.get_keyboard_type()
 
     init_state = SearchState(keys=[],
                              score=1.0,
@@ -82,8 +80,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         current_string = get_string_from_keys(keys=current_state.keys)
         candidate_count += 1
 
-        #print('Current String: {}, Current Keys: {}, Score: {}'.format(current_string, current_state.keys, current_state.score))
-
         if len(current_state.keys) == target_length:
 
             if current_string not in guessed_strings:
@@ -106,6 +102,10 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         end_sound = move_sequence[move_idx].end_sound
         prev_key = current_state.current_key
 
+        # This is a quirk of Apple TV. From the search bar, the first move is the move onto the keyboard. We remove this choice.
+        if (keyboard_type == KeyboardType.APPLE_TV_SEARCH) and (move_idx == 0):
+            num_moves = max(num_moves - 1, 0)
+
         move_candidates: List[CandidateMove] = [CandidateMove(num_moves=num_moves, adjustment=1.0, increment=1)]
 
         if num_moves > 2:
@@ -123,6 +123,15 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                 num_mistakes += 1
                 candidate_num_moves -= 1
 
+            # Include one more in case we messed up the audio extraction (e.g., on double moves)
+            candidate_num_moves = num_moves + 1
+            adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
+                                                        num_moves=candidate_num_moves,
+                                                        num_mistakes=1)
+
+            candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
+            move_candidates.append(candidate_move)
+
         # Get the counts for the next keys
         next_key_counts = dictionary.get_letter_counts(prefix=current_string,
                                                        length=target_length,
@@ -133,7 +142,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_move.num_moves,
                                                       mode=current_state.keyboard_mode,
-                                                      use_shortcuts=False,
+                                                      use_shortcuts=True,
                                                       use_wraparound=False)
 
             # Filter out any unclickable keys (could not have selected those)
@@ -154,7 +163,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                 filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                              candidate_keys=neighbors)
 
-
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_word = get_string_from_keys(candidate_keys)
@@ -166,7 +174,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
                                                       mode=current_state.keyboard_mode,
-                                                      tv_type=tv_type)
+                                                      keyboard_type=keyboard_type)
 
                     next_state_score = current_state.score * score * candidate_move.adjustment
                     next_move_idx = move_idx + candidate_move.increment
@@ -181,7 +189,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                     visited.add(visited_state)
 
                     # Add any linked states (undetectable by keyboard audio alone)
-                    for linked_state in keyboard_linker.get_linked_states(neighbor_key, keyboard_mode=next_keyboard):
+                    for linked_state in graph.get_linked_states(neighbor_key, keyboard_mode=next_keyboard):
                         next_state = SearchState(keys=candidate_keys,
                                                  score=next_state_score,
                                                  keyboard_mode=linked_state.mode,

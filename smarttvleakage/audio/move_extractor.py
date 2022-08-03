@@ -7,13 +7,13 @@ from enum import Enum, auto
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict
 
-from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER
+from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, SAMSUNG_KEY_SELECT
 from smarttvleakage.audio.constants import SAMSUNG_MOVE, SAMSUNG_SELECT, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.audio.constants import APPLETV_KEYBOARD_MOVE, APPLETV_KEYBOARD_SELECT, APPLETV_SYSTEM_MOVE
-from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLETV_KEYBOARD_DOUBLE_MOVE
+from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLETV_KEYBOARD_DOUBLE_MOVE, APPLETV_TOOLBAR_MOVE
 
 
 MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
@@ -21,6 +21,7 @@ SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params
 Move = namedtuple('Move', ['num_moves', 'end_sound'])
 
 
+APPLETV_PASSWORD_THRESHOLD = 800
 APPLETV_MOVE_DISTANCE = 5
 MIN_DISTANCE = 12
 KEY_SELECT_DISTANCE = 30
@@ -237,14 +238,17 @@ class MoveExtractor:
         else:
             return peaks, peak_heights
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool]:
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
         Args:
             audio: A 2d aduio signal where the last dimension is the channel.
         Returns:
-            A list of moves before selections. The length of this list is the number of selections.
+            A tuple with three elements:
+                (1) A list of moves before selections. The length of this list is the number of selections.
+                (2) Whether the system finished on an autocomplete
+                (3) The keyboard type to use
         """
         raise NotImplementedError()
 
@@ -254,7 +258,7 @@ class SamsungMoveExtractor(MoveExtractor):
     def __init__(self):
         super().__init__(SmartTVType.SAMSUNG)
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool]:
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
@@ -383,7 +387,7 @@ class SamsungMoveExtractor(MoveExtractor):
         if did_use_autocomplete and len(result) > 0:
             return result[0:-1], did_use_autocomplete
 
-        return result, did_use_autocomplete
+        return result, did_use_autocomplete, KeyboardType.SAMSUNG
 
 
 class AppleTVMoveExtractor(MoveExtractor):
@@ -391,7 +395,7 @@ class AppleTVMoveExtractor(MoveExtractor):
     def __init__(self):
         super().__init__(SmartTVType.APPLE_TV)
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool]:
+    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
@@ -412,6 +416,7 @@ class AppleTVMoveExtractor(MoveExtractor):
         raw_system_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_SYSTEM_MOVE)
         raw_keyboard_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DOUBLE_MOVE)
         keyboard_delete_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DELETE)
+        toolbar_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_TOOLBAR_MOVE)
 
         # Filter out conflicting sounds
         system_move_times: List[int] = []
@@ -434,8 +439,14 @@ class AppleTVMoveExtractor(MoveExtractor):
             if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DISTANCE):
                 keyboard_move_times.append(move_time)
 
-        # Get the end time as the last system move
-        end_time = system_move_times[-1] if len(system_move_times) > 0 else BIG_NUMBER
+        # Get the end time as the last system move / toolbar move
+        last_keyboard_move = keyboard_move_times[-1]
+        next_toolbar_moves = list(filter(lambda t: t > last_keyboard_move, toolbar_move_times))
+        next_system_moves = list(filter(lambda t: t > last_keyboard_move, system_move_times))
+
+        last_toolbar_move = next_toolbar_moves[0] if len(next_toolbar_moves) > 0 else BIG_NUMBER
+        last_system_move = next_system_moves[0] if len(next_system_moves) > 0 else BIG_NUMBER
+        end_time = min(last_toolbar_move, last_system_move)
 
         # Extract the move sequence
         move_sequence: List[Move] = []
@@ -449,10 +460,6 @@ class AppleTVMoveExtractor(MoveExtractor):
         while (move_idx < len(keyboard_move_times)) and (keyboard_move_times[move_idx] < end_time):
             # Write move elements
             while (key_select_idx < len(keyboard_select_times)) and (keyboard_move_times[move_idx] > keyboard_select_times[key_select_idx]):
-                # A quirk of Apple TV -> The entry to the keyboard makes the keyboard move sound. We remove this move
-                if len(move_sequence) == 0:
-                    num_moves -= 1
-
                 move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
                 num_moves = 0
                 key_select_idx += 1
@@ -472,23 +479,42 @@ class AppleTVMoveExtractor(MoveExtractor):
         if key_select_idx < len(keyboard_select_times):
             move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
 
-        return move_sequence, False
+        # We use the password keyboard both of the following hold:
+        #   (1) The time between the first toolbar move and first keyboard move is "long"
+        #   (2) The sound after the last keyboard move is a toolbar move
+        keyboard_type = KeyboardType.APPLE_TV_SEARCH
+
+        if len(next_toolbar_moves) > 0:
+            first_keyboard_move = keyboard_move_times[0]
+            first_toolbar_moves = list(filter(lambda t: t < first_keyboard_move, toolbar_move_times))
+
+            if (len(next_system_moves) > 0) and (next_system_moves[0] < next_toolbar_moves[0]):
+                keyboard_type = KeyboardType.APPLE_TV_SEARCH
+            elif len(first_toolbar_moves) == 0:
+                keyboard_type = KeyboardType.APPLE_TV_SEARCH
+            elif (first_keyboard_move - first_toolbar_moves[-1]) < APPLETV_PASSWORD_THRESHOLD:
+                keyboard_type = KeyboardType.APPLE_TV_SEARCH
+            else:
+                keyboard_type = KeyboardType.APPLE_TV_PASSWORD
+
+        return move_sequence, False, keyboard_type
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/apple-tv/ten/star_trek.MOV')
+    video_clip = mp.VideoFileClip('/local/apple-tv/search/ted_lasso.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = APPLETV_KEYBOARD_DELETE
+    sound = APPLETV_KEYBOARD_DOUBLE_MOVE
 
     extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
-    move_seq, did_use_autocomplete = extractor.extract_move_sequence(audio=audio_signal)
+    move_seq, did_use_autocomplete, keyboard_type = extractor.extract_move_sequence(audio=audio_signal)
     print('Move Sequence: {}'.format(move_seq))
     print('Did use autocomplete: {}'.format(did_use_autocomplete))
+    print('Keyboard type: {}'.format(keyboard_type.name))
 
     fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 

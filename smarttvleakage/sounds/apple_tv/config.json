@@ -32,5 +32,11 @@
             { "min_freq": 12, "max_freq": 40, "min_threshold": -60, "max_threshold": -40 }
         ],
         "match_threshold": 1.05
+    },
+    "toolbar_move": {
+        "match_params": [
+            { "min_freq": 15, "max_freq": 25, "min_threshold": -65, "max_threshold": -55 }
+        ],
+        "match_threshold": 0.5
     }
 }

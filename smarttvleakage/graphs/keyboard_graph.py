@@ -5,23 +5,27 @@ from typing import Dict, DefaultDict, List, Set
 import csv
 
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
-from smarttvleakage.utils.constants import SmartTVType
+from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
+from .keyboard_linker import KeyboardLinker, KeyboardPosition
 
 
-SAMSUNG_STANDARD = 'standard'
-SAMSUNG_SPECIAL_ONE = 'special_1'
-APPLETV_ALPHABET = 'alphabet'
-APPLETV_NUMBERS = 'numbers'
-APPLETV_SPECIAL = 'special'
+SAMSUNG_STANDARD = 'samsung_standard'
+SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
+APPLETV_SEARCH_ALPHABET = 'appletv_search_alphabet'
+APPLETV_SEARCH_NUMBERS = 'appletv_search_numbers'
+APPLETV_SEARCH_SPECIAL = 'appletv_search_special'
+APPLETV_PASSWORD_STANDARD = 'appletv_password_standard'
+APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
 
 
 START_KEYS = {
     SAMSUNG_STANDARD: 'q',
     SAMSUNG_SPECIAL_ONE: CHANGE,
-    APPLETV_ALPHABET: 't',
-    APPLETV_NUMBERS: CHANGE,
-    APPLETV_SPECIAL: CHANGE
+    APPLETV_SEARCH_ALPHABET: 't',
+    APPLETV_SEARCH_NUMBERS: CHANGE,
+    APPLETV_SEARCH_SPECIAL: CHANGE,
+    APPLETV_PASSWORD_STANDARD: 'a'
 }
 
 
@@ -41,34 +45,58 @@ def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
 
 class MultiKeyboardGraph:
 
-    def __init__(self, tv_type: SmartTVType):
-        self._tv_type = tv_type
+    def __init__(self, keyboard_type: KeyboardType):
+        self._keyboard_type = keyboard_type
 
         dir_name = os.path.dirname(__file__)
+        linker_path: Optional[str] = None
 
-        if tv_type == SmartTVType.SAMSUNG:
+        if keyboard_type == KeyboardType.SAMSUNG:
             standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json')
             special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json')
+            self._start_mode = SAMSUNG_STANDARD
 
             self._keyboards = {
                 SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
                 SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
             }
-        elif tv_type == SmartTVType.APPLE_TV:
+        elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
             alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json')
             numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json')
             special_path = os.path.join(dir_name, 'apple_tv', 'special.json')
+            self._start_mode = APPLETV_SEARCH_ALPHABET
 
             self._keyboards = {
-                APPLETV_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_ALPHABET]),
-                APPLETV_NUMBERS: SingleKeyboardGraph(path=numbers_path, start_key=START_KEYS[APPLETV_NUMBERS]),
-                APPLETV_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_SPECIAL])
+                APPLETV_SEARCH_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_SEARCH_ALPHABET]),
+                APPLETV_SEARCH_NUMBERS: SingleKeyboardGraph(path=numbers_path, start_key=START_KEYS[APPLETV_SEARCH_NUMBERS]),
+                APPLETV_SEARCH_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_SEARCH_SPECIAL])
+            }
+
+            linker_path = os.path.join(dir_name, 'apple_tv', 'link.json')
+        elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
+            standard_path = os.path.join(dir_name, 'apple_tv_password', 'standard.json')
+            self._start_mode = APPLETV_PASSWORD_STANDARD
+            
+            self._keyboards = {
+                APPLETV_PASSWORD_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[APPLETV_PASSWORD_STANDARD])
             }
         else:
             raise ValueError('Unknown TV type: {}'.format(tv_type.name))
 
+        # Make the keyboard linker
+        self._linker = KeyboardLinker(linker_path)
+
+    def get_start_keyboard_mode(self) -> str:
+        return self._start_mode
+
+    def get_keyboard_type(self) -> KeyboardType:
+        return self._keyboard_type
+
     def is_unclickable(self, key: str, mode: str) -> bool:
         return self._keyboards[mode].is_unclickable(key)
+
+    def get_linked_states(self, current_key: str, keyboard_mode: str) -> List[KeyboardPosition]:
+        return self._linker.get_linked_states(current_key, keyboard_mode)
 
     def get_characters(self) -> List[str]:
         merged: Set[str] = set()

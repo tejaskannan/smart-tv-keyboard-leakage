@@ -1,10 +1,11 @@
 from typing import Set, Dict, List
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
-from smarttvleakage.graphs.keyboard_graph import APPLETV_ALPHABET, APPLETV_NUMBERS, APPLETV_SPECIAL
+from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
+from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE
-from .constants import SmartTVType
+from .constants import KeyboardType
 
 
 def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str]) -> Dict[str, float]:
@@ -16,29 +17,24 @@ def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List
     return { key: (score / score_sum) for key, score in filtered_scores.items() }
 
 
-def get_keyboard_mode(key: str, mode: str, tv_type: SmartTVType) -> str:
+def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
     """
     Fetches the keyboard mode based on the current key (change or not)
     """
     if key != CHANGE:
         return mode
 
-    if tv_type == SmartTVType.SAMSUNG:
-        if mode == SAMSUNG_STANDARD:
-            return SAMSUNG_SPECIAL_ONE
-        elif mode == SAMSUNG_SPECIAL_ONE:
-            return SAMSUNG_STANDARD
-        else:
-            raise ValueError('Unknown mode {}'.format(mode))
-    elif tv_type == SmartTVType.APPLE_TV:
-        if mode == APPLETV_ALPHABET:
-            return APPLETV_NUMBERS
-        elif mode == APPLETV_NUMBERS:
-            return APPLETV_SPECIAL
-        elif mode == APPLETV_SPECIAL:
-            return APPLETV_ALPHABET
-        else:
-            raise ValueError('Unknown mode {}'.format(mode))
+    if keyboard_type == KeyboardType.SAMSUNG:
+        keyboards = [SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE]
+    elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
+        keyboards = [APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL]
+    elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
+        keyboards = [APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL]
+    else:
+        raise ValueError('Unknown keyboard type: {}'.format(keyboard_type))
+
+    idx = keyboards.index(mode)
+    return keyboards[(idx + 1) % len(keyboards)]
 
 
 def get_string_from_keys(keys: List[str]) -> str:

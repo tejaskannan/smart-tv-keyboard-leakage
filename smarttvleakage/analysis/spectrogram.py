@@ -32,6 +32,7 @@ SYSTEM_MOVE_RANGES = [ThresholdRange(-65, -55, 0, 12), ThresholdRange(-60, -40, 
 KEYBOARD_MOVE_RANGES = [ThresholdRange(-50, -38, 0, 15), ThresholdRange(-60, -50, 15, 40)]
 KEYBOARD_SELECT_RANGES = [ThresholdRange(-60, -40, 0, 30)]
 DELETE_RANGES = [ThresholdRange(-55, -35, 0, 20), ThresholdRange(-65, -55, 20, 40)]  # Set Threshold at 1.1
+TOOLBAR_MOVE_RANGES = [ThresholdRange(-60, -45, 15, 25)]
 
 
 #FREQ_DELTA = 3
@@ -98,7 +99,7 @@ if __name__ == '__main__':
 
     target = create_spectrogram(channel0)
     known = create_spectrogram(known_channel0)
-    threshold_ranges = SAMSUNG_DELETE_RANGES
+    threshold_ranges = TOOLBAR_MOVE_RANGES
 
 #    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
 #
@@ -131,7 +132,7 @@ if __name__ == '__main__':
         fig, ax = plt.subplots()
 
         if PLOT_TARGET:
-            ax.imshow(target, cmap='gray_r')
+            ax.imshow(target_masked, cmap='gray_r')
             #ax.scatter(target_times, target_freq, color='red', marker='o')
         else:
             ax.imshow(known, cmap='gray_r')
