@@ -7,8 +7,12 @@ from smarttvleakage.audio.move_extractor import Move, Sound
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 from smarttvleakage.utils.transformations import get_keyboard_mode
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
+from datetime import datetime, timedelta
 
-def findPath(word, error, shortcuts, wraparound):
+def findPath(word, shortcuts, wraparound, mr, dr, me):
+	mistakes = []
+	for n in range(me):
+		mistakes.append(mr*(dr**n))
 	path = []
 	mode = KeyboardMode.STANDARD
 	prev = START_KEYS[mode]
@@ -22,30 +26,38 @@ def findPath(word, error, shortcuts, wraparound):
 			prev = '<CHANGE>'
 			mode = get_keyboard_mode(prev, mode)
 			distance = keyboard.get_moves_from_key(prev, i, shortcuts, wraparound, mode)
-			print(distance)
-		path.append((Move(num_moves=distance, end_sound=Sound.KEY_SELECT)))
-		if random.random() > (1-error)**float(path[-1][0]):
-			if random.random()>0.3*error:
-				path[-1]+=2
-			else:
-				path[-1]+=4
+		if i == ' ':
+			path.append((Move(num_moves=distance, end_sound=Sound.SELECT)))
+		else:
+			path.append((Move(num_moves=distance, end_sound=Sound.KEY_SELECT)))
+		rand = random.random()
+		for x,j in enumerate(mistakes):
+			if rand<j:
+				path[-1] = Move(num_moves=path[-1][0]+2*(x+1), end_sound=path[-1][1])
 		prev = i
 	return path
 
 if __name__ == '__main__':
-	# parser = argparse.ArgumentParser()
-	# parser.add_argument('-i', type=str, help='enter the input txt file')
-	# parser.add_argument('-o', type=str, help='enter the output jsonl.gz file')
-	# parser.add_argument('-e', type=float, help='percent of moves with an error')
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-i', type=str, help='enter the input txt file')
+	parser.add_argument('-o', type=str, help='enter the output jsonl.gz file')
+	parser.add_argument('-mr', type=float, help='mistake rate')
+	parser.add_argument('-dr', type=float, help='decay rate')
+	parser.add_argument('-me', type=int, help='max errors in one word')
 
-	# args = parser.parse_args()
+	args = parser.parse_args()
 	# words = open(args.i, 'r')
+	words = [args.i]
 	output = []
-	path = findPath('wph',0,False,True)
-	print(path)
-	# for i in words:
-	# 	# path = findPath(i.strip(), args.e, True)
-	# 	# output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
-	# 	path = findPath(i.strip(), args.e, False, False)
-	# 	output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
-	# save_jsonl_gz(output, args.o)
+	# path = findPath('wph',0,False,True)
+	# print(path)
+	now = datetime.now()
+	for i in words:
+		# path = findPath(i.strip(), args.e, True)
+		# output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
+		path = findPath(i.strip(), False, False, args.mr, args.dr, args.me)
+		output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
+		if now+timedelta(seconds=33)<datetime.now():
+			break
+	print(output)
+	save_jsonl_gz(output, args.o)
