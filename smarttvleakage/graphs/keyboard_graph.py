@@ -115,7 +115,7 @@ class MultiKeyboardGraph:
     def printerthing(self, num_moves: int, mode: str) -> List[str]:
         return self._keyboards[mode].get_keys_for_moves(num_moves)
 
-    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool, mode: KeyboardMode) -> int:
+    def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
 
 class SingleKeyboardGraph:
@@ -174,10 +174,10 @@ class SingleKeyboardGraph:
         else:
             return list(sorted(no_wraparound_neighbors))
 
-    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool) -> int:
+    def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool) -> int:
         if end_key not in list(self._no_wraparound_distances.keys()):
             return -1
-        if end_key==start_key:
+        if end_key == start_key:
             return 0
         if use_shortcuts:
             if use_wraparound:

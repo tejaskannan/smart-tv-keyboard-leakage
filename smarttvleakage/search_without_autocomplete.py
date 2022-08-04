@@ -191,25 +191,29 @@ if __name__ == '__main__':
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
     parser.add_argument('--sounds-list', type=str, nargs='*', choices=[SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT], help='An optional space-separated sequence of end sounds. If none, we assume all sounds are `key_select`.')
-    parser.add_argument('--tv-type', type=str, required=True, choices=[SmartTVType.SAMSUNG.name.lower(), SmartTVType.APPLE_TV.name.lower()], help='The name of the TV type to use.')
+    parser.add_argument('--keyboard-type', type=str, required=True, choices=[t.name.lower() for t in KeyboardType], help='The name of the TV type to use.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     args = parser.parse_args()
 
-    tv_type = SmartTVType[args.tv_type.upper()]
-    graph = MultiKeyboardGraph(tv_type=tv_type)
+    keyboard_type = KeyboardType[args.keyboard_type.upper()]
+    graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
 
     if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary(characters=characters)
+        dictionary = UniformDictionary()
     else:
-        dictionary = EnglishDictionary.restore(characters=characters, path=args.dictionary_path)
+        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
-    if tv_type == SmartTVType.SAMSUNG:
+    dictionary.set_characters(characters)
+
+    if keyboard_type == KeyboardType.SAMSUNG:
         default_sound = SAMSUNG_KEY_SELECT
-    elif tv_type == SmartTVType.APPLE_TV:
+        tv_type = SmartTVType.SAMSUNG
+    elif keyboard_type in (KeyboardType.APPLE_TV_SEARCH, KeyboardType.APPLE_TV_PASSWORD):
         default_sound = APPLETV_KEYBOARD_SELECT
+        tv_type = SmartTVType.APPLE_TV
     else:
-        raise ValueError('Unknown TV type: {}'.format(args.tv_type))
+        raise ValueError('Unknown TV type: {}'.format(args.keyboard_type))
 
     print('Target String: {}'.format(args.target))
 

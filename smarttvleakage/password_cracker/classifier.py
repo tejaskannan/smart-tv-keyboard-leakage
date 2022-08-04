@@ -1,7 +1,7 @@
 import re
 import argparse
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
-from smarttvleakage.audio.move_extractor import Move, Sound
+from smarttvleakage.audio.move_extractor import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 
 # spc = {"!": 1, "\"": 3, "#": 3, "$": 4, "%": 8, "&": 7, "'": 2, "(": 9, ")": 10, "*": 8, "+": 4, ",": 6, "-": 3, "/": 5, "0": 11, "1": 2, "2": 3, "3": 4, "4": 5, "5": 6, "6": 7, "7": 8, "8": 9, "9": 10, ":": 4, ";": 5, "<": 8, "<<": 12, "<BACK>": 12, "<CENT>": 14, "<DIV>": 6, "<DOWN>": 14, "<EURO>": 10, "<LANGUAGE>": 3, "<LEFT>": 13, "<MULT>": 5, "<NEXT>": 1, "<POUND>": 11, "<RIGHT>": 15, "<SETTINGS>": 4, "<SPACE>": 5, "<UP>": 13, "<YEN>": 12, "=": 7, ">": 9, ">>": 13, "?": 7, "@": 2, "[": 11, "\\": 9, "]": 12, "^": 6, "{": 10, "}": 11}
 # std = {"!": 12, "*": 11, ",": 9, "-": 13, ".": 10, "/": 11, "0": 10, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "<BACK>": 11, "<CANCEL>": 14, "<CAPS>": 2, "<CHANGE>": 1, "<COM>": 10, "<DELETEALL>": 12, "<DONE>": 13, "<DOWN>": 13, "<LANGUAGE>": 2, "<LEFT>": 12, "<RETURN>": 12, "<RIGHT>": 14, "<SETTINGS>": 3, "<SPACE>": 5, "<UP>": 12, "<WWW>": 9, "?": 11, "@": 11, "^": 10, "a": 1, "b": 6, "c": 4, "d": 3, "e": 2, "f": 4, "g": 5, "h": 6, "i": 7, "j": 7, "k": 8, "l": 9, "m": 8, "n": 7, "o": 8, "p": 9, "r": 3, "s": 2, "t": 4, "u": 6, "v": 5, "w": 1, "x": 3, "y": 5, "z": 2, "~": 10}
@@ -81,15 +81,15 @@ pos = [[0] for i in moves]
 words = []
 for x,i in enumerate(moves):
 	words.append(i.pop(0))
-	if i[0][1] == Sound.KEY_SELECT:
+	if i[0][1] == SAMSUNG_KEY_SELECT:
 		first_moves.append(i[0])
 	else:
-		first_moves.append(Move(num_moves=i[1][0], end_sound=Sound.SELECT))
+		first_moves.append(Move(num_moves=i[1][0], end_sound=SAMSUNG_SELECT))
 
 regex = [[] for i in moves]
 # for x,i in enumerate(first_moves):
 # 	thing = ''
-# 	if i[1] == Sound.SELECT:
+# 	if i[1] == SAMSUNG_SELECT:
 # 		thing = get_possible(i, special, pos[x])
 # 	else:
 # 		thing = get_possible(i, standard, pos[x])
@@ -99,7 +99,7 @@ regex = [[] for i in moves]
 for x,i in enumerate(moves):
 	page2 = False
 	for j in i:
-		if j[1] == Sound.SELECT:
+		if j[1] == SAMSUNG_SELECT:
 			if page2:
 				page2 = False
 				pos[x] = [0]
@@ -119,7 +119,7 @@ for x,i in enumerate(moves):
 # for x,i in enumerate(moves):
 # 	page2 = False
 # 	for j in i:
-# 		if j[1] == Sound.KEY_SELECT:
+# 		if j[1] == SAMSUNG_KEY_SELECT:
 # 			if page2:
 # 				regex[x].append(page_2)
 # 			else:
