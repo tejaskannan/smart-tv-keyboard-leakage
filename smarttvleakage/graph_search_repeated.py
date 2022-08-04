@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from smarttvleakage.utils.file_utils import read_jsonl_gz
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.audio.move_extractor import Move
+from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
@@ -28,19 +29,15 @@ f = open(args.moves_list)
 c = csv.reader(f, delimiter = '\t')
 out = open(args.output, 'w')
 
-c=[]
-for i in read_jsonl_gz(args.moves_list):
-    temp = []
-    temp.append(i["word"])
-    for j in i["move_seq"]:
-        temp.append(Move(num_moves=int(j["num_moves"]),end_sound=j["sound"]))
-    c.append(temp)
+c=read_moves(args.moves_list)
 print(c)
 
 out1 = []
 for row in c:
+  print(row)
   answer = row.pop(0)
-  for idx, (guess, score, candidates_count) in enumerate(search_without_autocomplete.get_words_from_moves(row, graph=graph, dictionary=dictionary, max_num_results=100)):
+  for idx, (guess, score, candidates_count) in enumerate(search_without_autocomplete.get_words_from_moves(row, graph=graph, dictionary=dictionary, max_num_results=None)):
+    print(guess)
     if answer == guess:
         temp = []
         temp.append(answer)
@@ -54,4 +51,4 @@ f.close()
 w = csv.writer(out, delimiter='\t')
 for i in out1:
   w.writerow(i)
-out1f.close()
+out.close()

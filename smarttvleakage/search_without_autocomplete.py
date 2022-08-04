@@ -129,7 +129,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       num_moves=candidate_move.num_moves,
                                                       mode=current_state.keyboard_mode,
                                                       use_shortcuts=True,
-                                                      use_wraparound=False)
+                                                      use_wraparound=True)
 
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
@@ -210,6 +210,8 @@ if __name__ == '__main__':
         default_sound = APPLETV_KEYBOARD_SELECT
     else:
         raise ValueError('Unknown TV type: {}'.format(args.tv_type))
+
+    print('Target String: {}'.format(args.target))
 
     if (args.sounds_list is None) or (len(args.sounds_list) == 0):
         moves = [Move(num_moves=num_moves, end_sound=default_sound) for num_moves in args.moves_list]

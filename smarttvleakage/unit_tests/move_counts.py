@@ -182,6 +182,33 @@ class SamsungGraphMoveCounts(unittest.TestCase):
         expected = ['+', ':', '<DIV>', '-', '\\', '<COM>', '<LANGUAGE>']
         self.list_equal(neighbors, expected)
 
+    def test_wraparound(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='q',
+                                                  num_moves=3,
+                                                  mode=KeyboardMode.STANDARD,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=True)
+        expected = ['*','<DELETEALL','<DONE>','x','r','3','d',]
+        self.list_equal(neighbors, expected)
+
+    def test_wraparound_1(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='q',
+                                                  num_moves=5,
+                                                  mode=KeyboardMode.STANDARD,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=True)
+        expected = ['p','5','y','g','v','@','-','q']
+        self.list_equal(neighbors, expected)
+
+    def test_wraparound_2(self):
+        neighbors = graph.get_keys_for_moves_from(start_key='p',
+                                                  num_moves=2,
+                                                  mode=KeyboardMode.STANDARD,
+                                                  use_shortcuts=False,
+                                                  use_wraparound=True)
+        expected = ['i','<BACK>','9','l','?','@','*']
+        self.list_equal(neighbors, expected)
+
     def list_equal(self, observed: List[str], expected: List[str]):
         self.assertEqual(list(sorted(observed)), list(sorted(expected)))
 
