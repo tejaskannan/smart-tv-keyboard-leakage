@@ -10,7 +10,6 @@ from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.utils.file_utils import read_json
 
-from smarttvleakage.max.determine_autocomplete import build_model, classify_ms
 from smarttvleakage.max.manual_score_dict import build_ms_dict
 
 
@@ -141,13 +140,59 @@ def combine_tops(list_1 : list[str], list_2 : list[str]):
 
 
 
+# Implement length based weighting?
+# try this but with single score, not additive**
+# works poorly additively
+def get_autos_weighted_5(dict, prefix : str) -> list[str]:
+      
+    if len(prefix) == 1:
+        single_suggestions = read_json('../graphs/autocomplete.json')
+        return single_suggestions[prefix[len(prefix)-1:]]
+
+    char_dict = {}
+    for key in dict:
+        if key.startswith(prefix) and key != prefix:
+            c = key[len(prefix)]
+            score = dict[key]
+            if len(key) == len(prefix) + 1:
+                score = score * 2
+            score = score^2
+            
+            if c not in char_dict:
+                char_dict[c] = score
+            else:
+                char_dict[c] += score
+    
+    char_list = []
+    for c in char_dict:
+        char_list.append((c, char_dict[c]))
+    char_list.sort(key=(lambda x: x[1]), reverse=True)
+
+    suggestions = []
+    for i in range(4):
+        if i < len(char_list):
+            suggestions.append(char_list[i][0])
+        else: 
+            break
+    exp = []
+    for i in range(8):
+        if i < len(char_list):
+            exp.append(char_list[i][0])
+        else: 
+            break
+
+    #print(prefix + " (2", end="); ")
+    #print(exp)
+    return suggestions
+
+
+    
+
 
 
 
 def get_autos_weighted_2(dict, prefix : str) -> list[str]:
-    # to do
-
-    # for now, uses single suggestions
+    weight = 8
 
     if len(prefix) == 1:
         single_suggestions = read_json('../graphs/autocomplete.json')
@@ -159,13 +204,13 @@ def get_autos_weighted_2(dict, prefix : str) -> list[str]:
             c = key[len(prefix)]
             if c not in char_dict:
                 if len(key) == len(prefix) + 1:
-                    char_dict[c] = dict[key] * 3
+                    char_dict[c] = dict[key] * weight
                 else:
                     char_dict[c] = dict[key]
             else:
                 if len(key) == len(prefix) + 1:
-                    if dict[key] * 10 > char_dict[c]:
-                        char_dict[c] = dict[key] * 3
+                    if dict[key] * weight > char_dict[c]:
+                        char_dict[c] = dict[key] * weight
                 else:
                     if dict[key] > char_dict[c]:
                         char_dict[c] = dict[key]
@@ -237,13 +282,54 @@ def get_autos_weighted(dict, prefix : str) -> list[str]:
 
 
 
+def get_autos_weighted_sqr(dict, prefix : str) -> list[str]:
+    # to do
+
+    # for now, uses single suggestions
+
+    if len(prefix) == 1:
+        single_suggestions = read_json('../graphs/autocomplete.json')
+        return single_suggestions[prefix[len(prefix)-1:]]
+
+    char_dict = {}
+    for key in dict:
+        if key.startswith(prefix) and key != prefix:
+            c = key[len(prefix)]
+            if c not in char_dict:
+                char_dict[c] = dict[key]^2
+            else:
+                if dict[key] > char_dict[c]:
+                    char_dict[c] += dict[key]^2
+    
+    char_list = []
+    for c in char_dict:
+        char_list.append((c, char_dict[c]))
+    char_list.sort(key=(lambda x: x[1]), reverse=True)
+
+    suggestions = []
+    for i in range(4):
+        if i < len(char_list):
+            suggestions.append(char_list[i][0])
+        else: 
+            break
+    exp = []
+    for i in range(8):
+        if i < len(char_list):
+            exp.append(char_list[i][0])
+        else: 
+            break
+
+    #print(prefix + " (2", end="); ")
+    #print(exp)
+    return suggestions
 
 
 
 
 
 
-def get_autos(dict, prefix : str, smooth : bool) -> list[str]:
+
+def get_autos_base(dict, prefix : str, smooth : bool) -> list[str]:
     # to do
 
     # for now, uses single suggestions
@@ -280,6 +366,89 @@ def get_autos(dict, prefix : str, smooth : bool) -> list[str]:
     #print(exp)
     return suggestions
 
+## write this
+def get_autos(e_dict, dict, prefix : str, strategy : int) -> list[str]:
+
+    if len(prefix) == 1: # then use single suggestions
+        single_suggestions = read_json('../graphs/autocomplete.json')
+        return single_suggestions[prefix[len(prefix)-1:]]
+
+
+
+    if strategy == 0: #base
+        char_dict = e_dict.get_letter_counts(prefix, None, should_smooth=False)
+        
+    elif strategy == 1:
+        char_dict = {}
+        for key in dict:
+            if key.startswith(prefix) and key != prefix:
+                c = key[len(prefix)]
+                if c not in char_dict:
+                    char_dict[c] = dict[key]
+                else:
+                    if dict[key] > char_dict[c]:
+                        char_dict[c] = dict[key]
+
+    elif strategy == 2:
+        weight = 8
+
+        char_dict = {}
+        for key in dict:
+            if key.startswith(prefix) and key != prefix:
+                c = key[len(prefix)]
+                if c not in char_dict:
+                    if len(key) == len(prefix) + 1:
+                        char_dict[c] = dict[key] * weight
+                    else:
+                        char_dict[c] = dict[key]
+                else:
+                    if len(key) == len(prefix) + 1:
+                        if dict[key] * weight > char_dict[c]:
+                            char_dict[c] = dict[key] * weight
+                    else:
+                        if dict[key] > char_dict[c]:
+                            char_dict[c] = dict[key]
+    
+    elif strategy == 3:
+        char_dict = {}
+        for key in dict:
+            if key.startswith(prefix) and key != prefix:
+                c = key[len(prefix)]
+                if c not in char_dict:
+                    char_dict[c] = dict[key]^2
+                else:
+                    if dict[key] > char_dict[c]:
+                        char_dict[c] += dict[key]^2
+
+    elif strategy == 4:
+        char_dict = {}
+        for key in dict:
+            if key.startswith(prefix) and key != prefix:
+                c = key[len(prefix)]
+                score = dict[key]
+                if len(key) == len(prefix) + 1:
+                    score = score * 2
+                score = score^2
+                
+                if c not in char_dict:
+                    char_dict[c] = score
+                else:
+                    char_dict[c] += score
+    
+    char_list = []
+    for c in char_dict:
+        char_list.append((c, char_dict[c]))
+    char_list.sort(key=(lambda x: x[1]), reverse=True)
+
+    suggestions = []
+    for i in range(4):
+        if i < len(char_list):
+            suggestions.append(char_list[i][0])
+        else: 
+            break
+
+    return suggestions
+#write a full 
 
 
 
@@ -300,18 +469,8 @@ def find_path_auto(dict, wcs, word : str, auto_strategy : int, errmsg : bool = F
         if len(path) > 0:
 
             # get autos using strategy
-            if auto_strategy == 0:
-                autos = get_autos(dict, word[:len(path)], False)
-            elif auto_strategy == 1:
-                autos = get_autos(dict, word[:len(path)], True)
-            elif auto_strategy == 2:
-                autos = get_autos_weighted(wcs, word[:len(path)])
-            elif auto_strategy == 3:
-                autos = get_autos_weighted_2(wcs, word[:len(path)])
-            elif auto_strategy == 4:
-                autos_1 = get_autos(dict, word[:len(path)], False)
-                autos_2 = get_autos_weighted(wcs, word[:len(path)])
-                autos = combine_tops(autos_1, autos_2)
+            
+            autos = get_autos(dict, wcs, word[:len(path)], auto_strategy)
             
             if errmsg:
                 print("strategy " + str(auto_strategy) + "; " + word[:len(path)], end=": ")
@@ -382,8 +541,37 @@ def simulate_ms(dict, wcs, word : str, auto : bool, auto_strategy : int, errmsg 
     return ms
 
 
+def test_auto_strategy(wcs, dict, strategy : int, errmsg : bool = False) -> list[str]:
+    ms_dict_auto = build_ms_dict("auto")
+
+    fails = []
+    for key in ms_dict_auto:
+        k = (key, "auto")
+        if len(key) < 10:
+            sim_ms = simulate_ms(englishDictionary, wcs, key, True, strategy)
+
+            if eval_ms(k, sim_ms) == 0:
+                fails.append(key)
+
+                if errmsg: 
+                    print("0 failed sim on: " + key)
+                    print("gt: ", end = "")
+                    print(ms_dict_auto[key])
+                    print("sim 0: ", end="")
+                    print(sim_ms_0)
+
+    return fails
+                
+
+
+
+
 if __name__ == '__main__':
-    test = 2
+    test = 3
+
+    # tests : 
+    # 2 - deprecated strategy test
+    # 3 - strategy test
 
     ms_dict_non = build_ms_dict("non")
     ms_dict_auto = build_ms_dict("auto")
@@ -391,11 +579,44 @@ if __name__ == '__main__':
     englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
     wcs = buildDict(100)
 
+
+    if test == 3:
+        strategy_list = [0, 1, 2, 3, 4]
+
+        strategy_dict = {}
+        for strategy in strategy_list:
+            print("testing strategy " + str(strategy))
+            strategy_dict[strategy] = test_auto_strategy(wcs, englishDictionary, strategy)
+
+        fails = []
+        for key in strategy_dict:
+            for fail in strategy_dict[key]:
+                fails.append(fail)
+
+        fails = list(set(fails))
+    for fail in fails:
+        print(fail, end=": ")
+        print(ms_dict_auto[fail])
+
+        for strategy in strategy_list:
+            if fail in strategy_dict[strategy]:
+                sim_ms = simulate_ms(englishDictionary, wcs, fail, True, strategy, True)
+                print(str(strategy), end=": ")
+                print(sim_ms)
+           
+        print("\n")
+
+    for strategy in strategy_list:
+        print(str(strategy) + ": " + str(len(strategy_dict[strategy])))
+
+
     if test == 2:
 
         correct0 = 0
         correct2 = 0
         correct3 = 0
+        correct5 = 0
+        correct6 = 0
         total = 0
 
         fail_list = []
@@ -406,6 +627,8 @@ if __name__ == '__main__':
                 sim_ms_0 = simulate_ms(englishDictionary, wcs, key, True, 0)
                 sim_ms_2 = simulate_ms(englishDictionary, wcs, key, True, 2)
                 sim_ms_3 = simulate_ms(englishDictionary, wcs, key, True, 3)
+                sim_ms_5 = simulate_ms(englishDictionary, wcs, key, True, 5)
+                sim_ms_6 = simulate_ms(englishDictionary, wcs, key, True, 6)
 
                 # test strategy 0
                 if eval_ms(k, sim_ms_0) == 0:
@@ -442,12 +665,39 @@ if __name__ == '__main__':
                 else:
                     #print("success on " + key)
                     correct3 += 1
+
+                # test strategy 5
+                if eval_ms(k, sim_ms_5) == 0:
+                    fail_list.append(key)
+                    print("5 failed sim on: " + key)
+                    print("gt: ", end = "")
+                    print(ms_dict_auto[key])
+                    print("sim 5: ", end="")
+                    print(sim_ms_5)
+                else:
+                    #print("success on " + key)
+                    correct5 += 1
+
+                 # test strategy 6
+                if eval_ms(k, sim_ms_6) == 0:
+                    fail_list.append(key)
+                    print("6 failed sim on: " + key)
+                    print("gt: ", end = "")
+                    print(ms_dict_auto[key])
+                    print("sim 6: ", end="")
+                    print(sim_ms_6)
+                else:
+                    #print("success on " + key)
+                    correct6 += 1
+
                 total += 1
             
             
         print("correct 0: " + str(correct0))
         print("correct 2: " + str(correct2))
         print("correct 3: " + str(correct3))
+        print("correct 5: " + str(correct5))
+        print("correct 6: " + str(correct6))
         print("total: " + str(total))
 
 
@@ -458,51 +708,25 @@ if __name__ == '__main__':
             sim_ms_0 = simulate_ms(englishDictionary, wcs, key, True, 0, True)
             sim_ms_2 = simulate_ms(englishDictionary, wcs, key, True, 2, True)
             sim_ms_3 = simulate_ms(englishDictionary, wcs, key, True, 3, True)
+            sim_ms_5 = simulate_ms(englishDictionary, wcs, key, True, 5, True)
+            sim_ms_6 = simulate_ms(englishDictionary, wcs, key, True, 6, True)
             print(ms_dict_auto[key])
             print(sim_ms_0)
             print(sim_ms_2)
             print(sim_ms_3)
+            print(sim_ms_5)
+            print(sim_ms_6)
             print("\n")
 
         
         print("correct 0: " + str(correct0))
         print("correct 2: " + str(correct2))
         print("correct 3: " + str(correct3))
+        print("correct 5: " + str(correct5))
+        print("correct 6: " + str(correct6))
         print("total: " + str(total))
 
         # maybe prioritize shorter words?  If it can complete it immediately, try that?
-
-
-
-
-    if test == 0:
-        model = build_model()
-        correct = (0, 0)
-        total = 0
-
-        print("model built")
-
-        words = grab_words(1000)
-
-        for word in words:
-
-            sim_ms_non = simulate_ms(englishDictionary, wcs, word, False, 0)
-            if classify_ms(model, sim_ms_non) == 1:
-                print("fail to classify simulated non " + word)
-                print(sim_ms_non)
-            else:
-                correct = (correct[0]+1, correct[1])
-            sim_ms_auto = simulate_ms(englishDictionary, wcs, word, True, 0)
-            if classify_ms(model, sim_ms_auto) == 0:
-                print("fail to classify simulated auto " + word)
-                print(sim_ms_auto)
-            else:
-                correct = (correct[0], correct[1] + 1)
-            total += 1
-        
-        print("correct nons: " + str(correct[0]))
-        print("correct autos: " + str(correct[1]))
-        print("total: " + str(total))
 
     if test == 1:
         # test non words
