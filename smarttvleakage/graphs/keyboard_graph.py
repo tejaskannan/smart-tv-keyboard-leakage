@@ -156,18 +156,15 @@ class SingleKeyboardGraph:
         if num_moves == 0:
             return [start_key]
 
-        no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
-        wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
+        no_wraparound_neighbors = self._no_wraparound_distances.get(start_key, dict()).get(num_moves, set())
+        wraparound_neighbors = self._wraparound_distances.get(start_key, dict()).get(num_moves, set())
 
         if use_shortcuts:
-            no_wraparound_distance_dict.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()))
-            wraparound_distance_dict.update(self._wraparound_distances_shortcuts.get(start_key, dict()))
+            no_wraparound_neighbors.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+            wraparound_neighbors.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
 
-        if (len(no_wraparound_distance_dict) == 0) and (len(wraparound_distance_dict) == 0):
+        if (len(no_wraparound_neighbors) == 0) and (len(wraparound_neighbors) == 0):
             return []
-
-        no_wraparound_neighbors = no_wraparound_distance_dict.get(num_moves, set())
-        wraparound_neighbors = wraparound_distance_dict.get(num_moves, set())
 
         if use_wraparound:
             combined = no_wraparound_neighbors.union(wraparound_neighbors)

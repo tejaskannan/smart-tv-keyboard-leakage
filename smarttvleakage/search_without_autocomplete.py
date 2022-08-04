@@ -23,20 +23,6 @@ SUGGESTION_FACTOR = 2.0
 CUTOFF = 0.05
 
 
-def get_score_for_string(string: str, dictionary: CharacterDictionary, should_aggregate_score: bool) -> float:
-    tokens = string.split()
-    score = 0.0
-
-    if len(tokens) == 0:
-        return score
-
-    for token in tokens[0:-1]:
-        score += dictionary.get_score_for_string(string, should_aggregate=False)
-
-    score += dictionary.get_score_for_string(tokens[-1], should_aggregate=should_aggregate_score)
-    return score
-
-
 def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     target_length = len(move_sequence)
 

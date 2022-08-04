@@ -1,13 +1,12 @@
 import unittest
 from typing import List
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE, APPLETV_ALPHABET
-from smarttvleakage.utils.constants import SmartTVType
-
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE, APPLETV_SEARCH_ALPHABET
+from smarttvleakage.utils.constants import KeyboardType
 
 # Load the samsung_graphs once globally
-samsung_graph = MultiKeyboardGraph(tv_type=SmartTVType.SAMSUNG)
-appletv_graph = MultiKeyboardGraph(tv_type=SmartTVType.APPLE_TV)
+samsung_graph = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
+appletv_graph = MultiKeyboardGraph(keyboard_type=KeyboardType.APPLE_TV_SEARCH)
 
 
 class SamsungGraphMoveCounts(unittest.TestCase):
@@ -75,6 +74,23 @@ class SamsungGraphMoveCounts(unittest.TestCase):
         expected = ['z', 's', 'e', 'f', 'b', '<SETTINGS>', '<WWW>']
         self.list_equal(neighbors, expected)
 
+    def test_q_eight(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='q',
+                                                          num_moves=8,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=False,
+                                                          use_wraparound=False)
+        expected = ['8', 'o', 'k', 'm']
+        self.list_equal(neighbors, expected)
+
+    def test_q_eight_shortcuts(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='q',
+                                                          num_moves=8,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=False)
+        expected = ['8', 'o', 'k', 'm', '.', '<LEFT>']
+        self.list_equal(neighbors, expected)
 
     def test_z_two(self):
         neighbors = samsung_graph.get_keys_for_moves_from(start_key='z',
@@ -118,7 +134,7 @@ class SamsungGraphMoveCounts(unittest.TestCase):
                                                           mode=SAMSUNG_STANDARD,
                                                           use_shortcuts=True,
                                                           use_wraparound=False)
-        expected = ['?', '@', '*', '<DOWN>', '<RETURN>', '<CANCEL>']
+        expected = ['?', '@', '*', '<DOWN>', '<DONE>', '<RETURN>', '<CANCEL>']
         self.list_equal(neighbors, expected)
 
     def test_change_special_four(self):
@@ -175,7 +191,7 @@ class AppleTVGraphMoveCounts(unittest.TestCase):
     def test_a_zero(self):
         neighbors = appletv_graph.get_keys_for_moves_from(start_key='a',
                                                           num_moves=0,
-                                                          mode=APPLETV_ALPHABET,
+                                                          mode=APPLETV_SEARCH_ALPHABET,
                                                           use_shortcuts=False,
                                                           use_wraparound=False)
         expected = ['a']
@@ -184,7 +200,7 @@ class AppleTVGraphMoveCounts(unittest.TestCase):
     def test_a_one(self):
         neighbors = appletv_graph.get_keys_for_moves_from(start_key='a',
                                                           num_moves=1,
-                                                          mode=APPLETV_ALPHABET,
+                                                          mode=APPLETV_SEARCH_ALPHABET,
                                                           use_shortcuts=False,
                                                           use_wraparound=False)
         expected = ['<SPACE>', 'b']
@@ -193,7 +209,7 @@ class AppleTVGraphMoveCounts(unittest.TestCase):
     def test_a_four(self):
         neighbors = appletv_graph.get_keys_for_moves_from(start_key='a',
                                                           num_moves=4,
-                                                          mode=APPLETV_ALPHABET,
+                                                          mode=APPLETV_SEARCH_ALPHABET,
                                                           use_shortcuts=False,
                                                           use_wraparound=False)
         expected = ['e']
@@ -202,7 +218,7 @@ class AppleTVGraphMoveCounts(unittest.TestCase):
     def test_m_three(self):
         neighbors = appletv_graph.get_keys_for_moves_from(start_key='m',
                                                           num_moves=3,
-                                                          mode=APPLETV_ALPHABET,
+                                                          mode=APPLETV_SEARCH_ALPHABET,
                                                           use_shortcuts=False,
                                                           use_wraparound=False)
         expected = ['p', 'j']
@@ -211,7 +227,7 @@ class AppleTVGraphMoveCounts(unittest.TestCase):
     def test_z_one(self):
         neighbors = appletv_graph.get_keys_for_moves_from(start_key='z',
                                                           num_moves=1,
-                                                          mode=APPLETV_ALPHABET,
+                                                          mode=APPLETV_SEARCH_ALPHABET,
                                                           use_shortcuts=False,
                                                           use_wraparound=False)
         expected = ['<BACK>', 'y']
@@ -220,7 +236,7 @@ class AppleTVGraphMoveCounts(unittest.TestCase):
     def test_z_two(self):
         neighbors = appletv_graph.get_keys_for_moves_from(start_key='z',
                                                           num_moves=2,
-                                                          mode=APPLETV_ALPHABET,
+                                                          mode=APPLETV_SEARCH_ALPHABET,
                                                           use_shortcuts=False,
                                                           use_wraparound=False)
         expected = ['x']

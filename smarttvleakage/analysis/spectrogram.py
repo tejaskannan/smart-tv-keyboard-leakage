@@ -99,7 +99,7 @@ if __name__ == '__main__':
 
     target = create_spectrogram(channel0)
     known = create_spectrogram(known_channel0)
-    threshold_ranges = TOOLBAR_MOVE_RANGES
+    threshold_ranges = KEYBOARD_SELECT_RANGES
 
 #    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
 #
