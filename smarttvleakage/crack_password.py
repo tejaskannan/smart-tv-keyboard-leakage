@@ -1,40 +1,37 @@
-print('hello')
 import argparse
 import subprocess
 import sys
 from datetime import datetime, timedelta
-
-now = datetime.now()
+from smarttvleakage.keyboard_utils.word_to_move import findPath
+from smarttvleakage.password_cracker.classifier import find_regex
+from time import perf_counter
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-password', type=str, required=True)
 args = parser.parse_args()
 
-print('1')
 hashed = subprocess.run(['openssl', 'passwd', '-5', '-salt', 'agldf', args.password.strip()], capture_output=True, text=True)
-print(hashed.stdout)
-print('2')
-move_sequence = subprocess.run(['python3', 'keyboard_utils/word_to_move.py', '-i', args.password, '-o', 'password_moves.jsonl.gz', '-mr', '0', '-dr', '0', '-me', '0'])
-print('3')
-mask = subprocess.run(['python3', 'password_cracker/classifier.py', '-i', 'password_moves.jsonl.gz'])
-print('4')
-masks = []
-with open('masks.txt', 'r') as f:
-	for line in f:
-		masks.append(line)
-print('5')
-mask_line = "-mask='"+masks[0]+"'"
 
 with open('hashed_password.txt', 'w') as f:
     f.write(hashed.stdout)
-#hashed_pass = "'"+hashed.stdout+"'"
-print(mask_line)
-#print(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+
+beginning_datetime = datetime.now()
+beginning_perf = perf_counter()
+
+masks = find_regex(findPath(password))
+
+mask_line = "-mask='"+masks[0]+"'"
+
+john_datetime = datetime.now()
+john_perf = perf_counter()
+
 password = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
-print('6')
-#print(password.stdout)
-print(datetime.now()-now)
-with open('time.txt', 'w') as f:
-    f.write(str(datetime.now()-now))
-print(' '.join(password.args))
-out = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', '--show', '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+
+after_perf = perf_counter()
+after_datetime = datetime.now()
+
+with open('times_{}.txt'.format(args.password), 'w') as f:
+	f.write('Datetime from start: ', after_datetime-beginning_datetime, '\n')
+	f.write('Perf_counter from start: ', after_perf-beginning_perf, '\n')
+	f.write('Datetime of jtr: ', after_datetime-beginning_john, '\n')
+	f.write('Perf_counter of jtr: ', after_perf-john_perf, '\n')
