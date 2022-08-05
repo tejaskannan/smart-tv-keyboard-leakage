@@ -22,7 +22,7 @@ with open('masks.txt', 'r') as f:
 	for line in f:
 		masks.append(line)
 print('5')
-mask_line = "-mask='"+masks[0]+"'"
+mask_line = "--mask='"+masks[0]+"'"
 
 
 with open('hashed_password.txt', 'w') as f:
@@ -30,7 +30,7 @@ with open('hashed_password.txt', 'w') as f:
 #hashed_pass = "'"+hashed.stdout+"'"
 print(mask_line)
 #print(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
-password = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+password = subprocess.run("/home/abebdm/john-1.9.0-jumbo-1/run/john {} /home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt".format(mask_line), shell=True)
 print('6')
 #print(password.stdout)
 print(datetime.now()-now)
