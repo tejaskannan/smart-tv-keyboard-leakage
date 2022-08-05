@@ -13,7 +13,7 @@ from smarttvleakage.search_with_autocomplete import get_words_from_moves_autocom
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
-from smarttvleakage.audio.determine_autocomplete import build_model, classify_ms
+from smarttvleakage.max.determine_autocomplete import build_model, classify_ms
 
 
 if __name__ == '__main__':
@@ -68,11 +68,15 @@ if __name__ == '__main__':
         true_word = file_name.replace('.mp4', '').replace('.MOV', '').replace('.mov', '')
 
         signal = audio.to_soundarray()
-        #move_sequence, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
-        move_sequence, _ = move_extractor.extract_move_sequence(audio=signal)
+        move_sequence, did_use_autocomplete = move_extractor.extract_move_sequence(audio=signal)
+        #move_sequence, _ = move_extractor.extract_move_sequence(audio=signal)
+        move_sequence_vals = []
+        for move in move_sequence:
+            move_sequence_vals.append(move.num_moves)
         
-        autocomplete_model = build_model()
-        if classify_ms(autocomplete_model, move_sequence) == 1:
+        autocomplete_model = read_pickle_gz("max/model.pkl.gz")
+        #print(move_sequence_vals)
+        if classify_ms(autocomplete_model, move_sequence_vals) == 1:
             use_autocomplete = True
         else:
             use_autocomplete = False
@@ -81,7 +85,7 @@ if __name__ == '__main__':
             ranked_candidates = get_words_from_moves_autocomplete(move_sequence=move_sequence,
                                                                   graph=graph,
                                                                   dictionary=dictionary,
-                                                                  did_use_autocomplete=True,
+                                                                  did_use_autocomplete=did_use_autocomplete,
                                                                   max_num_results=args.max_num_results)
         else:
             ranked_candidates = get_words_from_moves(move_sequence=move_sequence,
@@ -113,7 +117,7 @@ if __name__ == '__main__':
         print('==========')
         print('Word: {}'.format(true_word))
         print('Rank: {} ({})'.format(rank + 1, did_find_word))
-        print('Move Sequence: {} ({})'.format(move_sequence, use_autocomplete))
+        print('Move Sequence: {} ({})'.format(move_sequence_vals, use_autocomplete))
 
         if not did_find_word:
             rank_list.append(rank + 1)

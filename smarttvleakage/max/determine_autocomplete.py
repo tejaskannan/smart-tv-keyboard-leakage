@@ -23,6 +23,8 @@ from smarttvleakage.max.manual_score_dict import build_msfd, build_ms_dict, buil
 from smarttvleakage.max.simulate_ms import grab_words, simulate_ms
 import math
 
+from smarttvleakage.utils.file_utils import save_pickle_gz
+
 
 
 
@@ -698,6 +700,12 @@ def build_model_sim():
 
     return model
 
+def save_model(path : str, model):
+    save_pickle_gz(model, path)
+    return
+
+
+
 
 # takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
 def classify_ms(model, ms : list[int]) -> int:
@@ -790,7 +798,8 @@ if __name__ == '__main__':
     # 6 - (analyze_params_new) - tests combining confidences
     # 7 - for testing combination parameters, simulated word model
     # 8 - for testing simulated word model on gt words
-    test = 8
+    # 9 - save model
+    test = 9
 
 
     
@@ -965,3 +974,8 @@ if __name__ == '__main__':
                 print(ms_dict_non[fail])
             else:
                 print(ms_dict_auto[fail])
+
+    elif test == 9:
+        model = build_model()
+        save_model("model.pkl.gz", model)
+        print("model saved")

@@ -15,7 +15,7 @@ from smarttvleakage.utils.file_utils import save_pickle_gz, read_pickle_gz
 graph = MultiKeyboardGraph()
 dictionary = UniformDictionary()
 # englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
-englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
+englishDictionary = EnglishDictionary.restore(path="max/local/dictionaries/ed.pkl.gz")
 
 
 def default_value():
@@ -97,6 +97,19 @@ def get_word_from_ms(ms):
     ms_string = ""
     for m in ms:
         ms_string += str(m) + ","
+
+    msfd = build_msfd()
+    if ms_string in msfd:
+        return msfd[ms_string]
+
+    return ("", 0)
+    
+ 
+
+def get_word_from_ms_dep(ms):
+    ms_string = ""
+    for m in ms:
+        ms_string += str(m) + ","
     ms_string += ";"
 
     path = "manual_score_dict_2.txt"
@@ -111,10 +124,10 @@ def get_word_from_ms(ms):
 
 def save_manual_score_dict():
     msfd = make_msfd()
-    save_pickle_gz(msfd, "max/msfd.pkl.gz")
+    save_pickle_gz(msfd, "max/local/msfd.pkl.gz")
 
 def build_msfd():
-    path = "msfd.pkl.gz"
+    path = "max/local/msfd.pkl.gz"
     return read_pickle_gz(path)
 
 def save_ms_dict():
@@ -364,20 +377,27 @@ def save_ms_dict():
     ms_dict_auto["year"] = [5, 1, 0, 1]
 
 
-    save_pickle_gz(ms_dict_non, "max/ms_dict_non.pkl.gz")
-    save_pickle_gz(ms_dict_auto, "max/ms_dict_auto.pkl.gz")
+    save_pickle_gz(ms_dict_non, "local/ms_dict_non.pkl.gz")
+    save_pickle_gz(ms_dict_auto, "local/ms_dict_auto.pkl.gz")
 
 def build_ms_dict(ty : str):
     if ty == "non":
-        path = "ms_dict_non.pkl.gz"
+        path = "local/ms_dict_non.pkl.gz"
     else:
-        path = "ms_dict_auto.pkl.gz"
+        path = "local/ms_dict_auto.pkl.gz"
     return read_pickle_gz(path)
 
 
 if __name__ == '__main__':
     #save_manual_score_dict()
     #save_ms_dict()
+
+    i = 0
+    for key in build_msfd():
+        print(key)
+        i += 1
+        if i > 10:
+            break
 
     print(get_word_from_ms([3, 5, 4])[0])
     print(float(get_word_from_ms([3, 5, 4])[1]))
