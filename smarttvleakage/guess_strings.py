@@ -54,7 +54,7 @@ if __name__ == '__main__':
     num_not_found = 0
 
     print('Number of video files: {}'.format(len(video_paths)))
-    use_suggestions = False
+    use_suggestions = True
 
     for idx, video_path in enumerate(video_paths):
         if (args.max_num_videos is not None) and (idx >= args.max_num_videos):

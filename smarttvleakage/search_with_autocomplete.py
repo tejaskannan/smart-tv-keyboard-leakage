@@ -20,7 +20,7 @@ INCORRECT_FACTOR = 1e-3
 SUGGESTION_THRESHOLD = 1e-3
 MAX_COUNT_PER_PREFIX = 10
 TOP_KEYS = 2
-TOP_KEY_FACTOR = 1.0
+TOP_KEY_FACTOR = 1e-1
 
 
 def get_candidate_prefix(string: str) -> str:
@@ -58,18 +58,18 @@ def get_score_for_string(string: str, dictionary: CharacterDictionary, should_ag
 
 
 def get_words_from_moves_autocomplete(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
-    iterator = get_words_from_moves_autocomplete_helper(move_sequence, graph, dictionary, did_use_autocomplete, max_num_results)
+    num_search_results = max_num_results if (not did_use_autocomplete) else 15
+    iterator = get_words_from_moves_autocomplete_helper(move_sequence, graph, dictionary, did_use_autocomplete, num_search_results)
 
     if did_use_autocomplete:
         prefixes: List[str] = []
-        num_results = 100
         for idx, (word, _, _)  in enumerate(iterator):
-            if idx >= num_results:
-                break
-
             prefixes.append(word)
 
-        for word, score in dictionary.get_words_for(prefixes, max_num_results=num_results, min_length=(len(move_sequence) + 1), max_count_per_prefix=MAX_COUNT_PER_PREFIX):
+        for idx, (word, score) in enumerate(dictionary.get_words_for(prefixes, max_num_results=max_num_results, min_length=(len(move_sequence) + 1), max_count_per_prefix=MAX_COUNT_PER_PREFIX)):
+            if idx >= max_num_results:
+                break
+
             yield word, score, 0  # TODO: Fix the candidates here
     else:
         for result in iterator:
@@ -197,7 +197,10 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
             for key, count in next_key_counts.items():
                 top_keys_counter[key] = count
 
-            top_keys = set(map(lambda t: t[0], top_keys_counter.most_common(TOP_KEYS)))
+            if len(current_state.keys) > 0:
+                top_keys = set(map(lambda t: t[0], top_keys_counter.most_common(TOP_KEYS)))
+            else:
+                top_keys = set()
 
             for move_count, move_score in move_score_factors.items():
                 # Get neighboring keys and normalize the resulting scores
@@ -237,7 +240,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
 
                         next_state = SearchState(keys=candidate_keys,
                                                  score=string_score,
-                                                 score_factor=current_state.score * move_score * score_factor,
+                                                 score_factor=current_state.score_factor * move_score * score_factor,
                                                  keyboard_mode=next_keyboard,
                                                  was_on_suggested=False,
                                                  current_key=neighbor_key,
@@ -270,7 +273,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
                 candidate_string = get_string_from_keys(candidate_keys)
 
                 visited_state = VisitedState(string=candidate_string, was_on_suggested=True)
-                should_aggregate_score = len(candidate_keys) < target_length
+                should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
 
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,

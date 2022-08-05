@@ -9,7 +9,7 @@ from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pick
 from smarttvleakage.dictionary.trie import Trie
 
 UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
-SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>' })
+SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>' })
 DELETE_SOUND_KEYS = frozenset({ '<BACK>', '<DELETEALL>' })
 
 

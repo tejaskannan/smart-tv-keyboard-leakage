@@ -271,40 +271,40 @@ class SamsungMoveExtractor(MoveExtractor):
 
         # Signals without any key selections do not interact with the keyboard
         if len(raw_key_select_times) == 0:
-            return [], False
+            return [], False, KeyboardType.SAMSUNG
 
         # Get occurances of the other sounds
         delete_times, _ = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_DELETE)
         raw_move_times, _ = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_MOVE)
         raw_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_DOUBLE_MOVE)
-        raw_select_times, _ = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_SELECT)
+        select_times, _ = self.find_instances_of_sound(audio=audio, sound=SAMSUNG_SELECT)
 
-        # Filter out moves using delete detection
-        if len(delete_times) == 0:
-            move_times = raw_move_times
-            double_move_times = raw_double_move_times
-        else:
-            move_times: List[int] = []
-            for t in raw_move_times:
-                diff = np.abs(np.subtract(delete_times, t))
-                if np.all(diff > SELECT_MOVE_DISTANCE):
-                    move_times.append(t)
+        # Filter out moves using delete and select detection
+        move_times: List[int] = []
+        for t in raw_move_times:
+            select_diff = np.abs(np.subtract(select_times, t)) if len(select_times) > 0 else BIG_NUMBER
+            delete_diff = np.abs(np.subtract(delete_times, t)) if len(delete_times) > 0 else BIG_NUMBER
 
-            double_move_times: List[int] = []
-            for t in raw_double_move_times:
-                diff = np.abs(np.subtract(delete_times, t))
-                if np.all(diff > SELECT_MOVE_DISTANCE):
-                    double_move_times.append(t)
+            if np.all(select_diff > SELECT_MOVE_DISTANCE) and np.all(delete_diff > SELECT_MOVE_DISTANCE):
+                move_times.append(t)
+
+        double_move_times: List[int] = []
+        for t in raw_double_move_times:
+            select_diff = np.abs(np.subtract(select_times, t)) if len(select_times) > 0 else BIG_NUMBER
+            delete_diff = np.abs(np.subtract(delete_times, t)) if len(delete_times) > 0 else BIG_NUMBER
+
+            if np.all(select_diff > SELECT_MOVE_DISTANCE) and np.all(delete_diff > SELECT_MOVE_DISTANCE):
+                double_move_times.append(t)
 
         # Filter out selects using move detection
-        select_times: List[int] = []
+        #select_times: List[int] = []
 
-        for t in raw_select_times:
-            move_diff = np.abs(np.subtract(move_times, t))
-            double_move_diff = np.abs(np.subtract(double_move_times, t))
+        #for t in raw_select_times:
+        #    move_diff = np.abs(np.subtract(move_times, t))
+        #    double_move_diff = np.abs(np.subtract(double_move_times, t))
 
-            if np.all(move_diff > SELECT_MOVE_DISTANCE) and np.all(double_move_diff > MIN_DOUBLE_MOVE_DISTANCE):
-                select_times.append(t)
+        #    if np.all(move_diff > SELECT_MOVE_DISTANCE) and np.all(double_move_diff > MIN_DOUBLE_MOVE_DISTANCE):
+        #        select_times.append(t)
 
         # Filter out any conflicting key and normal selects
         key_select_times: List[int] = []
@@ -320,7 +320,7 @@ class SamsungMoveExtractor(MoveExtractor):
                 key_select_times.append(t)
 
         if len(key_select_times) == 0:
-            return [], False
+            return [], False, KeyboardType.SAMSUNG
 
         # The first move starts before the first key select and after the nearest select
         first_key_time = key_select_times[0]
@@ -385,7 +385,7 @@ class SamsungMoveExtractor(MoveExtractor):
         did_use_autocomplete = (moves_between == 0) and (len(selects_after) > 0)
 
         if did_use_autocomplete and len(result) > 0:
-            return result[0:-1], did_use_autocomplete
+            return result[0:-1], did_use_autocomplete, KeyboardType.SAMSUNG
 
         return result, did_use_autocomplete, KeyboardType.SAMSUNG
 
@@ -501,13 +501,13 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/apple-tv/search/ted_lasso.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/do.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = APPLETV_KEYBOARD_DOUBLE_MOVE
+    sound = SAMSUNG_MOVE
 
-    extractor = AppleTVMoveExtractor()
+    extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
