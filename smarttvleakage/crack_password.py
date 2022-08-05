@@ -9,6 +9,7 @@ now = datetime.now()
 parser = argparse.ArgumentParser()
 parser.add_argument('-password', type=str, required=True)
 args = parser.parse_args()
+
 print('1')
 hashed = subprocess.run(['openssl', 'passwd', '-5', '-salt', 'agldf', args.password.strip()], capture_output=True, text=True)
 print(hashed.stdout)
@@ -23,7 +24,6 @@ with open('masks.txt', 'r') as f:
 		masks.append(line)
 print('5')
 mask_line = "--mask='"+masks[0]+"'"
-
 
 with open('hashed_password.txt', 'w') as f:
     f.write(hashed.stdout)

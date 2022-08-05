@@ -17,14 +17,17 @@ def findPath(word, shortcuts, wraparound, mr, dr, me):
 	mode = KeyboardMode.STANDARD
 	prev = START_KEYS[mode]
 	keyboard = MultiKeyboardGraph()
+	page_1 = True
 	for i in list(word.lower()):
 		distance = keyboard.get_moves_from_key(prev, i, shortcuts, wraparound, mode)
+		print(distance)
 		while distance == -1:
 			#print(i)
 			#print(path)
 			path.append((Move(num_moves=float(keyboard.get_moves_from_key(prev, "<CHANGE>", shortcuts, wraparound, mode)),end_sound=Sound.SELECT)))
 			prev = '<CHANGE>'
 			mode = get_keyboard_mode(prev, mode)
+			prev = START_KEYS[mode]
 			distance = keyboard.get_moves_from_key(prev, i, shortcuts, wraparound, mode)
 		if i == ' ':
 			path.append((Move(num_moves=distance, end_sound=Sound.SELECT)))
