@@ -13,9 +13,13 @@ from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggest
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
+<<<<<<< HEAD
 #from smarttvleakage.audio.determine_autocomplete import build_model, classify_ms
 
 AUTOCOMPLETE_PREFIX_COUNT = 15
+=======
+from smarttvleakage.max.determine_autocomplete import build_model, classify_ms
+>>>>>>> a1ef64c7ea59009270d8d3852846e176e48441c9
 
 
 if __name__ == '__main__':
@@ -45,6 +49,9 @@ if __name__ == '__main__':
     # Make the TV Type classifier
     tv_type_clf = SmartTVTypeClassifier()
 
+    # Load the suggestions model
+    suggestion_model = read_pickle_gz("max/model.pkl.gz")
+
     rank_list: List[int] = []
     num_candidates_list: List[int] = []
     rank_dict: Dict[str, int] = dict()
@@ -59,7 +66,6 @@ if __name__ == '__main__':
     prefix_total_count = 0
 
     print('Number of video files: {}'.format(len(video_paths)))
-    use_suggestions = True
 
     for idx, video_path in enumerate(video_paths):
         if (args.max_num_videos is not None) and (idx >= args.max_num_videos):
@@ -71,6 +77,7 @@ if __name__ == '__main__':
 
         file_name = os.path.basename(video_path)
         true_word = file_name.replace('.mp4', '').replace('.MOV', '').replace('.mov', '')
+<<<<<<< HEAD
         true_word = true_word.replace('_', ' ')
 
         # Classify the TV type based on the sound profile
@@ -91,6 +98,10 @@ if __name__ == '__main__':
 
         # Set the dictionary characters
         dictionary.set_characters(graph.get_characters())
+
+        # Detect whether this sequence came from a keyboard with inline suggestions
+        move_sequence_vals = list(map(lambda m: m.num_moves, move_sequence))
+        use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
 
         if use_suggestions:
             max_num_results = args.max_num_results if (not did_use_autocomplete) else AUTOCOMPLETE_PREFIX_COUNT
@@ -150,7 +161,7 @@ if __name__ == '__main__':
         print('==========')
         print('Word: {}'.format(true_word))
         print('Rank: {} (Did Find: {})'.format(rank + 1, did_find_word))
-        print('Move Sequence: {} (Did Use Autocomplete: {})'.format(list(map(lambda move: move.num_moves, move_sequence)), did_use_autocomplete))
+        print('Move Sequence: {} (Did Use Autocomplete{})'.format(move_sequence_vals, did_use_autocomplete))
 
         if not did_find_word:
             rank_list.append(rank + 1)

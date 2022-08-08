@@ -3,6 +3,7 @@ import argparse
 import string
 from sklearn.metrics import accuracy_score, precision_score, recall_score
 import json
+# from collections import counter
 
 
 def read_jsonl(path):
@@ -149,55 +150,55 @@ args = parser.parse_args()
 truth = [[] for i in range(11)]
 prediction = [[] for i in range(11)]
 
-# data = read_jsonl(args.i)
-# for i in data:
-# 	b = ''
-# 	for x,j in enumerate(list(i[0])):
-# 		b=j
-# 		if j in special_chars:
-# 			truth[x].append(1)
-# 		else:
-# 			truth[x].append(0)
-# 	if b in special_chars:
-# 		truth[10].append(1)
-# 	else:
-# 		truth[10].append(0)
-# 	for x,j in enumerate(i[1]):
-# 		prediction[x].append(j)
-# 	prediction[10].append(i[1][-1])
+data = read_jsonl(args.i1)
+for i in data:
+	b = ''
+	for x,j in enumerate(list(i[0])):
+		b=j
+		if j in special_chars:
+			truth[x].append(1)
+		else:
+			truth[x].append(0)
+	if b in special_chars:
+		truth[10].append(1)
+	else:
+		truth[10].append(0)
+	for x,j in enumerate(i[1]):
+		prediction[x].append(j)
+	prediction[10].append(i[1][-1])
 
-# threshold_for_position = [0 for i in range(11)]
+threshold_for_position = [0 for i in range(11)]
 
-# for i in range(len(threshold_for_position)):
-# 	threshold_for_position[i] = binary_search(truth[i],prediction[i])
+for i in range(len(threshold_for_position)):
+	threshold_for_position[i] = binary_search(truth[i],prediction[i])
 
-# truth_full = []
-# prediction_full = []
+truth_full = []
+prediction_full = []
 
-# for i in truth:
-# 	for j in i:
-# 		truth_full.append(j)
-# for i in prediction:
-# 	for j in i:
-# 		prediction_full.append(j)
+for i in truth:
+	for j in i:
+		truth_full.append(j)
+for i in prediction:
+	for j in i:
+		prediction_full.append(j)
 
-# threshold = binary_search(truth_full,prediction_full)
-# threshold_for_position.append(threshold)
+threshold = binary_search(truth_full,prediction_full)
+threshold_for_position.append(threshold)
 # print(threshold_for_position)
 # print('accuracy for letter: ',accuracy_score(truth_full, get_prediction_with_positions(prediction, threshold_for_position)))
 
-# print(threshold)
-# prediction1 = get_prediction(prediction_full, threshold)
-# print('accuracy: ',accuracy_score(truth_full,prediction1))
-# print('precision: ',precision_score(truth_full,prediction1))
-# print('recall: ',recall_score(truth_full,prediction1))
-# print('\n')
-# prediction2 = get_prediction(prediction_full, 0)
-# print('accuracy: ',accuracy_score(truth_full,prediction2))
-# print('precision: ',precision_score(truth_full,prediction2))
-# print('recall: ',recall_score(truth_full,prediction2))
+print(threshold)
+prediction1 = get_prediction(prediction_full, threshold)
+print('accuracy: ',accuracy_score(truth_full,prediction1))
+print('precision: ',precision_score(truth_full,prediction1))
+print('recall: ',recall_score(truth_full,prediction1))
+print('\n')
+prediction2 = get_prediction(prediction_full, 0)
+print('accuracy: ',accuracy_score(truth_full,prediction2))
+print('precision: ',precision_score(truth_full,prediction2))
+print('recall: ',recall_score(truth_full,prediction2))
 
-# thresholds = binary_search_2(truth_full, prediction_full, 0.99, 0.01)
+thresholds = binary_search_2(truth_full, prediction_full, 0.99, 0.01)
 # print(thresholds)
 # mistakes = {"upper": [], "lower": []}
 # for i in data:
@@ -219,7 +220,7 @@ numbers_pred = []
 special_pred = []
 
 for i in data:
-	print(i)
+	# print(i)
 	letter = False
 	number = False
 	special = False
@@ -244,8 +245,8 @@ for i in data:
 		special_truth.append(0)
 
 	for z,j in enumerate(i[1]):
-		print(j)
-		print(z)
+		# print(j)
+		# print(z)
 		if z%3==0:
 			letters_pred.append(j)
 		elif z%3==1:
@@ -280,12 +281,14 @@ for x,i in enumerate(data1):
 	special_truth_1.append([])
 	for j in list(i[0]):
 		if j in special_chars:
+			# print(j)
 			special_truth_1[x].append(1)
 		else:
 			special_truth_1[x].append(0)
 	special_pred_1.append([])
 	for j in i[1]:
 		if j > 0.5467529296875:
+		#0.960815:
 			special_pred_1[x].append(1)
 		else:
 			special_pred_1[x].append(0)
@@ -304,7 +307,21 @@ for x,i in enumerate(special_truth_1):
 	for j in i:
 		if j==1:
 			special_truth_2[x-1]
-print(len(special_truth_2))
-print(len(special_pred_2))
 
 print('special 2: ', accuracy_score(special_truth_2,special_pred_2))
+
+one = letters_truth.count(1)
+print('random letter: ', max(one/len(letters_truth),1-one/len(letters_truth)))
+one = numbers_truth.count(1)
+print('random number: ', max(one/len(numbers_truth),1-one/len(numbers_truth)))
+one = special_truth.count(1)
+print('random special: ', max(one/len(special_truth),1-one/len(special_truth)))
+# print(letters_truth)
+# print(numbers_truth)
+# print(special_truth)
+special_truth_3 = []
+for i in special_truth_1:
+	for j in i:
+		special_truth_3.append(j)
+one = special_truth_3.count(1)
+print('random special character: ', max(one/len(special_truth_3),1-one/len(special_truth_3)))

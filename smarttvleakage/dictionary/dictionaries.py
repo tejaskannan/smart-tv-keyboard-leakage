@@ -55,6 +55,114 @@ class UniformDictionary(CharacterDictionary):
     def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
         return { REVERSE_CHARACTER_TRANSLATION.get(char, char): 1 for char in self.characters }
 
+# for CCs
+class NumericDictionary(CharacterDictionary):
+
+    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+        nd = {}
+        for c in CHARACTERS:
+            if c.isnumeric():
+                nd[c] = 1000
+            else:
+                nd[c] = 0
+        return nd
+
+## could do stronger weighting?
+## add more for first digits?
+class CreditCardDictionary(CharacterDictionary):
+
+    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+        length = len(prefix)
+        nd = {}
+        firsts = ["3", "4", "5", "6"]
+
+        if length > 1: # uniform
+            for c in CHARACTERS:
+                if c.isnumeric():
+                    nd[c] = 1000
+                else:
+                    nd[c] = 0
+
+        elif length == 0:
+            for c in CHARACTERS:
+                if c in firsts:
+                    nd[c] = 1000
+                elif c.isnumeric():
+                    nd[c] = 100
+                else:
+                    nd[c] = 0
+        elif length == 1:
+            if prefix == "3":
+                for c in CHARACTERS:
+                    if c == "4" or c == "7":
+                        nd[c] = 1000
+                    elif c.isnumeric():
+                        nd[c] = 100
+                    else:
+                        nd[c] = 0
+            else:
+                for c in CHARACTERS:
+                    if c.isnumeric():
+                        nd[c] = 1000
+                    else:
+                        nd[c] = 0
+
+        return nd
+##
+class CreditCardDictionaryStrong(CharacterDictionary):
+
+    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+        length = len(prefix)
+        nd = {}
+        firsts = ["3", "4", "5", "6"]
+
+        if length == 0:
+            for c in CHARACTERS:
+                if c in firsts:
+                    nd[c] = 1000
+                elif c.isnumeric():
+                    nd[c] = 10
+                else:
+                    nd[c] = 0
+
+        elif length == 1:
+            for c in CHARACTERS:
+
+                if prefix == "3":
+                    if c in ["4", "7"]:
+                        nd[c] = 1000
+                    elif c.isnumeric():
+                        nd[c] = 10
+                    else:
+                        nd[c] = 0
+                elif prefix == "4":
+                    if c in ["0", "1", "4", "8", "9"]:
+                        nd[c] = "1000"
+                    elif c.isnumeric():
+                        nd[c] = 200
+                    else:
+                        nd[c] = 0
+                elif prefix == "5":
+                    if c in ["0", "1", "2", "3", "4", "5"]:
+                        nd[c] = "1000"
+                    elif c.isnumeric():
+                        nd[c] = 200
+                    else:
+                        nd[c] = 0
+                # continue making cc dict
+
+        elif length > 1: # uniform
+            for c in CHARACTERS:
+                if c.isnumeric():
+                    nd[c] = 1000
+                else:
+                    nd[c] = 0
+                    
+       
+
+        return nd
+##
+
 
 class EnglishDictionary(CharacterDictionary):
 
