@@ -9,11 +9,13 @@ from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVType
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
-from smarttvleakage.search_with_autocomplete import get_words_from_moves_autocomplete
+from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions, apply_autocomplete
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 
 #from smarttvleakage.audio.determine_autocomplete import build_model, classify_ms
+
+AUTOCOMPLETE_PREFIX_COUNT = 15
 
 
 if __name__ == '__main__':
@@ -53,6 +55,9 @@ if __name__ == '__main__':
     total_count = 0
     num_not_found = 0
 
+    prefix_top10_correct = 0
+    prefix_total_count = 0
+
     print('Number of video files: {}'.format(len(video_paths)))
     use_suggestions = True
 
@@ -88,11 +93,32 @@ if __name__ == '__main__':
         dictionary.set_characters(graph.get_characters())
 
         if use_suggestions:
-            ranked_candidates = get_words_from_moves_autocomplete(move_sequence=move_sequence,
-                                                                  graph=graph,
-                                                                  dictionary=dictionary,
-                                                                  did_use_autocomplete=did_use_autocomplete,
-                                                                  max_num_results=args.max_num_results)
+            max_num_results = args.max_num_results if (not did_use_autocomplete) else AUTOCOMPLETE_PREFIX_COUNT
+            ranked_candidates = get_words_from_moves_suggestions(move_sequence=move_sequence,
+                                                                 graph=graph,
+                                                                 dictionary=dictionary,
+                                                                 did_use_autocomplete=did_use_autocomplete,
+                                                                 max_num_results=max_num_results)
+
+            if did_use_autocomplete:
+                prefixes: List[str] = []
+                true_prefix = true_word[0:len(move_sequence)]
+
+                rank = -1
+                for idx, (guess, score, num_candidates) in enumerate(ranked_candidates):
+                    prefixes.append(guess)
+
+                    if guess == true_prefix:
+                        rank = idx + 1
+                        break
+
+                prefix_top10_correct += int((rank >= 1) and (rank <= 10))
+                prefix_total_count += 1
+
+                ranked_candidates = apply_autocomplete(prefixes=prefixes,
+                                                       dictionary=dictionary,
+                                                       min_length=len(move_sequence) + 1,
+                                                       max_num_results=args.max_num_results)
         else:
             ranked_candidates = get_words_from_moves(move_sequence=move_sequence,
                                                      graph=graph,
@@ -145,3 +171,6 @@ if __name__ == '__main__':
     print('Top 10 Accuracy: {:.4f}'.format(top10_correct / total_count))
     print('Num Not Found: {} ({:.4f})'.format(num_not_found, num_not_found / total_count))
     print('Words not found: {}'.format(not_found_list))
+
+    if prefix_total_count > 0:
+        print('Prefix Top 10 Accuracy: {:.4f} (Autocomplete Only)'.format(prefix_top10_correct / prefix_total_count))

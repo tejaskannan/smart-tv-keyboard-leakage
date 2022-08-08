@@ -43,40 +43,39 @@ def get_current_prefix(string: str) -> str:
         return tokens[-1]
 
 
-def get_score_for_string(string: str, dictionary: CharacterDictionary, should_aggregate_score: bool) -> float:
-    tokens = string.split()
-    score = 0.0
-
-    if len(tokens) == 0:
-        return score
-
-    for token in tokens[0:-1]:
-        score += dictionary.get_score_for_string(string, should_aggregate=False)
-
-    score += dictionary.get_score_for_string(tokens[-1], should_aggregate=should_aggregate_score)
-    return score
+def get_score_for_string(string: str, dictionary: CharacterDictionary, min_length: int) -> float:
+    return dictionary.get_score_for_prefix(string, min_length=min_length)
 
 
-def get_words_from_moves_autocomplete(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
-    num_search_results = max_num_results if (not did_use_autocomplete) else 15
-    iterator = get_words_from_moves_autocomplete_helper(move_sequence, graph, dictionary, did_use_autocomplete, num_search_results)
+#def get_score_for_string(string: str, dictionary: CharacterDictionary, should_aggregate_score: bool) -> float:
+#    tokens = list(filter(lambda t: len(t) > 0, string.split()))
+#    score = 0.0
+#
+#    if len(tokens) == 0:
+#        return score
+#    elif len(tokens) == 1:
+#        should_aggregate_score = should_aggregate_score and (string[-1] != ' ')
+#        return dictionary.get_score_for_string(tokens[0], should_aggregate=should_aggregate_score)
+#
+#    num_tokens = 0
+#    for token in tokens[0:-1]:
+#        score += dictionary.get_score_for_string(string, should_aggregate=False)
+#
+#    if len(tokens[-1]) > 0:
+#        score += dictionary.get_score_for_string(tokens[-1], should_aggregate=should_aggregate_score)
+#
+#    return score
 
-    if did_use_autocomplete:
-        prefixes: List[str] = []
-        for idx, (word, _, _)  in enumerate(iterator):
-            prefixes.append(word)
 
-        for idx, (word, score) in enumerate(dictionary.get_words_for(prefixes, max_num_results=max_num_results, min_length=(len(move_sequence) + 1), max_count_per_prefix=MAX_COUNT_PER_PREFIX)):
-            if idx >= max_num_results:
-                break
+def apply_autocomplete(prefixes: List[str], dictionary: CharacterDictionary, min_length: int, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
+    for idx, (word, score) in enumerate(dictionary.get_words_for(prefixes, max_num_results=max_num_results, min_length=min_length, max_count_per_prefix=MAX_COUNT_PER_PREFIX)):
+        if idx >= max_num_results:
+            break
 
-            yield word, score, 0  # TODO: Fix the candidates here
-    else:
-        for result in iterator:
-            yield result
+        yield word, score, 0  # TODO: Fix the candidates here
 
 
-def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
+def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     directory = os.path.dirname(__file__)
     single_suggestions = read_json(os.path.join(directory, 'graphs/autocomplete.json'))
 
@@ -125,6 +124,10 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
     result_count = 0
     candidate_count = 0
 
+    # Calculate the minimum string length (accounting for deletes)
+    min_length = target_length - 2 * sum(int(move.end_sound == SAMSUNG_DELETE) for move in move_sequence)
+    min_length += int(did_use_autocomplete)
+
     while not candidate_queue.empty():
         # Pop the minimum element off the queue
         pq_score, current_state = candidate_queue.get()
@@ -163,7 +166,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
 
         move_score_factors: Dict[int, float] = dict()
 
-        if (len(current_state.keys) > 0) and (num_moves > 2) and (current_state.center_key in string.ascii_letters):
+        if (len(current_state.keys) > 0) and (num_moves >= 2) and (current_state.center_key in string.ascii_letters):
             move_score_factors[num_moves] = 1.0
             move_score_factors[max(num_moves - 1, 0)] = 1.0
             move_score_factors[max(num_moves - 2, 0)] = 1.0
@@ -212,12 +215,12 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
 
                 if end_sound == SAMSUNG_SELECT:
                     neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))
-                    filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+                    filtered_probs = {n: (1.0 / len(neighbors)) for n in neighbors}
                 elif end_sound == SAMSUNG_DELETE:
                     neighbors = list(filter(lambda n: (n in DELETE_SOUND_KEYS), neighbors))
-                    filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+                    filtered_probs = {n: (1.0 / len(neighbors)) for n in neighbors}
                 else:
-                    neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS), neighbors))
+                    neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS) and (n not in DELETE_SOUND_KEYS), neighbors))
                     filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                                  candidate_keys=neighbors)
 
@@ -229,15 +232,14 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
 
                     should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
                     score_factor = TOP_KEY_FACTOR if (neighbor_key in top_keys) else 1.0
-    
+
                     # Make the next state
                     if visited_state not in visited:
                         next_keyboard = get_keyboard_mode(key=neighbor_key,
                                                           mode=current_state.keyboard_mode,
                                                           keyboard_type=keyboard_type)
 
-                        string_score = get_score_for_string(candidate_string, dictionary=dictionary, should_aggregate_score=should_aggregate_score)
-
+                        string_score = get_score_for_string(candidate_string, dictionary=dictionary, min_length=min_length)
                         next_state = SearchState(keys=candidate_keys,
                                                  score=string_score,
                                                  score_factor=current_state.score_factor * move_score * score_factor,
@@ -254,14 +256,14 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
 
             autocomplete_counts = dictionary.get_letter_counts(prefix=current_prefix, should_smooth=False, length=None)
             total_count = sum(autocomplete_counts.values())
-            next_key_freq = { key: count / total_count for key, count in autocomplete_counts.items() }
+            next_key_freq = {key: count / total_count for key, count in autocomplete_counts.items()}
 
             sorted_keys = list(reversed(sorted(next_key_freq.items(), key=lambda t: t[1])))
             sorted_keys = list(filter(lambda t: (t[0] in string.ascii_letters), sorted_keys))
 
             # Use scores that take the max-length into account
             total_count = sum(next_key_counts.values())
-            next_key_scores = { key: count / total_count for key, count in next_key_counts.items() }
+            next_key_scores = {key: count / total_count for key, count in next_key_counts.items()}
 
             for (neighbor_key, _) in sorted_keys:
                 score = next_key_scores.get(neighbor_key, 0.0)
@@ -281,7 +283,7 @@ def get_words_from_moves_autocomplete_helper(move_sequence: List[Move], graph: M
                                                       keyboard_type=keyboard_type)
 
                     next_state = SearchState(keys=candidate_keys,
-                                             score=get_score_for_string(candidate_string, dictionary=dictionary, should_aggregate_score=should_aggregate_score),
+                                             score=get_score_for_string(candidate_string, dictionary=dictionary, min_length=min_length),
                                              score_factor=current_state.score_factor,
                                              keyboard_mode=current_state.keyboard_mode,
                                              was_on_suggested=True,

@@ -197,6 +197,23 @@ class TrieTests(unittest.TestCase):
         next_characters = trie.get_next_characters('tedr', length=None)
         self.assertEqual(next_characters, { })
 
+    def test_get_score_for_prefixes(self):
+        trie = Trie(max_depth=12)
+
+        trie.add_string('ted lasso', count=1)
+        trie.add_string('ted 3', count=1)
+        trie.add_string('tedx', count=1)
+        trie.add_string('warriors', count=4)
+
+        score = trie.get_score_for_prefix('ted', min_length=3)
+        self.assertAlmostEqual(score, (3.0 / 7.0))
+
+        score = trie.get_score_for_prefix('ted', min_length=5)
+        self.assertAlmostEqual(score, (2.0 / 7.0))
+
+        score = trie.get_score_for_prefix('ted', min_length=6)
+        self.assertAlmostEqual(score, (1.0 / 7.0))
+
     #def test_dictionary(self):
     #    trie = read_pickle_gz('/local/dictionaries/wikipedia.pkl.gz')
 

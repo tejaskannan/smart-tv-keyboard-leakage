@@ -117,6 +117,9 @@ class EnglishDictionary(CharacterDictionary):
     def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[Tuple[str, float]]:
         return self._trie.get_words_for(prefixes, max_num_results, min_length=min_length, max_count_per_prefix=max_count_per_prefix)
 
+    def get_score_for_prefix(self, prefix: str, min_length: int) -> float:
+        return self._trie.get_score_for_prefix(prefix=prefix, min_length=min_length)
+
     def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
         return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
 

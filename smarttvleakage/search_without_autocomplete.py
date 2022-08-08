@@ -136,10 +136,10 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
             if (end_sound == delete_sound_name):
                 neighbors = list(filter(lambda n: (n in DELETE_SOUND_KEYS), neighbors))
-                filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+                filtered_probs = {n: (1.0 / len(neighbors)) for n in neighbors}
             elif (tv_type == SmartTVType.SAMSUNG) and (end_sound == SAMSUNG_SELECT):
                 neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))
-                filtered_probs = { n: (1.0 / len(neighbors)) for n in neighbors }
+                filtered_probs = {n: (1.0 / len(neighbors)) for n in neighbors}
             else:
                 if tv_type == SmartTVType.SAMSUNG:
                     neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS), neighbors))

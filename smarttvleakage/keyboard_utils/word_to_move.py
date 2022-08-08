@@ -12,7 +12,7 @@ from smarttvleakage.utils.transformations import get_keyboard_mode
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD
 
 
-def findPath(word, error, shortcuts, wraparound):
+def findPath(word, error, shortcuts, wraparound) -> List[Move]:
     path: List[Move] = []
     mode = SAMSUNG_STANDARD
     prev = START_KEYS[mode]
@@ -28,10 +28,13 @@ def findPath(word, error, shortcuts, wraparound):
                                                mode=mode)
 
         while distance == -1:
-            path.append(Move(num_moves=keyboard.get_moves_from_key(prev, "<CHANGE>", shortcuts, wraparound, mode),end_sound=SAMSUNG_SELECT))
+            print('Start Key: {}, End Key: {}'.format(prev, character))
+
+            path.append(Move(num_moves=keyboard.get_moves_from_key(prev, '<CHANGE>', shortcuts, wraparound, mode),end_sound=SAMSUNG_SELECT))
             prev = '<CHANGE>'
             mode = get_keyboard_mode(prev, mode, keyboard_type=keyboard_type)
             distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
+            return
 
         path.append(Move(num_moves=distance, end_sound=SAMSUNG_KEY_SELECT))
 
@@ -55,8 +58,9 @@ if __name__ == '__main__':
     # args = parser.parse_args()
     # words = open(args.i, 'r')
     output = []
-    path = findPath('wph',0,False,True)
+    path = findPath('1234 1234',0,False,True)
     print(path)
+
     # for i in words:
     # 	# path = findPath(i.strip(), args.e, True)
     # 	# output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})

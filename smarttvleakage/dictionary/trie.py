@@ -113,6 +113,36 @@ class Trie:
             if idx < self.max_depth:
                 node = next_node
 
+    def get_score_for_prefix(self, prefix: str, min_length: int) -> float:
+        total_count = self._root.count
+
+        node = self._root
+        length = 0
+        for character in prefix:
+            node = node.get_child(character=character)
+            length += 1
+
+            if node is None:
+                return 0.0
+
+        if length >= min_length:
+            return node.count / total_count
+
+        frontier = deque()
+        frontier.append((length, node))
+        unnormalized_score = 0.0
+
+        while len(frontier) > 0:
+            length, node = frontier.popleft()
+
+            if length == min_length:
+                unnormalized_score += node.count
+            else:
+                for child in node.children:
+                    frontier.append((length + 1, child))
+
+        return unnormalized_score / total_count
+
     def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
         total_count = self._root.count
 
