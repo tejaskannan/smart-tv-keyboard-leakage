@@ -50,7 +50,6 @@ def findPath(word, shortcuts, wraparound, mr, dr, me):
 
     return path
 
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i', type=str, help='enter the input txt file')
@@ -71,7 +70,7 @@ if __name__ == '__main__':
         # output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
         path = findPath(i.strip(), False, False, args.mr, args.dr, args.me)
         output.append({"word": i.strip(), "move_seq": [{"num_moves": j[0], "sound": j[1].name} for j in path]})
-        if now+timedelta(seconds=33) < datetime.now():
+        if (now + timedelta(seconds=33)) < datetime.now():
             break
 
     print(output)
