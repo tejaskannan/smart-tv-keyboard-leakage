@@ -9,6 +9,7 @@ from smarttvleakage.utils.transformations import get_keyboard_mode
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
 from datetime import datetime, timedelta
 
+
 def findPath(word, shortcuts, wraparound, mr, dr, me):
 	mistakes = []
 	for n in range(me):
@@ -22,9 +23,7 @@ def findPath(word, shortcuts, wraparound, mr, dr, me):
 		distance = keyboard.get_moves_from_key(prev, i, shortcuts, wraparound, mode)
 		print(distance)
 		while distance == -1:
-			#print(i)
-			#print(path)
-			path.append((Move(num_moves=float(keyboard.get_moves_from_key(prev, "<CHANGE>", shortcuts, wraparound, mode)),end_sound=Sound.SELECT)))
+			path.append((Move(num_moves=float(keyboard.get_moves_from_key(prev, "<CHANGE>", shortcuts, wraparound, mode)), end_sound=Sound.SELECT)))
 			prev = '<CHANGE>'
 			mode = get_keyboard_mode(prev, mode)
 			prev = START_KEYS[mode]
@@ -34,11 +33,12 @@ def findPath(word, shortcuts, wraparound, mr, dr, me):
 		else:
 			path.append((Move(num_moves=distance, end_sound=Sound.KEY_SELECT)))
 		rand = random.random()
-		for x,j in enumerate(mistakes):
-			if rand<j:
+		for x, j in enumerate(mistakes):
+			if rand < j:
 				path[-1] = Move(num_moves=path[-1][0]+2*(x+1), end_sound=path[-1][1])
 		prev = i
 	return path
+
 
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
@@ -59,8 +59,8 @@ if __name__ == '__main__':
 		# path = findPath(i.strip(), args.e, True)
 		# output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
 		path = findPath(i.strip(), False, False, args.mr, args.dr, args.me)
-		output.append({"word":i.strip(), "move_seq":[{"num_moves":j[0], "sound":j[1].name} for j in path]})
-		if now+timedelta(seconds=33)<datetime.now():
+		output.append({"word": i.strip(), "move_seq": [{"num_moves": j[0], "sound": j[1].name} for j in path]})
+		if now+timedelta(seconds=33) < datetime.now():
 			break
 	print(output)
 	save_jsonl_gz(output, args.o)

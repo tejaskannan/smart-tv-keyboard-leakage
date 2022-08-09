@@ -23,10 +23,10 @@ else:
     dictionary = EnglishDictionary.restore(path=args.dictionary_path)
 
 f = open(args.moves_list)
-c = csv.reader(f, delimiter = '\t')
+c = csv.reader(f, delimiter='\t')
 out = open(args.output, 'w')
 
-c=read_moves(args.moves_list)
+c = read_moves(args.moves_list)
 print(c)
 
 out1 = []

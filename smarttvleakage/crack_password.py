@@ -18,7 +18,7 @@ with open('hashed_password.txt', 'w') as f:
 beginning_datetime = datetime.now()
 beginning_perf = perf_counter()
 
-masks = find_regex(findPath(password))
+masks = find_regex(findPath(args.password, False, False, 0, 0, 0))
 
 mask_line = "-mask='"+masks[0]+"'"
 
