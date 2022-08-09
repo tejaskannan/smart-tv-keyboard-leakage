@@ -1,16 +1,14 @@
-
+import io
 import csv
 import string
 
 from collections import defaultdict
-import io 
+from typing import Tuple, List, Dict
 
 from smarttvleakage.keyboard_utils.word_to_move import findPath
-
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.utils.file_utils import read_json
-
-from smarttvleakage.max.manual_score_dict import build_ms_dict
+from smarttvleakage.suggestions_model.manual_score_dict import build_ms_dict
 
 
 
@@ -44,14 +42,8 @@ def buildDict(min_count):
     return word_counts
 
 
-
-
-
-
-
-
 # evaluates simulated ms against gt, allowing off-by-one for autos
-def eval_ms(key : tuple[str, str], ms : list[int]) -> int:
+def eval_ms(key : Tuple[str, str], ms : List[int]) -> int:
     ms_dict_non = build_ms_dict("non")
     ms_dict_auto = build_ms_dict("auto")
 
@@ -84,7 +76,7 @@ def eval_ms(key : tuple[str, str], ms : list[int]) -> int:
 
 
 
-def grab_words(count : int) -> list[str]:
+def grab_words(count : int) -> List[str]:
     words = []
     with open("local/dictionaries/enwiki-20210820-words-frequency-backup.txt", "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -107,7 +99,7 @@ def grab_words(count : int) -> list[str]:
     return words
 
 
-def combine_tops(list_1 : list[str], list_2 : list[str]):
+def combine_tops(list_1 : List[str], list_2 : List[str]):
     char_dict = {}
 
     for i in range(len(list_1)):
@@ -143,7 +135,7 @@ def combine_tops(list_1 : list[str], list_2 : list[str]):
 # Implement length based weighting?
 # try this but with single score, not additive**
 # works poorly additively
-def get_autos_weighted_5(dict, prefix : str) -> list[str]:
+def get_autos_weighted_5(dict, prefix : str) -> List[str]:
       
     if len(prefix) == 1:
         single_suggestions = read_json('../graphs/autocomplete.json')
@@ -191,7 +183,7 @@ def get_autos_weighted_5(dict, prefix : str) -> list[str]:
 
 
 
-def get_autos_weighted_2(dict, prefix : str) -> list[str]:
+def get_autos_weighted_2(dict, prefix : str) -> List[str]:
     weight = 8
 
     if len(prefix) == 1:
@@ -239,7 +231,7 @@ def get_autos_weighted_2(dict, prefix : str) -> list[str]:
     return suggestions
 
 
-def get_autos_weighted(dict, prefix : str) -> list[str]:
+def get_autos_weighted(dict, prefix : str) -> List[str]:
     # to do
 
     # for now, uses single suggestions
@@ -282,7 +274,7 @@ def get_autos_weighted(dict, prefix : str) -> list[str]:
 
 
 
-def get_autos_weighted_sqr(dict, prefix : str) -> list[str]:
+def get_autos_weighted_sqr(dict, prefix : str) -> List[str]:
     # to do
 
     # for now, uses single suggestions
@@ -329,7 +321,7 @@ def get_autos_weighted_sqr(dict, prefix : str) -> list[str]:
 
 
 
-def get_autos_base(dict, prefix : str, smooth : bool) -> list[str]:
+def get_autos_base(dict, prefix : str, smooth : bool) -> List[str]:
     # to do
 
     # for now, uses single suggestions
@@ -367,7 +359,7 @@ def get_autos_base(dict, prefix : str, smooth : bool) -> list[str]:
     return suggestions
 
 ## write this
-def get_autos(e_dict, dict, prefix : str, strategy : int) -> list[str]:
+def get_autos(e_dict, dict, prefix : str, strategy : int) -> List[str]:
 
     if len(prefix) == 1: # then use single suggestions
         single_suggestions = read_json('../graphs/autocomplete.json')
@@ -452,7 +444,7 @@ def get_autos(e_dict, dict, prefix : str, strategy : int) -> list[str]:
 
 
 
-def find_path_auto(dict, wcs, word : str, auto_strategy : int, errmsg : bool = False) -> list[float]:
+def find_path_auto(dict, wcs, word : str, auto_strategy : int, errmsg : bool = False) -> List[float]:
     path = []
     f = open('../graphs/samsung/samsung_keyboard.csv')
     active = list(csv.reader(f))
@@ -529,7 +521,7 @@ def find_path_auto(dict, wcs, word : str, auto_strategy : int, errmsg : bool = F
 
 
 
-def simulate_ms(dict, wcs, word : str, auto : bool, auto_strategy : int, errmsg : bool = False) -> list[int]:
+def simulate_ms(dict, wcs, word : str, auto : bool, auto_strategy : int, errmsg : bool = False) -> List[int]:
     if not auto:
         ms_string = findPath(word, 0, False)
     else:
@@ -541,7 +533,7 @@ def simulate_ms(dict, wcs, word : str, auto : bool, auto_strategy : int, errmsg 
     return ms
 
 
-def test_auto_strategy(wcs, dict, strategy : int, errmsg : bool = False) -> list[str]:
+def test_auto_strategy(wcs, dict, strategy : int, errmsg : bool = False) -> List[str]:
     ms_dict_auto = build_ms_dict("auto")
 
     fails = []

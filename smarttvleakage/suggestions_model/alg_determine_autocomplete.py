@@ -6,10 +6,10 @@ from queue import PriorityQueue
 from collections import defaultdict, namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
-from smarttvleakage.max.manual_score_dict import get_word_from_ms, build_ms_dict
+from smarttvleakage.suggestions_model.manual_score_dict import get_word_from_ms, build_ms_dict
 
 
 
@@ -29,7 +29,7 @@ def adjust_for_len(raw : float, word : str, strategy : int) -> float:
 
 # gets a dictionary score from a move sequence by taking 500 samples, returns all samples with their scores
 # This function is the important one used after the ML model, and could be improved
-def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]:
+def get_score_from_ms(ms : List[int], strategy : int) -> List[Tuple[str, float]]:
     print(ms)
     # when to cut off
     #SAMPLES = max(500, 20 * pow(len(ms), 2))
@@ -54,7 +54,7 @@ def get_score_from_ms(ms : list[int], strategy : int) -> list[tuple[str, float]]
     return word_list
 
 # This improved version uses a pre-built dictionary from ms -> highest scoring word
-def get_score_from_ms_improved(ms : list[int], strategy : int) -> list[tuple[str, float]]:
+def get_score_from_ms_improved(ms : List[int], strategy : int) -> List[Tuple[str, float]]:
     print(ms)
   
     word, raw_score = get_word_from_ms(ms)
@@ -64,7 +64,7 @@ def get_score_from_ms_improved(ms : list[int], strategy : int) -> list[tuple[str
 
 # used for finding best parameters
 # return the best partitioning for a list of scores
-def get_best_cutoff(scores : list[tuple[float, str]]) -> tuple[int, float, int]:
+def get_best_cutoff(scores : List[Tuple[float, str]]) -> Tuple[int, float, int]:
 
     scores.sort(key=lambda x: x[0])
 

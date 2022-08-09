@@ -12,14 +12,10 @@ from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions, apply_autocomplete
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
+from smarttvleakage.suggestions_model.determine_autocomplete import classify_ms
 
-<<<<<<< HEAD
-#from smarttvleakage.audio.determine_autocomplete import build_model, classify_ms
 
 AUTOCOMPLETE_PREFIX_COUNT = 15
-=======
-from smarttvleakage.max.determine_autocomplete import build_model, classify_ms
->>>>>>> a1ef64c7ea59009270d8d3852846e176e48441c9
 
 
 if __name__ == '__main__':
@@ -50,7 +46,7 @@ if __name__ == '__main__':
     tv_type_clf = SmartTVTypeClassifier()
 
     # Load the suggestions model
-    suggestion_model = read_pickle_gz("max/model.pkl.gz")
+    suggestions_model = read_pickle_gz('max/model.pkl.gz')
 
     rank_list: List[int] = []
     num_candidates_list: List[int] = []
@@ -77,7 +73,6 @@ if __name__ == '__main__':
 
         file_name = os.path.basename(video_path)
         true_word = file_name.replace('.mp4', '').replace('.MOV', '').replace('.mov', '')
-<<<<<<< HEAD
         true_word = true_word.replace('_', ' ')
 
         # Classify the TV type based on the sound profile
@@ -161,7 +156,8 @@ if __name__ == '__main__':
         print('==========')
         print('Word: {}'.format(true_word))
         print('Rank: {} (Did Find: {})'.format(rank + 1, did_find_word))
-        print('Move Sequence: {} (Did Use Autocomplete{})'.format(move_sequence_vals, did_use_autocomplete))
+        print('Move Sequence: {} (Did Use Autocomplete: {})'.format(move_sequence_vals, did_use_autocomplete))
+        print('Did Use Suggestions: {}'.format(use_suggestions))
 
         if not did_find_word:
             rank_list.append(rank + 1)

@@ -7,23 +7,16 @@ from queue import PriorityQueue
 from collections import defaultdict, namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.utils.file_utils import save_pickle_gz, read_pickle_gz
 
-graph = MultiKeyboardGraph()
-dictionary = UniformDictionary()
-# englishDictionary = EnglishDictionary.restore(path="../local/dictionaries/ed.pkl.gz")
-englishDictionary = EnglishDictionary.restore(path="max/local/dictionaries/ed.pkl.gz")
 
-
-def default_value():
-    return 0
 
 def buildDict(min_count):
     print("building dict...")
-    word_counts = defaultdict(default_value)
+    word_counts = defaultdict(int)
     path = "local\dictionaries\enwiki-20210820-words-frequency.txt"
 
     with open(path, 'rb') as fin:
@@ -42,7 +35,7 @@ def buildDict(min_count):
     return word_counts
 
 
-def build_file():
+def build_file(dictionary: EnglishDictionary):
     minCount = 500
     word_counts = buildDict(minCount)
     done = []
@@ -71,11 +64,9 @@ def build_file():
 
             line = line + word + ";"
 
-            raw_score = englishDictionary.get_score_for_string(word, False) 
+            raw_score = dictionary.get_score_for_string(word, False) 
             line = line + str(raw_score) + "\n"
 
-            #raw_score = englishDictionary.get_score_for_string(word, False)
-            
             f.write(line)
 
 

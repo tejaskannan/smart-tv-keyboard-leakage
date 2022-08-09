@@ -4,17 +4,29 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS,
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
 from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
-from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE
+from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
 from .constants import KeyboardType
 
 
-def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str]) -> Dict[str, float]:
+MIN_COUNT = 5
+
+
+def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], current_string: str, dictionary: CharacterDictionary) -> Dict[str, float]:
     """
     Returns a dictionary of normalized scores for present keys.
     """
-    filtered_scores = { key: float(key_counts[key]) for key in candidate_keys if key in key_counts }
-    score_sum = sum(key_counts.values())
-    return { key: (score / score_sum) for key, score in filtered_scores.items() }
+    filtered_counts = { key: key_counts[key] for key in candidate_keys if key in key_counts }
+
+    # Smooth the counts (can add characters)
+    smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
+                                                      counts=filtered_counts,
+                                                      min_count=MIN_COUNT)
+
+    # Re-filter the counts
+    filtered_counts = { key: float(smoothed_counts[key]) for key in candidate_keys if key in smoothed_counts }
+
+    score_sum = sum(filtered_counts.values())
+    return { key: (score / score_sum) for key, score in filtered_counts.items() }
 
 
 def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:

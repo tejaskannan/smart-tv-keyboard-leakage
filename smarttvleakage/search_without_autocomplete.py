@@ -10,6 +10,7 @@ from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, En
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
+from smarttvleakage.keyboard_utils.word_to_move import findPath
 
 
 SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode', 'current_key', 'move_idx'])
@@ -120,8 +121,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
         # Get the counts for the next keys
         next_key_counts = dictionary.get_letter_counts(prefix=current_string,
-                                                       length=target_length,
-                                                       should_smooth=True)
+                                                       length=target_length)
 
         for candidate_move in move_candidates:
             # Get the neighboring keys for this number of moves
@@ -147,7 +147,9 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                     neighbors = list(filter(lambda n: (n not in DELETE_SOUND_KEYS), neighbors))
 
                 filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
-                                                             candidate_keys=neighbors)
+                                                             candidate_keys=neighbors,
+                                                             current_string=current_string,
+                                                             dictionary=dictionary)
 
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
@@ -189,13 +191,11 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
-    parser.add_argument('--moves-list', type=int, required=True, nargs='+', help='A space-separated sequence of the number of moves.')
-    parser.add_argument('--sounds-list', type=str, nargs='*', choices=[SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT], help='An optional space-separated sequence of end sounds. If none, we assume all sounds are `key_select`.')
-    parser.add_argument('--keyboard-type', type=str, required=True, choices=[t.name.lower() for t in KeyboardType], help='The name of the TV type to use.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
+    parser.add_argument('--max-num-results', type=int, required=True, help='The maximum number of search results.')
     args = parser.parse_args()
 
-    keyboard_type = KeyboardType[args.keyboard_type.upper()]
+    keyboard_type = KeyboardType.SAMSUNG
     graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
 
@@ -206,24 +206,19 @@ if __name__ == '__main__':
 
     dictionary.set_characters(characters)
 
-    if keyboard_type == KeyboardType.SAMSUNG:
-        default_sound = SAMSUNG_KEY_SELECT
-        tv_type = SmartTVType.SAMSUNG
-    elif keyboard_type in (KeyboardType.APPLE_TV_SEARCH, KeyboardType.APPLE_TV_PASSWORD):
-        default_sound = APPLETV_KEYBOARD_SELECT
-        tv_type = SmartTVType.APPLE_TV
-    else:
-        raise ValueError('Unknown TV type: {}'.format(args.keyboard_type))
+    default_sound = SAMSUNG_KEY_SELECT
+    tv_type = SmartTVType.SAMSUNG
 
     print('Target String: {}'.format(args.target))
+    moves = findPath(args.target, True, True, 0.0, 1.0, 0)
 
-    if (args.sounds_list is None) or (len(args.sounds_list) == 0):
-        moves = [Move(num_moves=num_moves, end_sound=default_sound) for num_moves in args.moves_list]
-    else:
-        assert len(args.moves_list) == len(args.sounds_list), 'Must provide the same number of moves ({}) and sounds ({})'.format(len(args.moves_list), len(args.sounds_list))
-        moves = [Move(num_moves=num_moves, end_sound=end_sound) for num_moves, end_sound in zip(args.moves_list, args.sounds_list)]
+    #if (args.sounds_list is None) or (len(args.sounds_list) == 0):
+    #    moves = [Move(num_moves=num_moves, end_sound=default_sound) for num_moves in args.moves_list]
+    #else:
+    #    assert len(args.moves_list) == len(args.sounds_list), 'Must provide the same number of moves ({}) and sounds ({})'.format(len(args.moves_list), len(args.sounds_list))
+    #    moves = [Move(num_moves=num_moves, end_sound=end_sound) for num_moves, end_sound in zip(args.moves_list, args.sounds_list)]
 
-    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=10)):
+    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results)):
         print('Guess: {}, Score: {}'.format(guess, score))
 
         if args.target == guess:

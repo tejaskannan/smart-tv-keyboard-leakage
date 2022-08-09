@@ -1,28 +1,24 @@
-from enum import auto
-from typing import List
+import numpy as np
+import pandas as pd
+import random
+import math
+import matplotlib.pyplot as plt
 
+from argparse import ArgumentParser
+from enum import auto
+from typing import List, Dict, Tuple
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.gaussian_process import GaussianProcessClassifier
-from argparse import ArgumentParser
-
 from sklearn.metrics import f1_score,accuracy_score
 from sklearn.model_selection import train_test_split
-import numpy as np
-import pandas as pd
-import random
-import matplotlib.pyplot as plt
-
 from sklearn.model_selection import RandomizedSearchCV
 
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
-
-from smarttvleakage.max.alg_determine_autocomplete import get_score_from_ms, get_score_from_ms_improved, adjust_for_len
-from smarttvleakage.max.manual_score_dict import build_msfd, build_ms_dict, buildDict
-from smarttvleakage.max.simulate_ms import grab_words, simulate_ms
-import math
-
+from smarttvleakage.suggestions_model.alg_determine_autocomplete import get_score_from_ms, get_score_from_ms_improved, adjust_for_len
+from smarttvleakage.suggestions_model.manual_score_dict import build_msfd, build_ms_dict, buildDict
+from smarttvleakage.suggestions_model.simulate_ms import grab_words, simulate_ms
 from smarttvleakage.utils.file_utils import save_pickle_gz
 
 
@@ -39,7 +35,7 @@ def make_column_titles_dist(bins : List[int]) -> List[str]:
     return list(map(lambda n: "d " + n, map(str, bins)))
 
 # [Int], [Int], Int -> (Dict: Int -> Int)
-def moves_to_hist_dist(moves : List[int], bins : List[int], weighted : int) -> dict[int, int]:
+def moves_to_hist_dist(moves : List[int], bins : List[int], weighted : int) -> Dict[int, int]:
     # make empty hist
     
     hist = {}
@@ -97,7 +93,7 @@ def moves_to_hist_dist(moves : List[int], bins : List[int], weighted : int) -> d
 
 # Turns a histogram dictionary into a list for features
 # (Dict: Int -> Int), [Int] -> [Int]
-def hist_to_list(hist : dict[int, int], bins : int) -> List[int]:
+def hist_to_list(hist : Dict[int, int], bins : int) -> List[int]:
     lst = []
     for bin in bins:
         lst.append(hist[bin])
@@ -112,7 +108,7 @@ def make_row_dist(moves : List[int], bins : List[int], weighted : int) -> List[i
 
 
 # [Int], Int -> DF
-def make_df(bins_dist : List[int], weighted : int, ms_dict_auto : dict[str, list[int]], ms_dict_non : dict[str, list[int]]):
+def make_df(bins_dist : List[int], weighted : int, ms_dict_auto : Dict[str, List[int]], ms_dict_non : Dict[str, List[int]]):
 
 
     data = np.empty((0, len(bins_dist) + 2), dtype=float)
@@ -147,7 +143,7 @@ def make_df(bins_dist : List[int], weighted : int, ms_dict_auto : dict[str, list
 
 # Takes an ID and returns the corresponding (word, ty)
 # Int -> (String, String)
-def id_to_real(id : int, ms_dict_auto : dict[str, list[int]], ms_dict_non : dict[str, list[int]]) -> tuple[str, str]:
+def id_to_real(id : int, ms_dict_auto : Dict[str, List[int]], ms_dict_non : Dict[str, List[int]]) -> Tuple[str, str]:
 
     full_list = []
     for key in ms_dict_auto:
@@ -189,7 +185,7 @@ def get_pred(df, model, seed : int):
 
 # DF, Model, Int -> [(Int, Int, (Float, Float))]
 # The returned list has structure [(ID, Ty, (chance of "non", chance of "auto"))]
-def get_pred_probas(df, model, seed : int) -> List[tuple[int, str, tuple[float, float]]]:
+def get_pred_probas(df, model, seed : int) -> List[Tuple[int, str, Tuple[float, float]]]:
     y = df.ac
     X = df.drop(["ac"], axis=1, inplace=False)
     
@@ -227,7 +223,7 @@ def get_word_results(df, model, iters):
 
 # Returns a dictionary mapping (word, ty) to a sum of prediction chances and a total number of predictions
 # DF, Model, Int -> (Dict: (String, String) -> (Float, Float))
-def get_word_results_proba(df, model, iters : int, ms_dict_auto : dict[str, list[int]], ms_dict_non : dict[str, list[int]]) -> dict[tuple[str, str], tuple[float, float]]:
+def get_word_results_proba(df, model, iters : int, ms_dict_auto : Dict[str, List[int]], ms_dict_non : Dict[str, List[int]]) -> Dict[Tuple[str, str], Tuple[float, float]]:
 
     results_dict = {}
     for i in range(iters):
@@ -344,11 +340,11 @@ def eval_weighting(max_bins_dist : int, iters : int):
 # and returns a result dictionary with a method selection and results from each method
 # dict (word, ty) -> (accuracy sum, total), float ->
 # dict (word, ty) -> (method, ml_certainty, manual_score)
-def combine_algorithmic(results_dict : dict[tuple[str, str], 
-                        tuple[float, int]], 
+def combine_algorithmic(results_dict : Dict[Tuple[str, str], 
+                        Tuple[float, int]], 
                         certainty_cutoff : float,
-                        ms_dict_auto : dict[str, list[int]],
-                        ms_dict_non : dict[str, list[int]]) -> dict[tuple[str, str], tuple[str, float, float]]:
+                        ms_dict_auto : Dict[str, List[int]],
+                        ms_dict_non : Dict[str, List[int]]) -> Dict[Tuple[str, str], Tuple[str, float, float]]:
     print("combine_algorithmic")
 
     msfd = build_msfd()
@@ -389,7 +385,7 @@ def eval_params(bins_list : List[int],
                  weights : List[int], 
                  certainty_cutoffs : List[float], 
                  max_length : int, 
-                 iters : int) -> dict[tuple[int, int, float], dict[tuple[str, str], tuple[str, float, float]]]:
+                 iters : int) -> Dict[Tuple[int, int, float], Dict[Tuple[str, str], Tuple[str, float, float]]]:
 
     ms_dict_auto = build_ms_dict("auto")
     ms_dict_non = build_ms_dict("non")
@@ -446,7 +442,7 @@ def eval_params_sim(bins_list : List[int],
                  weights : List[int], 
                  certainty_cutoffs : List[float], 
                  max_length : int, 
-                 iters : int) -> dict[tuple[int, int, float], dict[tuple[str, str], tuple[str, float, float]]]:
+                 iters : int) -> Dict[Tuple[int, int, float], Dict[Tuple[str, str], Tuple[str, float, float]]]:
 
 
     englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
@@ -509,7 +505,7 @@ def eval_params_sim(bins_list : List[int],
 
 # Takes a combined result dictionary and prints relevant analysis
 # (dict: (word, ty) -> (method, ml_score, manual_score)) ->
-def analyze_params(final_dict : dict[tuple[str, str], tuple[str, float, float]], 
+def analyze_params(final_dict : Dict[Tuple[str, str], Tuple[str, float, float]], 
                     manual_score_cutoff : float) -> float:
     ml_right = (0, 0) # used, unused
     alg_right = 0
@@ -594,7 +590,7 @@ def combine_confidences(ml_score : float, manual_score : float) -> int:
 # uses combined confidences
 # Takes a combined result dictionary and prints relevant analysis
 # (dict: (word, ty) -> (method, ml_score, manual_score)) ->
-def analyze_params_new(final_dict : dict[tuple[str, str], tuple[str, float, float]], 
+def analyze_params_new(final_dict : Dict[Tuple[str, str], Tuple[str, float, float]], 
                     manual_score_cutoff : float,
                     certainty_cutoff : float) -> float:
     
@@ -708,7 +704,7 @@ def save_model(path : str, model):
 
 
 # takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
-def classify_ms(model, ms : list[int]) -> int:
+def classify_ms(model, ms : List[int]) -> int:
     bins = 5
     weight = 4
     certainty_cutoff = .26
@@ -724,8 +720,6 @@ def classify_ms(model, ms : list[int]) -> int:
     column_titles = make_column_titles_dist(range(bins))
     df = pd.DataFrame(data = data, columns = column_titles)
 
-    print(df)
-    
     # now predict from the dataframe, and then add manual
 
     pred_probas = model.predict_proba(df)[0]
@@ -743,7 +737,7 @@ def classify_ms(model, ms : list[int]) -> int:
             return 1
 
 # takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
-def classify_ms_sim(model, ms : list[int]) -> int:
+def classify_ms_sim(model, ms : List[int]) -> int:
     bins = 3
     weight = 3
     certainty_cutoff = .24
