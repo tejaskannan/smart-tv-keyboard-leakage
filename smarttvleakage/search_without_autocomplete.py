@@ -17,7 +17,7 @@ SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode', 'curr
 VisitedState = namedtuple('VisitedState', ['keys', 'current_key'])
 CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment', 'increment'])
 
-MISTAKE_RATE = 1e-3
+MISTAKE_RATE = 1e-2
 DECAY_RATE = 0.9
 SUGGESTION_THRESHOLD = 8
 SUGGESTION_FACTOR = 2.0
@@ -68,7 +68,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         candidate_count += 1
 
         if len(current_state.keys) == target_length:
-
             if current_string not in guessed_strings:
                 yield current_string, current_state.score, candidate_count
 
@@ -99,16 +98,16 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             candidate_num_moves = num_moves - 1
             num_mistakes = 0
 
-            while candidate_num_moves >= 1:
-                adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                            num_moves=num_moves,
-                                                            num_mistakes=num_mistakes)
+            #while candidate_num_moves >= 1:
+            #    adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
+            #                                                num_moves=num_moves,
+            #                                                num_mistakes=num_mistakes)
 
-                candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
-                move_candidates.append(candidate_move)
+            #    candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
+            #    move_candidates.append(candidate_move)
 
-                num_mistakes += 1
-                candidate_num_moves -= 1
+            #    num_mistakes += 1
+            #    candidate_num_moves -= 1
 
             # Include one more in case we messed up the audio extraction (e.g., on double moves)
             candidate_num_moves = num_moves + 1
@@ -142,7 +141,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                 filtered_probs = {n: (1.0 / len(neighbors)) for n in neighbors}
             else:
                 if tv_type == SmartTVType.SAMSUNG:
-                    neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS), neighbors))
+                    neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS) and (n not in DELETE_SOUND_KEYS), neighbors))
                 elif tv_type == SmartTVType.APPLE_TV:
                     neighbors = list(filter(lambda n: (n not in DELETE_SOUND_KEYS), neighbors))
 
@@ -151,13 +150,22 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                              current_string=current_string,
                                                              dictionary=dictionary)
 
+                # TODO: Should normalize over the entire set of filtered probs (for all mistake possibilities)
+
+            #if current_string == 'ted l\'':
+            #    print('Neighbors: {}'.format(neighbors))
+            #    print('Filtered Probs: {}'.format(filtered_probs))
+            #    print(candidate_move)
+            #    print('==========')
+
             for neighbor_key, score in filtered_probs.items():
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_word = get_string_from_keys(candidate_keys)
                 visited_str = ' '.join(candidate_keys)
                 visited_state = VisitedState(keys=visited_str, current_key=neighbor_key)
 
-                should_aggregate_score = len(candidate_keys) < target_length
+                if (len(candidate_keys) == target_length) and (neighbor_key in ('<CHANGE>', '<SPACE>')):
+                    continue
 
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,

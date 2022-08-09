@@ -46,7 +46,7 @@ if __name__ == '__main__':
     tv_type_clf = SmartTVTypeClassifier()
 
     # Load the suggestions model
-    suggestions_model = read_pickle_gz('max/model.pkl.gz')
+    suggestions_model = read_pickle_gz('suggestions_model/model.pkl.gz')
 
     rank_list: List[int] = []
     num_candidates_list: List[int] = []
@@ -96,7 +96,8 @@ if __name__ == '__main__':
 
         # Detect whether this sequence came from a keyboard with inline suggestions
         move_sequence_vals = list(map(lambda m: m.num_moves, move_sequence))
-        use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
+        #use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
+        use_suggestions = False
 
         if use_suggestions:
             max_num_results = args.max_num_results if (not did_use_autocomplete) else AUTOCOMPLETE_PREFIX_COUNT
@@ -135,6 +136,8 @@ if __name__ == '__main__':
         did_find_word = False
 
         for rank, (guess, score, num_candidates) in enumerate(ranked_candidates):
+            print('Guess: {}, Score: {}'.format(guess, score))
+
             if guess == true_word:
                 rank_list.append(rank + 1)
                 rank_dict[true_word] = rank + 1

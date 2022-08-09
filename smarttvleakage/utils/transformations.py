@@ -1,4 +1,4 @@
-from typing import Set, Dict, List
+from typing import Set, Dict, List, Iterable
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
@@ -8,7 +8,7 @@ from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictiona
 from .constants import KeyboardType
 
 
-MIN_COUNT = 5
+MIN_COUNT = 3
 
 
 def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], current_string: str, dictionary: CharacterDictionary) -> Dict[str, float]:
@@ -23,10 +23,10 @@ def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List
                                                       min_count=MIN_COUNT)
 
     # Re-filter the counts
-    filtered_counts = { key: float(smoothed_counts[key]) for key in candidate_keys if key in smoothed_counts }
+    filtered_counts = {key: smoothed_counts[key] for key in candidate_keys if key in smoothed_counts}
 
-    score_sum = sum(filtered_counts.values())
-    return { key: (score / score_sum) for key, score in filtered_counts.items() }
+    score_sum = sum(map(lambda t: t[0], filtered_counts.values()))
+    return { key: score[1] * (score[0] / score_sum) for key, score in filtered_counts.items() }
 
 
 def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
@@ -79,6 +79,14 @@ def get_string_from_keys(keys: List[str]) -> str:
             prev_turn_off_caps_lock = False
 
     return ''.join(characters)
+
+
+def create_trigrams(string: str) -> Iterable[str]:
+    """
+    Computes the moving-window tri-grams in the given word
+    """
+    for idx in range(len(string) - 2):
+        yield string[idx:idx+3]
 
 
 def get_bit(val: int, bit_idx: int) -> int:

@@ -36,7 +36,7 @@ class DecayingMistakeModel(MistakeModel):
         return self._suggestion_factor
 
     def get_mistake_prob(self, move_num: int, num_moves: int, num_mistakes: int) -> float:
-        offset = max(num_moves - 2, 0) + num_mistakes
+        offset = num_mistakes
 
         if (self.suggestion_threshold is not None) and (self.suggestion_factor is not None) and (self.suggestion_threshold <= move_num):
             offset /= self.suggestion_factor

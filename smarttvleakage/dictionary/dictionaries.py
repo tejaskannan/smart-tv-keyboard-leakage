@@ -9,7 +9,7 @@ from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pick
 from smarttvleakage.dictionary.trie import Trie
 
 UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
-SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>' })
+SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>', '<DONE>', '<CANCEL>'})
 DELETE_SOUND_KEYS = frozenset({ '<BACK>', '<DELETEALL>' })
 
 
@@ -18,6 +18,7 @@ CHANGE = '<CHANGE>'
 BACKSPACE = '<BACK>'
 NEXT = '<NEXT>'
 SPACE = '<SPACE>'
+DISCOUNT_FACTOR = 0.1
 
 
 CHARACTER_TRANSLATION = {
@@ -178,6 +179,11 @@ class EnglishDictionary(CharacterDictionary):
         self._single_char_counts: Counter = Counter()
         self._two_char_counts: Dict[str, Counter] = dict()
 
+    @property
+    def total_count(self) -> int:
+        assert self._is_built, 'Must call build() first'
+        return self._trie._root.count
+
     def build(self, path: str, min_count: int, has_counts: bool):
         if self._is_built:
             return
@@ -215,6 +221,8 @@ class EnglishDictionary(CharacterDictionary):
 
         # Build the trie
         for word, count in string_dictionary.items():
+            count = max(count, 1)
+
             # Increment the single character counts
             for character in word:
                 self._single_char_counts[character] += 1
@@ -254,19 +262,29 @@ class EnglishDictionary(CharacterDictionary):
     def does_contain_string(self, string: str) -> bool:
         return self._trie.does_contain_string(string)
 
-    def smooth_letter_counts(self, prefix: str, counts: Dict[str, int], min_count: int) -> Dict[str, int]:
-        smoothed: Dict[str, int] = { key: count for key, count in counts.items() }
+    def smooth_letter_counts(self, prefix: str, counts: Dict[str, int], min_count: int) -> Dict[str, Tuple[int, float]]:
+        smoothed: Dict[str, int] = { key: (count, 1.0) for key, count in counts.items() }
+
+        if prefix == 'ted l':
+            print(counts)
+
         num_above_min_count = sum((int(count >= min_count) for count in counts.values()))
 
         if (num_above_min_count == 0) and (len(prefix) >= 1):
             bigram_suffix = prefix[-1]
-            smoothed = {char: count for char, count in self._two_char_counts.get(bigram_suffix, dict()).items()}
+            smoothed = {char: (count + 100, DISCOUNT_FACTOR) for char, count in self._two_char_counts.get(bigram_suffix, dict()).items()}
+
+            if prefix == 'ted l':
+                print(smoothed)
 
         if num_above_min_count == 0:
-            smoothed = {char: count for char, count in self._single_char_counts.items()}
+            smoothed = {char: (count + 100, DISCOUNT_FACTOR) for char, count in self._single_char_counts.items()}
 
         for c in self._characters:
-            smoothed[c] = smoothed.get(c, 0) + 1
+            if c in smoothed:
+                smoothed[c] = (smoothed[c][0] + 1, smoothed[c][1])
+            else:
+                smoothed[c] = (1, 1.0)
 
         return smoothed
 
