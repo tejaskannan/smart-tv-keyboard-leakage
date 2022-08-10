@@ -1,7 +1,7 @@
 import re
 import argparse
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
-from smarttvleakage.audio.move_extractor import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 
 
 def get_possible(move, thing, pos):
@@ -85,7 +85,7 @@ def find_regex(moves1):
 	for idx, move_list in enumerate(moves):
 		page2 = False
 		for move in move_list:
-			if move[1] == Sound.SELECT:
+			if move[1] == SAMSUNG_SELECT:
 				if page2:
 					page2 = False
 					pos[idx] = [0]
@@ -130,7 +130,7 @@ def find_regex(moves1):
 	pos_temp = [[1] for i in moves]
 	for pos_idx, move_seq in enumerate(moves):
 		for idx, move in enumerate(move_seq):
-			if move[1] == Sound.SELECT:
+			if move[1] == SAMSUNG_SELECT:
 				for i in range(idx, 0, -1):
 					thing = get_possible(move_seq[i], standard, pos_temp[pos_idx])
 					regex_temp[pos_idx][i-1] = thing[0]
