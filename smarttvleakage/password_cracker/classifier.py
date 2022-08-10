@@ -21,6 +21,8 @@ def get_possible(move, thing, pos):
 				else:
 					counter=len(thing)-1
 			while counter>=i+1:
+				counter = int(counter)
+				#print('counter: ',counter)
 				for j in thing[counter]:
 					if j not in output:
 						output.append(j)
@@ -72,10 +74,10 @@ def find_regex(moves1):
 				['0', '\\[', '}'],
 				['\\]']]
 
-	escape = '.+*?^$()[]{}|\\'
+	# escape = '.+*?^$()[]{}|\\'
 	moves = [moves1]
-	page_1 = '?l?d^*~@!\\,./-'
-	page_2 = '?d!@#$/^&*()[]\'";:\\,??<>{}-+=%\\'
+	# page_1 = '?l?d^*~@!\\,./-'
+	# page_2 = '?d!@#$/^&*()[]\'";:\\,??<>{}-+=%\\'
 	pos = [[0] for i in moves]
 	words = []
 	regex = [[] for i in moves]
@@ -111,20 +113,33 @@ def find_regex(moves1):
 					totals[idx_exp][idx_letter]+=1
 				elif prev == '\\':
 					totals[idx_exp][idx_letter]+=1
-				prev = k
-	for word in totals:
-		averages.append(1)
-		for letter in word:
-			averages[-1]*=letter
-	total = 0
-	count = 0
-	for word in averages:
-		total+=word
-		count+=1
+				prev = character
+	# for word in totals:
+	# 	averages.append(1)
+	# 	for letter in word:
+	# 		averages[-1]*=letter
+	# total = 0
+	# count = 0
+	# for word in averages:
+	# 	total+=word
+	# 	count+=1
 
-	words_combined = ' '.join(words)
-	incorrect = 0
-	return regex
+	# words_combined = ' '.join(words)
+	# incorrect = 0
+	regex_temp = [['' for j in i] for i in regex]
+	pos_temp = [[1] for i in moves]
+	for pos_idx, move_seq in enumerate(moves):
+		for idx, move in enumerate(move_seq):
+			if move[1] == Sound.SELECT:
+				for i in range(idx, 0, -1):
+					thing = get_possible(move_seq[i], standard, pos_temp[pos_idx])
+					regex_temp[pos_idx][i-1] = thing[0]
+					pos_temp[pos_idx] = thing[1]
+		for idx,expression in enumerate(regex[pos_idx]):
+			if regex_temp[pos_idx][idx] != '':
+				if len(regex_temp[pos_idx][idx])<len(expression):
+					regex[pos_idx][idx] = regex_temp[pos_idx][idx]
+		return regex
 
 
 if __name__ == '__main__':
