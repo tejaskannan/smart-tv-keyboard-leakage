@@ -1,9 +1,9 @@
 import argparse
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.audio.move_extractor import Sound, Move
+from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 from typing import Set, List, Dict, Optional, Iterable, Tuple
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 import string
@@ -43,7 +43,7 @@ if __name__ == '__main__':
 	parser.add_argument('--o', type=str, required=True)
 	args = parser.parse_args()
 
-	graph = MultiKeyboardGraph()
+	graph = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
 
 	moves = read_moves(args.moves_list)
 
@@ -51,6 +51,8 @@ if __name__ == '__main__':
 		dictionary = UniformDictionary()
 	else:
 		dictionary = EnglishDictionary.restore(path=args.dictionary_path)
+
+        dictionary.set_characters(graphs.get_characters())
 
 	output = []
 	for z, move_seq in enumerate(moves):
@@ -60,4 +62,5 @@ if __name__ == '__main__':
 			continue
 		output.append({"word": word, "prediction": test_with_search(word, move_seq, graph, dictionary)})
 		print('\n')
-	save_jsonl_gz(output, args.o)
+
+        save_jsonl_gz(output, args.o)

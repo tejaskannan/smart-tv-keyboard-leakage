@@ -3,13 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os.path
 from argparse import ArgumentParser
-from collections import deque
+from collections import deque, namedtuple
 from matplotlib import image
 from scipy.ndimage import maximum_filter
+from scipy.signal import convolve
 from typing import List, Tuple
 
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
-from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram, compute_masked_spectrogram, moving_window_similarity
+from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
 # Key Select Parameters: (20, 40), threshold -75, constellation deltas (10, 10), TOL (2, 2)
@@ -17,16 +18,67 @@ from smarttvleakage.utils.file_utils import read_pickle_gz
 # Move -> THRESHOLD -67, DELTAS: (t = 5, f = 3)  RANGE (0, 20), TOL (f 2, t 1), window size 25 -> set cutoff at 0.45
 # DELETE -> THRESHOLD -67, DELTAS: (t = 5, f = 3), TOL: (t = 1, freq = 2) -> set cutoff at 0.95 (if move score below 315 and backspace -> pick backspace)
 
+ThresholdRange = namedtuple('ThresholdRange', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
 
-FREQ_DELTA = 3
-TIME_DELTA = 5
-THRESHOLD = -65
-FREQ_RANGE = (0, 40)
-FREQ_TOL = 2
-TIME_TOL = 2
+
+# Samsung
+KEY_SELECT_RANGES = [ThresholdRange(-60, -40, 0, 20), ThresholdRange(-75, -65, 20, 40)]
+MOVE_RANGES = [ThresholdRange(-55, -45, 0, 20), ThresholdRange(-65, -55, 20, 30)]
+SELECT_RANGES = [ThresholdRange(-60, -55, 0, 10), ThresholdRange(-60, -45, 10, 30)]
+SAMSUNG_DELETE_RANGES = [ThresholdRange(-70, -45, 0, 30)]
+
+# Apple
+SYSTEM_MOVE_RANGES = [ThresholdRange(-65, -55, 0, 12), ThresholdRange(-60, -40, 12, 40)]
+KEYBOARD_MOVE_RANGES = [ThresholdRange(-50, -38, 0, 15), ThresholdRange(-60, -50, 15, 40)]
+KEYBOARD_SELECT_RANGES = [ThresholdRange(-60, -40, 0, 30)]
+DELETE_RANGES = [ThresholdRange(-55, -35, 0, 20), ThresholdRange(-65, -55, 20, 40)]  # Set Threshold at 1.1
+TOOLBAR_MOVE_RANGES = [ThresholdRange(-60, -45, 15, 25)]
+
+
+#FREQ_DELTA = 3
+#TIME_DELTA = 5
+#MIN_THRESHOLD = -60
+#MAX_THRESHOLD = -40
+#FREQ_RANGE = (0, 20)
+#FREQ_TOL = 2
+#TIME_TOL = 2
+WINDOW_SIZE = 8
 
 PLOT_DISTANCES = True
 PLOT_TARGET = False
+
+
+def compute_masked_spectrogram(spectrogram: float, threshold_range: ThresholdRange) -> np.ndarray:
+    clipped_spectrogram = spectrogram[threshold_range.min_freq:threshold_range.max_freq, :]
+    return np.logical_and(clipped_spectrogram >= threshold_range.min_threshold, clipped_spectrogram <= threshold_range.max_threshold).astype(int)
+
+
+def moving_window_similarity(target: np.ndarray, known: np.ndarray) -> List[float]:
+    target = target.T
+    known = known.T
+
+    segment_size = known.shape[0]
+    similarity: List[float] = []
+
+    for start in range(target.shape[0]):
+        end = start + segment_size
+        target_segment = target[start:end]
+
+        if len(target_segment) < segment_size:
+            target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
+
+        #sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
+        if np.all(target_segment == known):
+            sim_score = 1.0
+        else:
+            sim_score = 2 * np.sum(target_segment * known) / (np.sum(target_segment) + np.sum(known))
+
+        similarity.append(sim_score)
+
+    smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
+    similarity = convolve(similarity, smooth_filter).astype(float).tolist()
+
+    return similarity
 
 
 if __name__ == '__main__':
@@ -47,6 +99,7 @@ if __name__ == '__main__':
 
     target = create_spectrogram(channel0)
     known = create_spectrogram(known_channel0)
+    threshold_ranges = KEYBOARD_SELECT_RANGES
 
 #    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
 #
@@ -62,11 +115,13 @@ if __name__ == '__main__':
 #                                                    time_steps=target.shape[1])
 #
 
-    target_masked = compute_masked_spectrogram(target, threshold=THRESHOLD, min_freq=FREQ_RANGE[0], max_freq=FREQ_RANGE[1])
-    known_masked = compute_masked_spectrogram(known, threshold=THRESHOLD, min_freq=FREQ_RANGE[0], max_freq=FREQ_RANGE[1])
-    
-    similarity = moving_window_similarity(target=target_masked, known=known_masked, should_smooth=True, should_match_binary=True)
+    similarity_list: List[List[float]] = []
+    for threshold_range in threshold_ranges:
+        target_masked = compute_masked_spectrogram(target, threshold_range)
+        known_masked = compute_masked_spectrogram(known, threshold_range)
+        similarity_list.append(moving_window_similarity(target=target_masked, known=known_masked))
 
+    similarity = np.sum(similarity_list, axis=0)
 
     if PLOT_DISTANCES:
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
@@ -80,7 +135,7 @@ if __name__ == '__main__':
             ax.imshow(target_masked, cmap='gray_r')
             #ax.scatter(target_times, target_freq, color='red', marker='o')
         else:
-            ax.imshow(known_masked, cmap='gray_r')
+            ax.imshow(known, cmap='gray_r')
             #ax.scatter(known_times, known_freq, color='red', marker='o')
 
     plt.tight_layout()

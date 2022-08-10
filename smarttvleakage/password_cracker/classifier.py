@@ -1,7 +1,7 @@
 import re
 import argparse
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
-from smarttvleakage.audio.move_extractor import Move, Sound
+from smarttvleakage.audio.move_extractor import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 
 
 def get_possible(move, thing, pos):
