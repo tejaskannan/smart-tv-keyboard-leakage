@@ -3,10 +3,12 @@ import os.path
 import io
 import gzip
 from collections import Counter
-from typing import Dict, List, Optional, Iterable, Tuple
+from typing import Dict, List, Optional, Iterable, Tuple, Any
 
+from smarttvleakage.utils.ngrams import create_ngrams
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
+
 
 UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
 SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>', '<DONE>', '<CANCEL>'})
@@ -173,27 +175,17 @@ class EnglishDictionary(CharacterDictionary):
     def __init__(self, max_depth: int):
         super().__init__()
         self._trie = Trie(max_depth=max_depth)
+        self._single_char_counts: Counter = Counter()
+        self._bigram_counts = Trie(max_depth=2)
         self._is_built = False
         self._max_depth = max_depth
 
-        self._single_char_counts: Counter = Counter()
-        self._two_char_counts: Dict[str, Counter] = dict()
+    def parse_dictionary_file(self, path: str, min_count: int, has_counts: bool) -> Dict[str, int]:
+        string_dictionary: Dict[str, int] = dict()
 
-    @property
-    def total_count(self) -> int:
-        assert self._is_built, 'Must call build() first'
-        return self._trie._root.count
-
-    def build(self, path: str, min_count: int, has_counts: bool):
-        if self._is_built:
-            return
-
-        # Read the input words
         if path.endswith('.json'):
             string_dictionary = read_json(path)
         elif path.endswith('.txt'):
-            string_dictionary: Dict[str, int] = dict()
-
             with open(path, 'rb') as fin:
                 io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
 
@@ -219,25 +211,31 @@ class EnglishDictionary(CharacterDictionary):
         else:
             raise ValueError('Unknown file type: {}'.format(path))
 
+        return string_dictionary
+
+    def build(self, path: str, min_count: int, has_counts: bool):
+        if self._is_built:
+            return
+
+        # Read the input words
+        string_dictionary = self.parse_dictionary_file(path=path,
+                                                       min_count=min_count,
+                                                       has_counts=has_counts)
+
+        print('Indexing {} Strings...'.format(len(string_dictionary)))
+
         # Build the trie
         for word, count in string_dictionary.items():
             count = max(count, 1)
 
             # Increment the single character counts
             for character in word:
-                self._single_char_counts[character] += 1
+                self._single_char_counts[character] += count
 
-            # Increment the bi-gram counts
-            for idx in range(len(word) - 1):
-                first_char = word[idx]
-                second_char = word[idx + 1]
+            for bigram in create_ngrams(word, 2):
+                self._bigram_counts.add_string(bigram, count=count)
 
-                if first_char not in self._two_char_counts:
-                    self._two_char_counts[first_char] = Counter()
-
-                self._two_char_counts[first_char][second_char] += 1
-
-            self._trie.add_string(word, count=max(count, 1))
+            self._trie.add_string(word, count=count)
 
         self._is_built = True
 
@@ -262,51 +260,36 @@ class EnglishDictionary(CharacterDictionary):
     def does_contain_string(self, string: str) -> bool:
         return self._trie.does_contain_string(string)
 
-    def smooth_letter_counts(self, prefix: str, counts: Dict[str, int], min_count: int) -> Dict[str, Tuple[int, float]]:
-        smoothed: Dict[str, int] = { key: (count, 1.0) for key, count in counts.items() }
-
-        if prefix == 'ted l':
-            print(counts)
-
-        num_above_min_count = sum((int(count >= min_count) for count in counts.values()))
-
-        if (num_above_min_count == 0) and (len(prefix) >= 1):
-            bigram_suffix = prefix[-1]
-            smoothed = {char: (count + 100, DISCOUNT_FACTOR) for char, count in self._two_char_counts.get(bigram_suffix, dict()).items()}
-
-            if prefix == 'ted l':
-                print(smoothed)
-
-        if num_above_min_count == 0:
-            smoothed = {char: (count + 100, DISCOUNT_FACTOR) for char, count in self._single_char_counts.items()}
-
-        for c in self._characters:
-            if c in smoothed:
-                smoothed[c] = (smoothed[c][0] + 1, smoothed[c][1])
-            else:
-                smoothed[c] = (1, 1.0)
-
-        return smoothed
-
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
+        length = length if length is not None else len(prefix)
 
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix, length=length)
 
-        # Convert any needed characters
-        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
+        if (len(character_counts) == 0) and (len(prefix) >= 1):
+            character_counts = self._bigram_counts.get_next_characters(prefix=prefix[-1], length=None)
+
+        # If we still have no characters, then use the single-character counts
+        if len(character_counts) == 0:
+            character_counts = {key: count for key, count in self._single_char_counts.items()}
+
+        # Apply Laplace Smoothing
+        for character in self._characters:
+            character_counts[character] = character_counts.get(character, 0) + 1
+
+        # Convert any needed characters and normalize the result
+        total_count = sum(character_counts.values())
+        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): (count / total_count) for char, count in character_counts.items()}
 
         return character_counts
 
     @classmethod
-    def restore(cls, path: str):
-        data_dict = read_pickle_gz(path)
-
+    def restore(cls, serialized: Dict[str, Any]):
         dictionary = cls(max_depth=1)
-        dictionary._trie = data_dict['trie']
-        dictionary._single_char_counts = data_dict['single_char_counts']
-        dictionary._two_char_counts = data_dict['two_char_counts']
+        dictionary._trie = serialized['trie']
+        dictionary._single_char_counts = serialized['single_char_counts']
+        dictionary._bigram_counts = serialized['bigram_counts']
         dictionary._is_built = True
         dictionary._max_depth = dictionary._trie.max_depth
         return dictionary
@@ -315,6 +298,109 @@ class EnglishDictionary(CharacterDictionary):
         data_dict = {
             'trie': self._trie,
             'single_char_counts': self._single_char_counts,
-            'two_char_counts': self._two_char_counts
+            'bigram_counts': self._bigram_counts,
+            'dict_type': 'english'
         }
         save_pickle_gz(data_dict, path)
+
+
+class NgramDictionary(EnglishDictionary):
+
+    def __init__(self):
+        super().__init__(max_depth=0)
+        self._is_built = False
+
+        self._single_char_counts: Counter = Counter()
+        self._2gram_trie = Trie(max_depth=2)
+        self._3gram_trie = Trie(max_depth=3)
+        self._4gram_trie = Trie(max_depth=4)
+        self._total_count = 0
+
+    def build(self, path: str, min_count: int, has_counts: bool):
+        if self._is_built:
+            return
+
+        # Read the input words
+        string_dictionary = self.parse_dictionary_file(path=path,
+                                                       min_count=min_count,
+                                                       has_counts=has_counts)
+
+        # Build the ngram tries
+        for word, count in string_dictionary.items():
+            count = max(count, 1)
+
+            for character in create_ngrams(word, 1):
+                self._single_char_counts[character] += count
+
+            for two_gram in create_ngrams(word, 2):
+                self._2gram_trie.add_string(two_gram, count=count)
+
+            for three_gram in create_ngrams(word, 3):
+                self._3gram_trie.add_string(three_gram, count=count)
+
+            for four_gram in create_ngrams(word, 4):
+                self._4gram_trie.add_string(four_gram, count=count)
+
+            self._total_count += 1
+
+        self._is_built = True
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        assert self._is_built, 'Must call build() first'
+        length = length if length is not None else len(prefix)
+
+        if length == 1:
+            character_counts = {char: count for char, count in self._single_char_counts.items()}
+        elif length == 2:
+            character_counts = self._2gram_trie.get_next_characters(prefix, length=None)
+        elif length == 3:
+            character_counts = self._3gram_trie.get_next_characters(prefix[-2:], length=None)
+        else:
+            character_counts = self._4gram_trie.get_next_characters(prefix[-3:], length=None) 
+
+        # Apply Laplace Smoothing
+        for character in self._characters:
+            character_counts[character] = character_counts.get(character, 0) + 1
+
+        # Convert any needed characters and normalize the result
+        total_count = sum(character_counts.values())
+        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): (count / total_count) for char, count in character_counts.items()}
+
+        return character_counts
+
+    @classmethod
+    def restore(cls, serialized: Dict[str, Any]):
+        data_dict = read_pickle_gz(path)
+
+        dictionary = cls()
+        dictionary._single_char_counts = serialized['1gram']
+        dictionary._2gram_trie = serialized['2gram']
+        dictionary._3gram_trie = serialized['3gram']
+        dictionary._4gram_trie = serialized['4gram']
+        dictionary._is_built = True
+        return dictionary
+
+    def save(self, path: str):
+        data_dict = {
+            '1gram': self._single_char_counts,
+            '2gram': self._2gram_trie,
+            '3gram': self._3gram_trie,
+            '4gram': self._4gram_trie,
+            'dict_type': 'ngram'
+        }
+        save_pickle_gz(data_dict, path)
+
+
+def restore_dictionary(path: str) -> CharacterDictionary:
+    if path == 'uniform':
+        return UniformDictionary()
+    else:
+        data_dict = read_pickle_gz(path)
+        dict_type = data_dict['dict_type']
+
+        if dict_type == 'english':
+            return EnglishDictionary.restore(data_dict)
+        elif dict_type == 'ngram':
+            return NgramDictionary.restore(data_dict)
+        else:
+            raise ValueError('Unknown dictionary type: {}'.format(dict_type))

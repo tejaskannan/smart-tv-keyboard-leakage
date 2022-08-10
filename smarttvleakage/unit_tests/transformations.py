@@ -1,6 +1,7 @@
 import unittest
 
 from smarttvleakage.utils.transformations import capitalization_combinations, get_string_from_keys
+from smarttvleakage.utils.ngrams import create_ngrams
 
 
 class Transformations(unittest.TestCase):
@@ -59,6 +60,29 @@ class Transformations(unittest.TestCase):
         result = get_string_from_keys(keys)
 
         self.assertEqual(result, '49ers')
+
+
+class TestNgrams(unittest.TestCase):
+
+    def test_1grams(self):
+        string = '49ers'
+        self.assertEqual(list(create_ngrams(string, 1)), ['4', '9', 'e', 'r', 's'])
+
+    def test_2grams(self):
+        string = '49ers'
+        self.assertEqual(list(create_ngrams(string, 2)), ['49', '9e', 'er', 'rs'])
+
+    def test_3grams(self):
+        string = 'lance'
+        self.assertEqual(list(create_ngrams(string, 3)), ['lan', 'anc', 'nce'])
+
+    def test_4grams(self):
+        string = 'lance'
+        self.assertEqual(list(create_ngrams(string, 4)), ['lanc', 'ance'])
+
+    def test_4grams_longer(self):
+        string = 'the'
+        self.assertEqual(list(create_ngrams(string, 4)), [])
 
 
 if __name__ == '__main__':

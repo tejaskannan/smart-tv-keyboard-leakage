@@ -6,7 +6,7 @@ from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_SEARCH_ALPHABET, SAMSUNG_STANDARD
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
+from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
@@ -19,6 +19,8 @@ CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment', 'increme
 
 MISTAKE_RATE = 1e-2
 DECAY_RATE = 0.9
+SCORE_THRESHOLD = 1e-7
+
 SUGGESTION_THRESHOLD = 8
 SUGGESTION_FACTOR = 2.0
 CUTOFF = 0.05
@@ -98,16 +100,16 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             candidate_num_moves = num_moves - 1
             num_mistakes = 0
 
-            #while candidate_num_moves >= 1:
-            #    adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
-            #                                                num_moves=num_moves,
-            #                                                num_mistakes=num_mistakes)
+            while candidate_num_moves >= 1:
+                adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
+                                                            num_moves=num_moves,
+                                                            num_mistakes=num_mistakes)
 
-            #    candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
-            #    move_candidates.append(candidate_move)
+                candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
+                move_candidates.append(candidate_move)
 
-            #    num_mistakes += 1
-            #    candidate_num_moves -= 1
+                num_mistakes += 1
+                candidate_num_moves -= 1
 
             # Include one more in case we messed up the audio extraction (e.g., on double moves)
             candidate_num_moves = num_moves + 1
@@ -150,15 +152,14 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                              current_string=current_string,
                                                              dictionary=dictionary)
 
-                # TODO: Should normalize over the entire set of filtered probs (for all mistake possibilities)
-
-            #if current_string == 'ted l\'':
-            #    print('Neighbors: {}'.format(neighbors))
-            #    print('Filtered Probs: {}'.format(filtered_probs))
-            #    print(candidate_move)
-            #    print('==========')
-
             for neighbor_key, score in filtered_probs.items():
+                adjusted_score = score * candidate_move.adjustment
+
+                # Skip strings below a threshold. These are so low scoring, we are unlikely
+                # to consider them later on.
+                if adjusted_score < SCORE_THRESHOLD:
+                    continue
+
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_word = get_string_from_keys(candidate_keys)
                 visited_str = ' '.join(candidate_keys)
@@ -172,7 +173,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       mode=current_state.keyboard_mode,
                                                       keyboard_type=keyboard_type)
 
-                    next_state_score = current_state.score * score * candidate_move.adjustment
+                    next_state_score = current_state.score * adjusted_score
                     next_move_idx = move_idx + candidate_move.increment
 
                     next_state = SearchState(keys=candidate_keys,
@@ -207,11 +208,8 @@ if __name__ == '__main__':
     graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
 
-    if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary()
-    else:
-        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
-
+    print('Restoring dictionary...')
+    dictionary = restore_dictionary(args.dictionary_path)
     dictionary.set_characters(characters)
 
     default_sound = SAMSUNG_KEY_SELECT

@@ -16,17 +16,18 @@ def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List
     Returns a dictionary of normalized scores for present keys.
     """
     filtered_counts = { key: key_counts[key] for key in candidate_keys if key in key_counts }
+    return filtered_counts
 
     # Smooth the counts (can add characters)
-    smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
-                                                      counts=filtered_counts,
-                                                      min_count=MIN_COUNT)
+    #smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
+    #                                                  counts=filtered_counts,
+    #                                                  min_count=MIN_COUNT)
 
-    # Re-filter the counts
-    filtered_counts = {key: smoothed_counts[key] for key in candidate_keys if key in smoothed_counts}
+    ## Re-filter the counts
+    #filtered_counts = {key: smoothed_counts[key] for key in candidate_keys if key in smoothed_counts}
 
-    score_sum = sum(map(lambda t: t[0], filtered_counts.values()))
-    return { key: score[1] * (score[0] / score_sum) for key, score in filtered_counts.items() }
+    #score_sum = sum(map(lambda t: t[0], filtered_counts.values()))
+    #return { key: score[1] * (score[0] / score_sum) for key, score in filtered_counts.items() }
 
 
 def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
@@ -79,14 +80,6 @@ def get_string_from_keys(keys: List[str]) -> str:
             prev_turn_off_caps_lock = False
 
     return ''.join(characters)
-
-
-def create_trigrams(string: str) -> Iterable[str]:
-    """
-    Computes the moving-window tri-grams in the given word
-    """
-    for idx in range(len(string) - 2):
-        yield string[idx:idx+3]
 
 
 def get_bit(val: int, bit_idx: int) -> int:

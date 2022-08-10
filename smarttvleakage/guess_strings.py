@@ -7,7 +7,7 @@ from typing import Tuple, List, Dict
 
 from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVTypeClassifier
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
+from smarttvleakage.dictionary import restore_dictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions, apply_autocomplete
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
@@ -34,12 +34,7 @@ if __name__ == '__main__':
 
     # Load the dictionary
     print('Starting to load the dictionary...')
-
-    if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary()
-    else:
-        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
-
+    dictionary = restore_dictionary(path=args.dictionary_path)
     print('Finished loading dictionary.')
 
     # Make the TV Type classifier
