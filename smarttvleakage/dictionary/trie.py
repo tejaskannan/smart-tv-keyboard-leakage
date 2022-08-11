@@ -1,5 +1,6 @@
 import os
-from collections import deque, defaultdict
+import numpy as np
+from collections import deque, defaultdict, Counter
 from dataclasses import dataclass, field
 from queue import PriorityQueue
 from typing import Optional, Dict, Any, List, DefaultDict, Set, Iterable
@@ -188,6 +189,35 @@ class Trie:
                     child_dict = next_dict
 
         return child_dict
+
+    def get_max_log_prob(self, prefix: str, single_char_counts: Counter, length: int) -> float:
+        if len(prefix) >= length:
+            return 0.0
+
+        num_remaining = len(prefix) - length
+        node = self.get_node_for(prefix)
+
+        if node is None:
+            total_count = sum(single_char_counts.values())
+            most_common_prob = single_char_counts.most_common(1)[0][1]
+            return -1 * num_remaining * np.log(most_common_prob)
+        else:
+            remaining_prob = 1.0
+
+            while (node is not None) and (num_remaining > 0):
+                children = node.get_children()
+                total_count = sum(children.values())
+                probs = {key: (count / total_count) for key, count in children.items()}
+
+                keys = [key for key in children.keys()]
+                key_probs = [probs[key] for key in keys]
+                max_idx = np.argmax(key_probs)
+
+                remaining_prob *= key_probs[max_idx]
+                node = node.get_child(character=keys[max_idx])
+                num_remaining -= 1
+
+            return -1 * np.log(remaining_prob)
 
     def get_num_nodes(self) -> int:
 

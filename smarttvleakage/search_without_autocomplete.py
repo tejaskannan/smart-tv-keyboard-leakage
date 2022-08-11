@@ -1,4 +1,5 @@
 import time
+import numpy as np
 from argparse import ArgumentParser
 from queue import PriorityQueue
 from collections import namedtuple
@@ -20,6 +21,7 @@ CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment', 'increme
 MISTAKE_RATE = 1e-2
 DECAY_RATE = 0.9
 SCORE_THRESHOLD = 1e-7
+MAX_NUM_CANDIDATES = 25000
 
 SUGGESTION_THRESHOLD = 8
 SUGGESTION_FACTOR = 2.0
@@ -28,6 +30,8 @@ CUTOFF = 0.05
 
 def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     target_length = len(move_sequence)
+    #should_renormalize_scores = (target_length >= 17)
+    should_renormalize_scores = False
 
     candidate_queue = PriorityQueue()
 
@@ -45,11 +49,20 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     keyboard_type = graph.get_keyboard_type()
 
     init_state = SearchState(keys=[],
-                             score=1.0,
+                             score=0.0,
                              keyboard_mode=keyboard_mode,
                              current_key=START_KEYS[keyboard_mode],
                              move_idx=0)
-    candidate_queue.put((-1 * init_state.score, init_state))
+    candidate_queue.put((init_state.score, init_state))
+
+    # Link the initial state (we can start in any one of the these spots)
+    for linked_state in graph.get_linked_states(START_KEYS[keyboard_mode], keyboard_mode=keyboard_mode):
+        init_state = SearchState(keys=[],
+                                 score=0.0,
+                                 keyboard_mode=linked_state.mode,
+                                 current_key=linked_state.key,
+                                 move_idx=0)
+        candidate_queue.put((init_state.score, init_state))
 
     scores: Dict[str, float] = dict()
     visited: Set[VisitedState] = set()
@@ -80,6 +93,9 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                     return
 
             continue
+
+        if candidate_count >= MAX_NUM_CANDIDATES:
+            break
 
         move_idx = current_state.move_idx
 
@@ -149,8 +165,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
                 filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                              candidate_keys=neighbors,
-                                                             current_string=current_string,
-                                                             dictionary=dictionary)
+                                                             should_renormalize=should_renormalize_scores)
 
             for neighbor_key, score in filtered_probs.items():
                 adjusted_score = score * candidate_move.adjustment
@@ -173,8 +188,13 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                       mode=current_state.keyboard_mode,
                                                       keyboard_type=keyboard_type)
 
-                    next_state_score = current_state.score * adjusted_score
+                    next_state_score = current_state.score - np.log(adjusted_score)
                     next_move_idx = move_idx + candidate_move.increment
+
+                    # Project the remaining score (as a heuristic for A* search)
+                    #estimated_remaining = dictionary.estimate_remaining_log_prob(prefix=candidate_word,
+                    #                                                             length=target_length)
+                    priority = next_state_score
 
                     next_state = SearchState(keys=candidate_keys,
                                              score=next_state_score,
@@ -182,7 +202,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                              current_key=neighbor_key,
                                              move_idx=next_move_idx)
 
-                    candidate_queue.put((-1 * next_state.score, next_state))
+                    candidate_queue.put((priority, next_state))
                     visited.add(visited_state)
 
                     # Add any linked states (undetectable by keyboard audio alone)
@@ -193,7 +213,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                  current_key=linked_state.key,
                                                  move_idx=next_move_idx)
 
-                        candidate_queue.put((-1 * next_state.score, next_state))
+                        candidate_queue.put((priority, next_state))
                         visited_state = VisitedState(keys=visited_str, current_key=linked_state.key)
 
 
@@ -217,6 +237,8 @@ if __name__ == '__main__':
 
     print('Target String: {}'.format(args.target))
     moves = findPath(args.target, True, True, 0.0, 1.0, 0)
+
+    print(moves)
 
     #if (args.sounds_list is None) or (len(args.sounds_list) == 0):
     #    moves = [Move(num_moves=num_moves, end_sound=default_sound) for num_moves in args.moves_list]

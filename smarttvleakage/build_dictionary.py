@@ -12,7 +12,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if args.dict_type == 'english':
-        dictionary = EnglishDictionary(max_depth=12)
+        dictionary = EnglishDictionary(max_depth=16)
     else:
         dictionary = NgramDictionary()
 

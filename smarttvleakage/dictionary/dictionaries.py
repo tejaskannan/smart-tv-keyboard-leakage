@@ -248,6 +248,11 @@ class EnglishDictionary(CharacterDictionary):
                 if len(line) > 0:
                     yield line.split()[0]
 
+    def estimate_remaining_log_prob(self, prefix: str, length: int) -> float:
+        return self._trie.get_max_log_prob(prefix=prefix,
+                                           single_char_counts=self._single_char_counts,
+                                           length=length)
+
     def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[Tuple[str, float]]:
         return self._trie.get_words_for(prefixes, max_num_results, min_length=min_length, max_count_per_prefix=max_count_per_prefix)
 
@@ -257,12 +262,14 @@ class EnglishDictionary(CharacterDictionary):
     def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
         return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
 
-    def does_contain_string(self, string: str) -> bool:
-        return self._trie.does_contain_string(string)
+    def does_contain_prefix(self, prefix: str) -> bool:
+        return self._trie.get_node_for(prefix) is not None
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
-        length = length if length is not None else len(prefix)
+        
+        #if length is not None:
+        #    length = min(length, self._max_depth)
 
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix, length=length)
@@ -274,15 +281,16 @@ class EnglishDictionary(CharacterDictionary):
         if len(character_counts) == 0:
             character_counts = {key: count for key, count in self._single_char_counts.items()}
 
+        # Re-map the character names
+        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
+
         # Apply Laplace Smoothing
         for character in self._characters:
             character_counts[character] = character_counts.get(character, 0) + 1
 
-        # Convert any needed characters and normalize the result
+        # Normalize the result
         total_count = sum(character_counts.values())
-        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): (count / total_count) for char, count in character_counts.items()}
-
-        return character_counts
+        return {char: (count / total_count) for char, count in character_counts.items()}
 
     @classmethod
     def restore(cls, serialized: Dict[str, Any]):
@@ -343,7 +351,14 @@ class NgramDictionary(EnglishDictionary):
 
             self._total_count += 1
 
+            if (self._total_count % 10000) == 0:
+                print('Completed {} Strings...'.format(self._total_count), end='\r')
+
+        print()
         self._is_built = True
+
+    def projected_remaining_prob(self, prefix: str, length: int) -> float:
+        return 1.0
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
@@ -368,10 +383,11 @@ class NgramDictionary(EnglishDictionary):
 
         return character_counts
 
+    def does_contain_prefix(prefix: str) -> bool:
+        return False
+
     @classmethod
     def restore(cls, serialized: Dict[str, Any]):
-        data_dict = read_pickle_gz(path)
-
         dictionary = cls()
         dictionary._single_char_counts = serialized['1gram']
         dictionary._2gram_trie = serialized['2gram']

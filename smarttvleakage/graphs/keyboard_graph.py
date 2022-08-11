@@ -12,6 +12,7 @@ from .keyboard_linker import KeyboardLinker, KeyboardPosition
 
 SAMSUNG_STANDARD = 'samsung_standard'
 SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
+SAMSUNG_CAPS = 'samsung_standard_caps'
 APPLETV_SEARCH_ALPHABET = 'appletv_search_alphabet'
 APPLETV_SEARCH_NUMBERS = 'appletv_search_numbers'
 APPLETV_SEARCH_SPECIAL = 'appletv_search_special'
@@ -22,6 +23,7 @@ APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
 START_KEYS = {
     SAMSUNG_STANDARD: 'q',
     SAMSUNG_SPECIAL_ONE: CHANGE,
+    SAMSUNG_CAPS: 'Q',
     APPLETV_SEARCH_ALPHABET: 't',
     APPLETV_SEARCH_NUMBERS: CHANGE,
     APPLETV_SEARCH_SPECIAL: CHANGE,
@@ -54,12 +56,16 @@ class MultiKeyboardGraph:
         if keyboard_type == KeyboardType.SAMSUNG:
             standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json')
             special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json')
+            caps_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_caps.json')
             self._start_mode = SAMSUNG_STANDARD
 
             self._keyboards = {
                 SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
-                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
+                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE]),
+                SAMSUNG_CAPS: SingleKeyboardGraph(path=caps_path, start_key=START_KEYS[SAMSUNG_CAPS])
             }
+
+            linker_path = os.path.join(dir_name, 'samsung', 'link.json')
         elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
             alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json')
             numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json')
@@ -117,6 +123,7 @@ class MultiKeyboardGraph:
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
+
 
 class SingleKeyboardGraph:
 

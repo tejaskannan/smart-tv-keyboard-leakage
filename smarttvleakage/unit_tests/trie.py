@@ -127,6 +127,22 @@ class TrieTests(unittest.TestCase):
         next_characters = trie.get_next_characters('desert', length=None)
         self.assertEqual(next_characters, { 't': 2, 's': 1 })
 
+    def test_add_get_max_depth_length(self):
+        trie = Trie(max_depth=5)
+
+        trie.add_string('deer', count=1)
+        trie.add_string('desert', count=1)
+        trie.add_string('deserts', count=1)
+
+        next_characters = trie.get_next_characters('de', length=4)
+        self.assertEqual(next_characters, { 'e': 1 })
+
+        next_characters = trie.get_next_characters('deser', length=6)  # Beyond 5, we no longer know the lengths of the strings
+        self.assertEqual(next_characters, { 't': 1, 's': 1 })
+
+        next_characters = trie.get_next_characters('desert', length=7)
+        self.assertEqual(next_characters, { 't': 1, 's': 1 })
+
     def test_get_words_for_prefixes(self):
         trie = Trie(max_depth=20)
 

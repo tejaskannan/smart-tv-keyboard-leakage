@@ -2,21 +2,23 @@ from typing import Set, Dict, List, Iterable
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
-from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
+from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
 from .constants import KeyboardType
 
 
-MIN_COUNT = 3
-
-
-def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], current_string: str, dictionary: CharacterDictionary) -> Dict[str, float]:
+def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], should_renormalize: bool) -> Dict[str, float]:
     """
     Returns a dictionary of normalized scores for present keys.
     """
-    filtered_counts = { key: key_counts[key] for key in candidate_keys if key in key_counts }
-    return filtered_counts
+    filtered_counts = {key: key_counts[key] for key in candidate_keys if key in key_counts}
+
+    if should_renormalize:
+        total_count = sum(filtered_counts.values())
+        return {key: (count / total_count) for key, count in filtered_counts.items()}
+    else:
+        return filtered_counts
 
     # Smooth the counts (can add characters)
     #smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
@@ -39,6 +41,10 @@ def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
 
     if keyboard_type == KeyboardType.SAMSUNG:
         keyboards = [SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE]
+
+        # The `caps` mode behaves the same way as `standard`
+        if mode == SAMSUNG_CAPS:
+            mode = SAMSUNG_STANDARD
     elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
         keyboards = [APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL]
     elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
