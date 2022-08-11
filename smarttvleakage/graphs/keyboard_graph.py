@@ -3,12 +3,11 @@ from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set
 import csv
-
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
 from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
 from .keyboard_linker import KeyboardLinker, KeyboardPosition
-
+from smarttvleakage.audio.constants import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
 
 SAMSUNG_STANDARD = 'samsung_standard'
 SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
@@ -28,6 +27,25 @@ START_KEYS = {
     APPLETV_PASSWORD_STANDARD: 'a'
 }
 
+CHANGE_KEYS = {
+    SAMSUNG_STANDARD: SAMSUNG_SELECT,
+    SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
+    APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
+    APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT
+}
+
+SELECT_KEYS = {
+    SAMSUNG_STANDARD: SAMSUNG_KEY_SELECT,
+    SAMSUNG_SPECIAL_ONE: SAMSUNG_KEY_SELECT,
+    APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
+    APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT
+}
 
 def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
     distance_matrix = read_json_gz(path)
