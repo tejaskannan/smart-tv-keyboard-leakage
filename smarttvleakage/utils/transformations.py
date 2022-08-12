@@ -1,11 +1,12 @@
-from typing import Set, Dict, List, Iterable
+from typing import Set, Dict, List, Iterable, Tuple
 
+from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_SELECT, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
 from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
-from .constants import KeyboardType
+from .constants import KeyboardType, SmartTVType
 
 
 def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], should_renormalize: bool) -> Dict[str, float]:
@@ -86,6 +87,30 @@ def get_string_from_keys(keys: List[str]) -> str:
             prev_turn_off_caps_lock = False
 
     return ''.join(characters)
+
+
+def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> Tuple[int, ...]:
+    features: List[int] = []
+
+    if tv_type == SmartTVType.SAMSUNG:
+        sound_translation = {
+            SAMSUNG_KEY_SELECT: 0,
+            SAMSUNG_SELECT: 1,
+            SAMSUNG_DELETE: 2
+        }
+    elif tv_type == SmartTVType.APPLE_TV:
+        sound_translation = {
+            APPLETV_KEYBOARD_SELECT: 0,
+            APPLETV_KEYBOARD_DELETE: 1
+        }
+    else:
+        raise ValueError('Unknown keyboard type: {}'.format(tv_type.name.lower()))
+
+    for move in move_seq:
+        features.append(move.num_moves)
+        features.append(sound_translation[move.end_sound])
+
+    return tuple(features)
 
 
 def get_bit(val: int, bit_idx: int) -> int:

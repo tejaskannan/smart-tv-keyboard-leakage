@@ -387,6 +387,12 @@ class SamsungMoveExtractor(MoveExtractor):
         if did_use_autocomplete and len(result) > 0:
             return result[0:-1], did_use_autocomplete, KeyboardType.SAMSUNG
 
+        # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
+        # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV not suceptible)
+
+        # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
+        # <Done> at the end (no special sound), so give the option to stop early (verify with recordings)
+
         return result, did_use_autocomplete, KeyboardType.SAMSUNG
 
 

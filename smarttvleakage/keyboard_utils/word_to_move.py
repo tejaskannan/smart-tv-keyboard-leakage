@@ -3,6 +3,7 @@ import csv
 import numpy as np
 import json
 import random
+import time
 from typing import List
 
 from smarttvleakage.audio.move_extractor import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT
@@ -14,7 +15,7 @@ from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
 from datetime import datetime, timedelta
 
 
-def findPath(word, shortcuts, wraparound, mr, dr, me):
+def findPath(word, shortcuts, wraparound, mr, dr, me, keyboard):
     mistakes = []
     for n in range(me):
         mistakes.append(mr*(dr**n))
@@ -22,7 +23,6 @@ def findPath(word, shortcuts, wraparound, mr, dr, me):
     path = []
     mode = SAMSUNG_STANDARD
     prev = START_KEYS[mode]
-    keyboard = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
 
     for character in list(word.lower()):
         character = REVERSE_CHARACTER_TRANSLATION.get(character, character)
@@ -49,6 +49,7 @@ def findPath(word, shortcuts, wraparound, mr, dr, me):
         prev = character
 
     return path
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

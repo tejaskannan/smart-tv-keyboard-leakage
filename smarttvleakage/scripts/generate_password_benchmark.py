@@ -1,10 +1,13 @@
 import io
 import numpy as np
 import string
+import time
 from argparse import ArgumentParser
 from typing import Any, Dict, Iterable
 
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.keyboard_utils.word_to_move import findPath
+from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 
 
@@ -21,20 +24,24 @@ def create_records(input_path: str, max_num_records: int) -> Iterable[Dict[str, 
                 words.append(word)
 
     num_words = len(words)
-    rand = np.random.RandomState(seed=5481)
-    word_indices = rand.choice(num_words, size=max_num_records, replace=False)
+
+    #word_indices = np.arange(num_words)
+    #rand = np.random.RandomState(seed=5481)
+    #word_indices = rand.choice(num_words, size=max_num_records, replace=False)
 
     print('Read {} passwords. Generating dataset...'.format(num_words))
+    keyboard = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
 
-    for count, word_idx in enumerate(word_indices):
-        word = words[word_idx]
+    for count, word in enumerate(words):
+        if count >= max_num_records:
+            break
+
         try:
-            moves = findPath(word, True, True, 0.0, 1.0, 0)
+            moves = findPath(word, True, True, 0.0, 1.0, 0, keyboard)
             move_seq = [{'moves': m.num_moves, 'end_sound': m.end_sound} for m in moves]
-
             yield { 'target': word, 'move_seq': move_seq }
 
-            if ((count + 1) % 100) == 0:
+            if ((count + 1) % 10000) == 0:
                 print('Completed {} records.'.format(count + 1), end='\r')
         except AssertionError as ex:
             print('\nWARNING: Caught {} for {}'.format(ex, word))
