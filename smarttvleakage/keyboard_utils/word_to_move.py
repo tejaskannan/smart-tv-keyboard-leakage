@@ -28,6 +28,7 @@ def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
     for character in list(word.lower()):
         character = REVERSE_CHARACTER_TRANSLATION.get(character, character)
         distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
+        #print(distance)
         #print('link: ', keyboard.get_linked_states(prev, mode))
         if distance == -1:
         	in_keyboard = ''
@@ -40,26 +41,40 @@ def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
         			found_char = True
         			in_keyboard = possible_keyboard
         	#print(keyboard.get_keyboards())
+        	#original_prev = prev
+        	original_mode = mode
+        	counter = 0
+        	on_key = prev
         	while keyboard._keyboards[mode] != in_keyboard:
         		changer = keyboard.get_nearest_link(prev, mode, shortcuts, wraparound)
+        		if changer != prev:
+        			on_key = changer
+        			original_mode = mode
+        			counter = 0
+        		#print(counter)
         		# print(CHANGE_KEYS.keys())
         		if mode in CHANGE_KEYS.keys():
         			# print('\n')
         			# print(CHANGE_KEYS[mode])
         			path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
         		prev = changer
-        		linked_state = keyboard.get_linked_states(prev, mode)
-        		mode = linked_state[0][1]
-        		prev = linked_state[0][0]
+        		#print(on_key)
+        		linked_state = keyboard.get_linked_states(on_key, original_mode)
+        		#print(linked_state)
+        		mode = linked_state[counter][1]
+        		prev = linked_state[counter][0]
+        		counter+=1
         	distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
 
         assert distance != -1, 'No path from {} to {}'.format(prev, character)
 
         if character == '<SPACE>':
-        	#change this to add another dictionary for space sounds if we ever get a keyboard that makes a unique space sound or makes the same sound for regular key selection as space and doesn't make that sound for change
-            path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+        	if mode in CHANGE_KEYS.keys():
+        		path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+        	else:
+        		path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
         else:
-            path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+        	path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
 
         rand = random.random()
         for x, j in enumerate(mistakes):
