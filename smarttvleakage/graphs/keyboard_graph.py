@@ -30,11 +30,6 @@ START_KEYS = {
 CHANGE_KEYS = {
     SAMSUNG_STANDARD: SAMSUNG_SELECT,
     SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
-    APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
-    APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
-    APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
-    APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
-    APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT
 }
 
 SELECT_KEYS = {
@@ -78,6 +73,8 @@ class MultiKeyboardGraph:
                 SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
                 SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
             }
+
+            linker_path = os.path.join(dir_name, 'samsung', 'link.json')
         elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
             alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json')
             numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json')
@@ -135,6 +132,23 @@ class MultiKeyboardGraph:
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
+
+    def get_keyboards(self) -> List:
+        return self._keyboards.values()
+
+    def get_nearest_link(self, current_key: str, mode: str, use_shortcuts: bool, use_wraparound: bool) -> str:
+        nearest_dist = 100
+        nearest_key = ''
+        for i in self._keyboards[mode].get_characters():
+            if self._linker.get_linked_states(i, mode) != []:
+                if self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)<nearest_dist:
+                    nearest_dist = self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)
+                    nearest_key = i
+            # print(i)
+            # print(mode)
+            # print(self._linker.get_linked_states(i, mode))
+        return nearest_key
+        
 
 class SingleKeyboardGraph:
 
