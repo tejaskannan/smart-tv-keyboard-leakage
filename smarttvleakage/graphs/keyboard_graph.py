@@ -15,6 +15,7 @@ APPLETV_SEARCH_ALPHABET = 'appletv_search_alphabet'
 APPLETV_SEARCH_NUMBERS = 'appletv_search_numbers'
 APPLETV_SEARCH_SPECIAL = 'appletv_search_special'
 APPLETV_PASSWORD_STANDARD = 'appletv_password_standard'
+APPLETV_PASSWORD_CAPS = 'appletv_password_caps'
 APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
 
 
@@ -24,23 +25,29 @@ START_KEYS = {
     APPLETV_SEARCH_ALPHABET: 't',
     APPLETV_SEARCH_NUMBERS: CHANGE,
     APPLETV_SEARCH_SPECIAL: CHANGE,
-    APPLETV_PASSWORD_STANDARD: 'a'
+    APPLETV_PASSWORD_STANDARD: 'a',
+    APPLETV_PASSWORD_CAPS: CHANGE,  # TODO: Fix This (should be <ABC>)
+    APPLETV_PASSWORD_SPECIAL: CHANGE  # TODO: Fix This (should be <SPECIAL>)
 }
 
+#If change key is the same as the select key leave it empty and we will default to select key
 CHANGE_KEYS = {
     SAMSUNG_STANDARD: SAMSUNG_SELECT,
     SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
 }
 
+
 SELECT_KEYS = {
     SAMSUNG_STANDARD: SAMSUNG_KEY_SELECT,
     SAMSUNG_SPECIAL_ONE: SAMSUNG_KEY_SELECT,
     APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
+    APPLETV_PASSWORD_CAPS: APPLETV_KEYBOARD_SELECT,
     APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
     APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
     APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
     APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT
 }
+
 
 def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
     distance_matrix = read_json_gz(path)
@@ -90,11 +97,18 @@ class MultiKeyboardGraph:
             linker_path = os.path.join(dir_name, 'apple_tv', 'link.json')
         elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
             standard_path = os.path.join(dir_name, 'apple_tv_password', 'standard.json')
+            caps_path = os.path.join(dir_name, 'apple_tv_password', 'caps.json')
+            special_path = os.path.join(dir_name, 'apple_tv_password', 'special.json')
+
             self._start_mode = APPLETV_PASSWORD_STANDARD
-            
+
             self._keyboards = {
-                APPLETV_PASSWORD_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[APPLETV_PASSWORD_STANDARD])
+                APPLETV_PASSWORD_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[APPLETV_PASSWORD_STANDARD]),
+                APPLETV_PASSWORD_CAPS: SingleKeyboardGraph(path=caps_path, start_key=START_KEYS[APPLETV_PASSWORD_CAPS]),
+                APPLETV_PASSWORD_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_PASSWORD_SPECIAL])
             }
+
+            linker_path = os.path.join(dir_name, 'apple_tv_password', 'link.json')
         else:
             raise ValueError('Unknown TV type: {}'.format(tv_type.name))
 
