@@ -9,7 +9,7 @@ from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLE
 from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 from smarttvleakage.utils.transformations import get_keyboard_mode
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, CHANGE_KEYS, SELECT_KEYS
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, CHANGE_KEYS, SELECT_KEYS, SingleKeyboardGraph
 from smarttvleakage.graphs.keyboard_graph import SAMSUNG_STANDARD, APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL, APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
 from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
 from datetime import datetime, timedelta
@@ -28,20 +28,53 @@ def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
     for character in list(word.lower()):
         character = REVERSE_CHARACTER_TRANSLATION.get(character, character)
         distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
-
+        #print(distance)
+        #print('link: ', keyboard.get_linked_states(prev, mode))
         if distance == -1:
-            path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, '<CHANGE>', shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
-            prev = '<CHANGE>'
-            mode = get_keyboard_mode(prev, mode, keyboard_type=KeyboardType.SAMSUNG)
-            distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
+        	in_keyboard = ''
+        	found_char = False
+        	is_backwards = False
+        	for possible_keyboard in kb.get_keyboards():
+        		if found_char == True:
+        			break
+        		if character in possible_keyboard.get_characters():
+        			found_char = True
+        			in_keyboard = possible_keyboard
+        	#print(keyboard.get_keyboards())
+        	#original_prev = prev
+        	original_mode = mode
+        	counter = 0
+        	on_key = prev
+        	while keyboard._keyboards[mode] != in_keyboard:
+        		changer = keyboard.get_nearest_link(prev, mode, shortcuts, wraparound)
+        		if changer != prev:
+        			on_key = changer
+        			original_mode = mode
+        			counter = 0
+        		#print(counter)
+        		# print(CHANGE_KEYS.keys())
+        		if mode in CHANGE_KEYS.keys():
+        			# print('\n')
+        			# print(CHANGE_KEYS[mode])
+        			path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
+        		prev = changer
+        		#print(on_key)
+        		linked_state = keyboard.get_linked_states(on_key, original_mode)
+        		#print(linked_state)
+        		mode = linked_state[counter][1]
+        		prev = linked_state[counter][0]
+        		counter+=1
+        	distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
 
         assert distance != -1, 'No path from {} to {}'.format(prev, character)
 
         if character == '<SPACE>':
-        	#change this to add another dictionary for space sounds if we ever get a keyboard that makes a unique space sound or makes the same sound for regular key selection as space and doesn't make that sound for change
-            path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+        	if mode in CHANGE_KEYS.keys():
+        		path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+        	else:
+        		path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
         else:
-            path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+        	path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
 
         rand = random.random()
         for x, j in enumerate(mistakes):
@@ -49,7 +82,7 @@ def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
                 path[-1] = Move(num_moves=path[-1][0] + 2 * (x + 1), end_sound=path[-1][1])
 
         prev = character
-
+    
     return path
 
 if __name__ == '__main__':
