@@ -1,0 +1,8 @@
+{
+    "samsung_standard": {
+        "<CHANGE>": { "samsung_special_1": "<CHANGE>"}
+    },
+    "samsung_special_1": {
+        "<CHANGE>": { "samsung_standard": "<CHANGE>"}
+    }
+}
