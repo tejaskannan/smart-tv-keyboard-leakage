@@ -1,131 +1,41 @@
-import time
-import io
-import os.path
 import string
 from argparse import ArgumentParser
-from queue import PriorityQueue
-from collections import defaultdict, namedtuple
-from typing import Set, List, Dict, Optional, Iterable, Tuple
+from typing import List, Dict, Tuple
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from smarttvleakage.utils.constants import KeyboardType
+
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.utils.file_utils import save_pickle_gz, read_pickle_gz
 
 
-
-def buildDict(min_count):
-    print("building dict...")
-    word_counts = defaultdict(int)
-    path = "local\dictionaries\enwiki-20210820-words-frequency.txt"
-
-    with open(path, 'rb') as fin:
-        io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
-
-        for line in io_wrapper:
-            line = line.strip()
-            tokens = line.split()
-
-            if len(tokens) == 2:
-                count = int(tokens[1])
-
-                if count > min_count:
-                    word_counts[tokens[0]] = count
-    print("done.")
-    return word_counts
-
-
-def build_file(dictionary: EnglishDictionary):
-    minCount = 500
-    word_counts = buildDict(minCount)
-    done = []
-
-    path = "manual_score_dict_2.txt"
-    with open(path, "w") as f:
-
-        for word in word_counts:
-            skip = 0
-            for char in word:
-                if char not in string.ascii_letters:
-                    skip = 1
-            if skip == 1:
-                continue
-
-            ms = findPath(word, 0)
-            if ms in done:
-                continue
-
-            done.append(ms)
-            line = ""
-
-            for num in ms:
-                line = line + str(int(num)) + ","
-            line = line + ";"
-
-            line = line + word + ";"
-
-            raw_score = dictionary.get_score_for_string(word, False) 
-            line = line + str(raw_score) + "\n"
-
-            f.write(line)
-
-
-# maybe build this as a dictionary??
-
-def make_msfd():
-    path = "manual_score_dict_2.txt"
+# manual score frequency dicts
+def make_msfd(path : str) -> Dict[str, Tuple[str, float]]:
+    """todo"""
     d = {}
-    with open(path) as f:
+    with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
-    
     for line in lines:
         d[line.split(";")[0]] = (line.split(";")[1], float(line.split(";")[2]))
 
     return d
 
-    
-def get_word_from_ms(ms):
-    ms_string = ""
-    for m in ms:
-        ms_string += str(m) + ","
+def save_msfd(input_path : str, save_path : str):
+    """todo"""
+    msfd = make_msfd(input_path)
+    save_pickle_gz(msfd, save_path)
 
-    msfd = build_msfd()
-    if ms_string in msfd:
-        return msfd[ms_string]
-
-    return ("", 0)
-    
- 
-
-def get_word_from_ms_dep(ms):
-    ms_string = ""
-    for m in ms:
-        ms_string += str(m) + ","
-    ms_string += ";"
-
-    path = "manual_score_dict_2.txt"
-    with open(path) as f:
-        lines = f.readlines()
-    
-    for line in lines:
-        if line.startswith(ms_string):
-            return (line.split(";")[1], float(line.split(";")[2]))
-    return ("", 0)
-
-
-def save_manual_score_dict():
-    msfd = make_msfd()
-    save_pickle_gz(msfd, "max/local/msfd.pkl.gz")
-
-def build_msfd():
-    path = "max/local/msfd.pkl.gz"
+def build_msfd(path : str) -> Dict[str, Tuple[str, float]]:
+    """todo"""
     return read_pickle_gz(path)
 
-def save_ms_dict():
-    
+
+
+
+def save_ms_dict(save_path_start : str):
+    """Saves hardcoded ms dicts"""
     # Non-autocomplete Dict
     ms_dict_non = {}
-
     # Dec of Ind
     ms_dict_non["we"] = [1, 1]
     ms_dict_non["hold"] = [6, 4, 1, 6]
@@ -179,7 +89,6 @@ def save_ms_dict():
     ms_dict_non["people"] = [9, 7, 6, 1, 2, 7]
     ms_dict_non["alter"] = [1, 8, 5, 2, 1]
     ms_dict_non["or"] = [8, 5]
-
     # Gettys
     ms_dict_non["a"] = [1]
     ms_dict_non["add"] = [1, 2, 0]
@@ -235,7 +144,6 @@ def save_ms_dict():
     #page 3
     ms_dict_non["so"] = [2, 8]
     ms_dict_non["take"] = [4, 5, 7, 6]
-    ms_dict_non["they"] = [4, 2, 4, 3]
     ms_dict_non["thus"] = [4, 2, 2, 6]
     ms_dict_non["us"] = [6, 6]
     ms_dict_non["war"] = [1, 2, 4]
@@ -244,10 +152,8 @@ def save_ms_dict():
     ms_dict_non["work"] = [1, 7, 5, 5]
     ms_dict_non["year"] = [5, 3, 3, 4]
 
-
     # Autocomplete Dict
     ms_dict_auto = {}
-
     # Dec of Ind
     ms_dict_auto["we"] = [1, 1]
     ms_dict_auto["hold"] = [6, 1, 3, 1]
@@ -301,8 +207,6 @@ def save_ms_dict():
     ms_dict_auto["people"] = [9, 1, 0, 0, 0, 0]
     ms_dict_auto["alter"] = [1, 1, 0, 1, 0]
     ms_dict_auto["or"] = [8, 1]
-
-
     # Gettys, p1
     ms_dict_auto["a"] = [1]
     ms_dict_auto["add"] = [1, 3, 0]
@@ -358,7 +262,6 @@ def save_ms_dict():
     #3
     ms_dict_auto["so"] = [2, 1]
     ms_dict_auto["take"] = [4, 1, 0, 0]
-    ms_dict_auto["they"] = [4, 1, 6, 1]
     ms_dict_auto["thus"] = [4, 1, 0, 0]
     ms_dict_auto["us"] = [6, 1]
     ms_dict_auto["war"] = [1, 1, 2]
@@ -367,31 +270,97 @@ def save_ms_dict():
     ms_dict_auto["work"] = [1, 8, 1, 0]
     ms_dict_auto["year"] = [5, 1, 0, 1]
 
+    save_pickle_gz(ms_dict_non, save_path_start + "_non.pkl.gz")
+    save_pickle_gz(ms_dict_auto, save_path_start + "_auto.pkl.gz")
 
-    save_pickle_gz(ms_dict_non, "local/ms_dict_non.pkl.gz")
-    save_pickle_gz(ms_dict_auto, "local/ms_dict_auto.pkl.gz")
+def build_ms_dict(path : str, take : int = 0) -> Dict[str, List[int]]:
+    """Builds ms dict from path, takes either positive number or passes over negative"""
+    base = read_pickle_gz(path)
+    if take == 0:
+        return base
+    if take > 0: # take the first x
+        ms_dict = {}
+        for key in base:
+            ms_dict[key] = base[key]
+            take -= 1
+            if take == 0:
+                break
+        return ms_dict
+    # skip the first x
+    ms_dict = {}
+    for key in base:
+        if take < 0:
+            take += 1
+            continue
+        ms_dict[key] = base[key]
+    return ms_dict
 
-def build_ms_dict(ty : str):
-    if ty == "non":
-        path = "local/ms_dict_non.pkl.gz"
-    else:
-        path = "local/ms_dict_auto.pkl.gz"
-    return read_pickle_gz(path)
+
+def get_word_from_ms(ms : list[int], msfd : Dict[str, Tuple[str, int]]) -> Tuple[str, float]:
+    """Gets the most common word and freq. score from a move sequence"""
+    ms_string = ""
+    for m in ms:
+        ms_string += str(m) + ","
+    if ms_string in msfd:
+        return msfd[ms_string]
+    return ("", 0)
 
 
-if __name__ == '__main__':
-    #save_manual_score_dict()
-    #save_ms_dict()
+def build_rockyou_ms_dict(path, count, passover : int = 0):
+    """Builds a ms dict from rockyou path"""
+    rockyou_ms_dict = {}
+    with open(path, "r", encoding="utf-8") as f:
+        i = 0
+        for line in f:
+
+            # to avoid breaking
+            skip = 0
+            for c in line:
+                if c not in string.printable:
+                    skip = 1
+            if skip == 1:
+                continue
+
+            if passover > 0:
+                passover -= 1
+                continue
+
+            path = []
+            kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
+            line = line.replace("\n", "").replace(" ", "")
+            for m in findPath(line, 0, False, False, 0, 0, kb):
+                path.append(m.num_moves)
+            rockyou_ms_dict[line] = path
+            i += 1
+            if i >= count:
+                break
+    return rockyou_ms_dict
+
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--msfd-path", type=str, required=False)
+    args = parser.parse_args()
+
+
+    #save_msfd()
+    #save_ms_dict("suggestions_model/local/ms_dict")
 
     i = 0
-    for key in build_msfd():
+    msfd = build_msfd(args.msfd_path)
+    for key in msfd:
         print(key)
         i += 1
         if i > 10:
             break
 
-    print(get_word_from_ms([3, 5, 4])[0])
-    print(float(get_word_from_ms([3, 5, 4])[1]))
-    print(get_word_from_ms([6, 5, 1]))
-    print(get_word_from_ms([3, 5, 4, 1, 3]))
+    print(get_word_from_ms([3, 5, 4], msfd)[0])
+    print(float(get_word_from_ms([3, 5, 4], msfd)[1]))
+    print(get_word_from_ms([6, 5, 1], msfd))
+    print(get_word_from_ms([3, 5, 4, 1, 3], msfd))
+    print(get_word_from_ms([1, 1, 1, 1], msfd))
+
+    print("\n")
+    print(get_word_from_ms([2, 1, 0, 0], msfd))
+    print(get_word_from_ms([2, 8, 4, 6], msfd))
+    print(get_word_from_ms([2, 3, 4, 6, 1, 5, 3], msfd))
     

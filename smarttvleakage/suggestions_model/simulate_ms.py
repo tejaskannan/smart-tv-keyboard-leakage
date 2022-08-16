@@ -1,52 +1,26 @@
-import io
-import csv
-import string
 
-from collections import defaultdict
-from typing import Tuple, List, Dict
+import string
+from argparse import ArgumentParser
+from typing import List, Dict, Tuple
 
 from smarttvleakage.keyboard_utils.word_to_move import findPath
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
+from smarttvleakage.utils.transformations import get_keyboard_mode
+from smarttvleakage.utils.constants import KeyboardType
+
+from smarttvleakage.dictionary import EnglishDictionary
 from smarttvleakage.utils.file_utils import read_json
+
 from smarttvleakage.suggestions_model.manual_score_dict import build_ms_dict
 
 
 
 
 
-# test
 
-# ..\local\dictionaries\enwiki-20210820-words-frequency.txt
-
-def default_value():
-    return 0
-
-def buildDict(min_count):
-    print("building dict...")
-    word_counts = defaultdict(default_value)
-    path = "local\dictionaries\enwiki-20210820-words-frequency.txt"
-
-    with open(path, 'rb') as fin:
-        io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
-
-        for line in io_wrapper:
-            line = line.strip()
-            tokens = line.split()
-
-            if len(tokens) == 2:
-                count = int(tokens[1])
-
-                if count > min_count:
-                    word_counts[tokens[0]] = count
-    print("done.")
-    return word_counts
-
-
-# evaluates simulated ms against gt, allowing off-by-one for autos
-def eval_ms(key : Tuple[str, str], ms : List[int]) -> int:
-    ms_dict_non = build_ms_dict("non")
-    ms_dict_auto = build_ms_dict("auto")
-
+def eval_ms(key : Tuple[str, str], ms : List[int], ms_dict_non, ms_dict_auto) -> int:
+    """evaluates simulated ms against gt, allowing off-by-one for autos"""
     word = key[0]
     ty = key[1]
 
@@ -54,31 +28,28 @@ def eval_ms(key : Tuple[str, str], ms : List[int]) -> int:
         gt = ms_dict_non[word]
         if len(gt) != len(ms):
             return 0
-        for i in range(len(ms)):
-            if gt[i] != ms[i]:
+        for i, m in enumerate(ms):
+            if gt[i] != m:
                 return 0
         return 1
-
-    else:
-        gt = ms_dict_auto[word]
-        if len(gt) != len(ms):
+    # ty == "auto"
+    gt = ms_dict_auto[word]
+    if len(gt) != len(ms):
+        return 0
+    for i, m in enumerate(ms):
+        if abs(gt[i] - m) > 1:
             return 0
-        for i in range(len(ms)):
-            if i == 0 and gt[i] != ms[i]:
-                return 0
-
-            if abs(gt[i] - ms[i]) > 1:
-                return 0
-        return 1
+    return 1
 
 
 
 
 
 
-def grab_words(count : int) -> List[str]:
+def grab_words(count : int, path : str) -> List[str]:
+    """Returns a list of [count] words from the file at path"""
     words = []
-    with open("local/dictionaries/enwiki-20210820-words-frequency-backup.txt", "r", encoding="utf-8") as f:
+    with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
         for line in lines:
             w = line.split(" ")[0]
@@ -98,335 +69,14 @@ def grab_words(count : int) -> List[str]:
 
     return words
 
-
-def combine_tops(list_1 : List[str], list_2 : List[str]):
-    char_dict = {}
-
-    for i in range(len(list_1)):
-        if list_1[i] not in char_dict:
-            char_dict[list_1[i]] = len(list_1) - i
-        else:
-            char_dict[list_1[i]] += len(list_1) - i
-    
-    for i in range(len(list_2)):
-        if list_2[i] not in char_dict:
-            char_dict[list_2[i]] = len(list_2) - i
-        else:
-            char_dict[list_2[i]] += len(list_2) - i
-
-    char_list = []
-    for c in char_dict:
-        char_list.append((c, char_dict[c]))
-
-    char_list.sort(key=(lambda x: x[1]), reverse=True)
-    suggestions = []
-    for i in range(4):
-        if i < len(char_list):
-            suggestions.append(char_list[i][0])
-        else: 
-            break
-
-    return suggestions
-
-
-
-
-
-# Implement length based weighting?
-# try this but with single score, not additive**
-# works poorly additively
-def get_autos_weighted_5(dict, prefix : str) -> List[str]:
-      
-    if len(prefix) == 1:
-        single_suggestions = read_json('../graphs/autocomplete.json')
-        return single_suggestions[prefix[len(prefix)-1:]]
-
-    char_dict = {}
-    for key in dict:
-        if key.startswith(prefix) and key != prefix:
-            c = key[len(prefix)]
-            score = dict[key]
-            if len(key) == len(prefix) + 1:
-                score = score * 2
-            score = score^2
-            
-            if c not in char_dict:
-                char_dict[c] = score
-            else:
-                char_dict[c] += score
-    
-    char_list = []
-    for c in char_dict:
-        char_list.append((c, char_dict[c]))
-    char_list.sort(key=(lambda x: x[1]), reverse=True)
-
-    suggestions = []
-    for i in range(4):
-        if i < len(char_list):
-            suggestions.append(char_list[i][0])
-        else: 
-            break
-    exp = []
-    for i in range(8):
-        if i < len(char_list):
-            exp.append(char_list[i][0])
-        else: 
-            break
-
-    #print(prefix + " (2", end="); ")
-    #print(exp)
-    return suggestions
-
-
-    
-
-
-
-
-def get_autos_weighted_2(dict, prefix : str) -> List[str]:
-    weight = 8
-
-    if len(prefix) == 1:
-        single_suggestions = read_json('../graphs/autocomplete.json')
-        return single_suggestions[prefix[len(prefix)-1:]]
-
-    char_dict = {}
-    for key in dict:
-        if key.startswith(prefix) and key != prefix:
-            c = key[len(prefix)]
-            if c not in char_dict:
-                if len(key) == len(prefix) + 1:
-                    char_dict[c] = dict[key] * weight
-                else:
-                    char_dict[c] = dict[key]
-            else:
-                if len(key) == len(prefix) + 1:
-                    if dict[key] * weight > char_dict[c]:
-                        char_dict[c] = dict[key] * weight
-                else:
-                    if dict[key] > char_dict[c]:
-                        char_dict[c] = dict[key]
-
-    
-    char_list = []
-    for c in char_dict:
-        char_list.append((c, char_dict[c]))
-    char_list.sort(key=(lambda x: x[1]), reverse=True)
-
-    suggestions = []
-    for i in range(4):
-        if i < len(char_list):
-            suggestions.append(char_list[i][0])
-        else: 
-            break
-    exp = []
-    for i in range(8):
-        if i < len(char_list):
-            exp.append(char_list[i][0])
-        else: 
-            break
-
-    #print(prefix + " (2", end="); ")
-    #print(exp)
-    return suggestions
-
-
-def get_autos_weighted(dict, prefix : str) -> List[str]:
-    # to do
-
-    # for now, uses single suggestions
-
-    if len(prefix) == 1:
-        single_suggestions = read_json('../graphs/autocomplete.json')
-        return single_suggestions[prefix[len(prefix)-1:]]
-
-    char_dict = {}
-    for key in dict:
-        if key.startswith(prefix) and key != prefix:
-            c = key[len(prefix)]
-            if c not in char_dict:
-                char_dict[c] = dict[key]
-            else:
-                if dict[key] > char_dict[c]:
-                    char_dict[c] = dict[key]
-    
-    char_list = []
-    for c in char_dict:
-        char_list.append((c, char_dict[c]))
-    char_list.sort(key=(lambda x: x[1]), reverse=True)
-
-    suggestions = []
-    for i in range(4):
-        if i < len(char_list):
-            suggestions.append(char_list[i][0])
-        else: 
-            break
-    exp = []
-    for i in range(8):
-        if i < len(char_list):
-            exp.append(char_list[i][0])
-        else: 
-            break
-
-    #print(prefix + " (2", end="); ")
-    #print(exp)
-    return suggestions
-
-
-
-def get_autos_weighted_sqr(dict, prefix : str) -> List[str]:
-    # to do
-
-    # for now, uses single suggestions
-
-    if len(prefix) == 1:
-        single_suggestions = read_json('../graphs/autocomplete.json')
-        return single_suggestions[prefix[len(prefix)-1:]]
-
-    char_dict = {}
-    for key in dict:
-        if key.startswith(prefix) and key != prefix:
-            c = key[len(prefix)]
-            if c not in char_dict:
-                char_dict[c] = dict[key]^2
-            else:
-                if dict[key] > char_dict[c]:
-                    char_dict[c] += dict[key]^2
-    
-    char_list = []
-    for c in char_dict:
-        char_list.append((c, char_dict[c]))
-    char_list.sort(key=(lambda x: x[1]), reverse=True)
-
-    suggestions = []
-    for i in range(4):
-        if i < len(char_list):
-            suggestions.append(char_list[i][0])
-        else: 
-            break
-    exp = []
-    for i in range(8):
-        if i < len(char_list):
-            exp.append(char_list[i][0])
-        else: 
-            break
-
-    #print(prefix + " (2", end="); ")
-    #print(exp)
-    return suggestions
-
-
-
-
-
-
-
-def get_autos_base(dict, prefix : str, smooth : bool) -> List[str]:
-    # to do
-
-    # for now, uses single suggestions
-
-    if len(prefix) == 1:
-        single_suggestions = read_json('../graphs/autocomplete.json')
-        return single_suggestions[prefix[len(prefix)-1:]]
-
-
-    char_dict = dict.get_letter_counts(prefix, None, should_smooth=smooth)
-    char_list = []
-    for key in char_dict:
-        char_list.append((key, char_dict[key]))
-    char_list.sort(key=(lambda x: x[1]), reverse=True)
-
-    suggestions = []
-    for i in range(4):
-        if i < len(char_list):
-            suggestions.append(char_list[i][0])
-        else: 
-            break
-    exp = []
-    for i in range(8):
-        if i < len(char_list):
-            exp.append(char_list[i][0])
-        else: 
-            break
-
-    if smooth:
-        strat = 1
-    else:
-        strat = 0
-    #print(prefix + " (" + str(strat), end="); ")
-    #print(exp)
-    return suggestions
-
-## write this
-def get_autos(e_dict, dict, prefix : str, strategy : int) -> List[str]:
-
+## todo** fix hardcoded autocomplete singlesuggestions file
+def get_autos(e_dict, prefix : str) -> List[str]:
+    """Returns simulated autocomplete suggestions using an EnglishDictionary"""
     if len(prefix) == 1: # then use single suggestions
-        single_suggestions = read_json('../graphs/autocomplete.json')
-        return single_suggestions[prefix[len(prefix)-1:]]
+        single_suggestions = read_json("graphs/autocomplete.json")
+        return single_suggestions[prefix.lower()]
 
-
-
-    if strategy == 0: #base
-        char_dict = e_dict.get_letter_counts(prefix, None, should_smooth=False)
-        
-    elif strategy == 1:
-        char_dict = {}
-        for key in dict:
-            if key.startswith(prefix) and key != prefix:
-                c = key[len(prefix)]
-                if c not in char_dict:
-                    char_dict[c] = dict[key]
-                else:
-                    if dict[key] > char_dict[c]:
-                        char_dict[c] = dict[key]
-
-    elif strategy == 2:
-        weight = 8
-
-        char_dict = {}
-        for key in dict:
-            if key.startswith(prefix) and key != prefix:
-                c = key[len(prefix)]
-                if c not in char_dict:
-                    if len(key) == len(prefix) + 1:
-                        char_dict[c] = dict[key] * weight
-                    else:
-                        char_dict[c] = dict[key]
-                else:
-                    if len(key) == len(prefix) + 1:
-                        if dict[key] * weight > char_dict[c]:
-                            char_dict[c] = dict[key] * weight
-                    else:
-                        if dict[key] > char_dict[c]:
-                            char_dict[c] = dict[key]
-    
-    elif strategy == 3:
-        char_dict = {}
-        for key in dict:
-            if key.startswith(prefix) and key != prefix:
-                c = key[len(prefix)]
-                if c not in char_dict:
-                    char_dict[c] = dict[key]^2
-                else:
-                    if dict[key] > char_dict[c]:
-                        char_dict[c] += dict[key]^2
-
-    elif strategy == 4:
-        char_dict = {}
-        for key in dict:
-            if key.startswith(prefix) and key != prefix:
-                c = key[len(prefix)]
-                score = dict[key]
-                if len(key) == len(prefix) + 1:
-                    score = score * 2
-                score = score^2
-                
-                if c not in char_dict:
-                    char_dict[c] = score
-                else:
-                    char_dict[c] += score
-    
+    char_dict = e_dict.get_letter_counts(prefix, None)
     char_list = []
     for c in char_dict:
         char_list.append((c, char_dict[c]))
@@ -436,294 +86,120 @@ def get_autos(e_dict, dict, prefix : str, strategy : int) -> List[str]:
     for i in range(4):
         if i < len(char_list):
             suggestions.append(char_list[i][0])
-        else: 
+        else:
             break
 
     return suggestions
-#write a full 
 
-
-
-def find_path_auto(dict, wcs, word : str, auto_strategy : int, errmsg : bool = False) -> List[float]:
+def find_path_auto(e_dict, word : str) -> List[int]:
+    """Simulates the path for a word using autocomplete"""
     path = []
-    f = open('../graphs/samsung/samsung_keyboard.csv')
-    active = list(csv.reader(f))
-    f.close()
-    f = open('../graphs/samsung/samsung_keyboard_special_1.csv')
-    inactive = list(csv.reader(f))
-    f.close()
-    prev = 'q'
+    keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
+    mode = keyboard.get_start_keyboard_mode()
+    prev = START_KEYS[mode]
     last_auto = 0
-
-
     for i in list(word.lower()):
-
         if len(path) > 0:
-
-            # get autos using strategy
-            
-            autos = get_autos(dict, wcs, word[:len(path)], auto_strategy)
-            
-            if errmsg:
-                print("strategy " + str(auto_strategy) + "; " + word[:len(path)], end=": ")
-                print(autos)
-
-            # Ensure that autos is not empty
-            if autos != []: #temporary fix
+            autos = get_autos(e_dict, word[:len(path)])
+            if autos == []: # Ensure that autos is not empty
                 autos.append("\t")
 
             if i == autos[0]:
                 if last_auto == 1:
-                    path.append(0.0)
+                    path.append(0)
                 else:
-                    path.append(1.0)
+                    path.append(1)
                 last_auto = 1
             elif i in autos:
-                path.append(1.0)
+                path.append(1)
 
                 last_auto = 1
-
             else:
-                if i in active[0]:
-                    prev_index = active[0].index(prev)
-                    cur_index = active[0].index(i)
-                    path.append(float(active[prev_index+1][cur_index]) + 1)
+                distance = keyboard.get_moves_from_key(prev, i, False, False, mode)
+                print(distance)
+                while distance == -1:
+                    path.append(keyboard.get_moves_from_key(prev, "<CHANGE>", False, False, mode))
+                    prev = "<CHANGE>"
+                    mode = get_keyboard_mode(prev, mode, keyboard_type=KeyboardType.SAMSUNG)
+                    prev = START_KEYS[mode]
+                    distance = keyboard.get_moves_from_key(prev, i, False, False, mode)
+                if last_auto == 1:
+                    distance += 1
+                if i == " ":
+                    path.append(distance)
                 else:
-                    prev_index = active[0].index(prev)
-                    cur_index = active[0].index('<CHANGE>')
-                    path.append(float(active[prev_index+1][cur_index]) + 1)
-                    cur_index = inactive[0].index(i)
-                    path.append(float(inactive[inactive[0].index('<CHANGE>')+1][cur_index]))
-                    temp = inactive
-                    inactive = active
-                    active = temp
+                    path.append(distance)
                 prev = i
                 last_auto = 0
-
-        else: # first move
-            if i in active[0]:
-                prev_index = active[0].index(prev)
-                cur_index = active[0].index(i)
-                path.append(float(active[prev_index+1][cur_index]))
+        else:
+            distance = keyboard.get_moves_from_key(prev, i, False, False, mode)
+            print(distance)
+            while distance == -1:
+                #print(i)
+                #print(path)
+                path.append(keyboard.get_moves_from_key(prev, "<CHANGE>", False, False, mode))
+                prev = "<CHANGE>"
+                mode = get_keyboard_mode(prev, mode, keyboard_type=KeyboardType.SAMSUNG)
+                prev = START_KEYS[mode]
+                distance = keyboard.get_moves_from_key(prev, i, False, False, mode)
+            if i == " ":
+                path.append(distance)
             else:
-                prev_index = active[0].index(prev)
-                cur_index = active[0].index('<CHANGE>')
-                path.append(float(active[prev_index+1][cur_index]))
-                cur_index = inactive[0].index(i)
-                path.append(float(inactive[inactive[0].index('<CHANGE>')+1][cur_index]))
-                temp = inactive
-                inactive = active
-                active = temp
+                path.append(distance)
             prev = i
-            
     return path
-	
 
 
 
-def simulate_ms(dict, wcs, word : str, auto : bool, auto_strategy : int, errmsg : bool = False) -> List[int]:
+
+
+def simulate_ms(dict, word : str, auto : bool) -> List[int]:
+    """Simulates a move sequence"""
+    keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
     if not auto:
-        ms_string = findPath(word, 0, False)
+        move = findPath(word, 0, False, False, 0, 0, keyboard)
+        ms = []
+        for m in move:
+            ms.append(m.num_moves)
     else:
-        ms_string = find_path_auto(dict, wcs, word, auto_strategy, errmsg)
-
-    ms = []
-    for x in ms_string:
-        ms.append(int(x))
+        ms = find_path_auto(dict, word)
     return ms
 
 
-def test_auto_strategy(wcs, dict, strategy : int, errmsg : bool = False) -> List[str]:
-    ms_dict_auto = build_ms_dict("auto")
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    parser.add_argument("--ms-path-auto", type=str, required=False)
+    parser.add_argument("--ms-path-non", type=str, required=False)
+    parser.add_argument("--ed-path", type=str, required=False)
+    args = parser.parse_args()
 
-    fails = []
-    for key in ms_dict_auto:
-        k = (key, "auto")
-        if len(key) < 10:
-            sim_ms = simulate_ms(englishDictionary, wcs, key, True, strategy)
-
-            if eval_ms(k, sim_ms) == 0:
-                fails.append(key)
-
-                if errmsg: 
-                    print("0 failed sim on: " + key)
-                    print("gt: ", end = "")
-                    print(ms_dict_auto[key])
-                    print("sim 0: ", end="")
-                    print(sim_ms_0)
-
-    return fails
-                
-
-
-
-
-if __name__ == '__main__':
-    test = 3
-
-    # tests : 
+    # tests
     # 2 - deprecated strategy test
     # 3 - strategy test
+    test = 3
 
-    ms_dict_non = build_ms_dict("non")
-    ms_dict_auto = build_ms_dict("auto")
-    
-    englishDictionary = EnglishDictionary.restore(path="local/dictionaries/ed.pkl.gz")
-    wcs = buildDict(100)
+    if args.ms_path_auto is None:
+        args.ms_path_auto = "suggestions_model/local/ms_dict_auto.pkl.gz"
+        ms_dict_auto = build_ms_dict(args.ms_path_auto)
+    if args.ms_path_non is None:
+        args.ms_path_non = "suggestions_model/local/ms_dict_non.pkl.gz"
+        ms_dict_non = build_ms_dict(args.ms_path_auto)
+    if args.ed_path is None:
+        englishDictionary = EnglishDictionary.restore(
+            "suggestions_model/local/dictionaries/ed.pkl.gz")
+    elif args.ed_path == "build":
+        englishDictionary = EnglishDictionary(50)
+        englishDictionary.build(
+            "suggestions_model/local/dictionaries/enwiki-20210820-words-frequency.txt", 50, True)
+        englishDictionary.save("suggestions_model/local/dictionaries/ed.pkl.gz")
+    else:
+        englishDictionary = EnglishDictionary.restore(args.ed_path)
 
-
-    if test == 3:
-        strategy_list = [0, 1, 2, 3, 4]
-
-        strategy_dict = {}
-        for strategy in strategy_list:
-            print("testing strategy " + str(strategy))
-            strategy_dict[strategy] = test_auto_strategy(wcs, englishDictionary, strategy)
-
-        fails = []
-        for key in strategy_dict:
-            for fail in strategy_dict[key]:
-                fails.append(fail)
-
-        fails = list(set(fails))
-    for fail in fails:
-        print(fail, end=": ")
-        print(ms_dict_auto[fail])
-
-        for strategy in strategy_list:
-            if fail in strategy_dict[strategy]:
-                sim_ms = simulate_ms(englishDictionary, wcs, fail, True, strategy, True)
-                print(str(strategy), end=": ")
-                print(sim_ms)
-           
-        print("\n")
-
-    for strategy in strategy_list:
-        print(str(strategy) + ": " + str(len(strategy_dict[strategy])))
-
-
-    if test == 2:
-
-        correct0 = 0
-        correct2 = 0
-        correct3 = 0
-        correct5 = 0
-        correct6 = 0
-        total = 0
-
-        fail_list = []
-
-        for key in ms_dict_auto:
-            k = (key, "auto")
-            if len(key) < 10:
-                sim_ms_0 = simulate_ms(englishDictionary, wcs, key, True, 0)
-                sim_ms_2 = simulate_ms(englishDictionary, wcs, key, True, 2)
-                sim_ms_3 = simulate_ms(englishDictionary, wcs, key, True, 3)
-                sim_ms_5 = simulate_ms(englishDictionary, wcs, key, True, 5)
-                sim_ms_6 = simulate_ms(englishDictionary, wcs, key, True, 6)
-
-                # test strategy 0
-                if eval_ms(k, sim_ms_0) == 0:
-                    fail_list.append(key)
-                    print("0 failed sim on: " + key)
-                    print("gt: ", end = "")
-                    print(ms_dict_auto[key])
-                    print("sim 0: ", end="")
-                    print(sim_ms_0)
-                else:
-                    #print("success on " + key)
-                    correct0 += 1
-
-                # test strategy 2
-                if eval_ms(k, sim_ms_2) == 0:
-                    fail_list.append(key)
-                    print("2 failed sim on: " + key)
-                    print("gt: ", end = "")
-                    print(ms_dict_auto[key])
-                    print("sim 2: ", end="")
-                    print(sim_ms_2)
-                else:
-                    #print("success on " + key)
-                    correct2 += 1
-
-                # test strategy 3
-                if eval_ms(k, sim_ms_3) == 0:
-                    fail_list.append(key)
-                    print("3 failed sim on: " + key)
-                    print("gt: ", end = "")
-                    print(ms_dict_auto[key])
-                    print("sim 3: ", end="")
-                    print(sim_ms_3)
-                else:
-                    #print("success on " + key)
-                    correct3 += 1
-
-                # test strategy 5
-                if eval_ms(k, sim_ms_5) == 0:
-                    fail_list.append(key)
-                    print("5 failed sim on: " + key)
-                    print("gt: ", end = "")
-                    print(ms_dict_auto[key])
-                    print("sim 5: ", end="")
-                    print(sim_ms_5)
-                else:
-                    #print("success on " + key)
-                    correct5 += 1
-
-                 # test strategy 6
-                if eval_ms(k, sim_ms_6) == 0:
-                    fail_list.append(key)
-                    print("6 failed sim on: " + key)
-                    print("gt: ", end = "")
-                    print(ms_dict_auto[key])
-                    print("sim 6: ", end="")
-                    print(sim_ms_6)
-                else:
-                    #print("success on " + key)
-                    correct6 += 1
-
-                total += 1
-            
-            
-        print("correct 0: " + str(correct0))
-        print("correct 2: " + str(correct2))
-        print("correct 3: " + str(correct3))
-        print("correct 5: " + str(correct5))
-        print("correct 6: " + str(correct6))
-        print("total: " + str(total))
-
-
-        # run through fails
-        fail_list = list(set(fail_list))
-        for key in fail_list:
-            print(key)
-            sim_ms_0 = simulate_ms(englishDictionary, wcs, key, True, 0, True)
-            sim_ms_2 = simulate_ms(englishDictionary, wcs, key, True, 2, True)
-            sim_ms_3 = simulate_ms(englishDictionary, wcs, key, True, 3, True)
-            sim_ms_5 = simulate_ms(englishDictionary, wcs, key, True, 5, True)
-            sim_ms_6 = simulate_ms(englishDictionary, wcs, key, True, 6, True)
-            print(ms_dict_auto[key])
-            print(sim_ms_0)
-            print(sim_ms_2)
-            print(sim_ms_3)
-            print(sim_ms_5)
-            print(sim_ms_6)
-            print("\n")
-
-        
-        print("correct 0: " + str(correct0))
-        print("correct 2: " + str(correct2))
-        print("correct 3: " + str(correct3))
-        print("correct 5: " + str(correct5))
-        print("correct 6: " + str(correct6))
-        print("total: " + str(total))
-
-        # maybe prioritize shorter words?  If it can complete it immediately, try that?
 
     if test == 1:
         # test non words
         for key in ms_dict_non:
-            sim_ms = simulate_ms(englishDictionary, wcs, key, False, 0)
+            sim_ms = simulate_ms(englishDictionary, key, False)
             if sim_ms != ms_dict_non[key]:
                 print("failed sim on: " + key)
                 print("gt: ", end = "")
@@ -735,7 +211,7 @@ if __name__ == '__main__':
         # test auto words
         for key in ms_dict_auto:
             if len(key) == 5:
-                sim_ms = simulate_ms(englishDictionary, wcs, key, True, 0)
+                sim_ms = simulate_ms(englishDictionary, key, True)
                 if sim_ms != ms_dict_auto[key]:
                     print("failed sim on: " + key)
                     print("gt: ", end = "")
