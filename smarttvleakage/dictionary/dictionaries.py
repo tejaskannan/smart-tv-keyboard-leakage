@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Iterable, Tuple, Any
 
 from smarttvleakage.utils.ngrams import create_ngrams
 from smarttvleakage.utils.constants import BIG_NUMBER
+from smarttvleakage.utils.credit_card_detection import validate_credit_card_number
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
 
@@ -47,26 +48,39 @@ class CharacterDictionary:
     def characters(self) -> List[str]:
         return self._characters
 
+    def is_valid(self, _: str) -> bool:
+        return True
+
+    def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
+        return 0.0
+
     def set_characters(self, characters: List[str]):
         self._characters = characters
 
     def smooth_character_counts(self, prefix: str, counts: Dict[str, int]) -> Dict[str, int]:
         return counts
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert len(self.characters) > 0, 'Must call set_characters() first'
         raise NotImplementedError()
 
 
 class UniformDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         return { REVERSE_CHARACTER_TRANSLATION.get(char, char): 1 for char in self.characters }
 
-# for CCs
+
 class NumericDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            return True
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         nd = {}
         for c in CHARACTERS:
             if c.isnumeric():
@@ -75,101 +89,88 @@ class NumericDictionary(CharacterDictionary):
                 nd[c] = 0
         return nd
 
-## could do stronger weighting?
-## add more for first digits?
-class CreditCardDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+class CreditCardDictionary(NumericDictionary):
+
+    def __init__(self):
+        super().__init__()
+
+        self._single_counter: Counter = Counter()
+        self._prefix_counter: DefaultDict[str, Counter] = defaultdict(Counter)
+
+        dir_name = os.path.dirname(__file__)
+        with open(os.path.join(dir_name, 'cc_bins.txt')) as fin:
+            for line in fin:
+                prefix = line.strip()
+
+                if len(prefix) == 1:
+                    self._single_counter[prefix] += 1
+                elif len(prefix) > 1:
+                    self._prefix_counter[prefix[0:-1]][prefix[-1]] += 1
+
+    def is_valid(self, string: str) -> bool:
+        is_valid = super().is_valid(string)
+        return is_valid and validate_credit_card_number(string)
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        """
+        Credit Card formats from here: https://www.tokenex.com/blog/ab-what-is-a-bin-bank-identification-number
+        """
         length = len(prefix)
-        nd = {}
-        firsts = ["3", "4", "5", "6"]
 
-        if length > 1: # uniform
-            for c in CHARACTERS:
-                if c.isnumeric():
-                    nd[c] = 1000
-                else:
-                    nd[c] = 0
+        if len(prefix) == 0:
+            char_counts = self._single_counter
+        elif prefix in self._prefix_counter:
+            char_counts = self._prefix_counter[prefix]
+        else:
+            char_counts = {c: 1 for c in string.digits}
 
-        elif length == 0:
-            for c in CHARACTERS:
-                if c in firsts:
-                    nd[c] = 1000
-                elif c.isnumeric():
-                    nd[c] = 100
-                else:
-                    nd[c] = 0
-        elif length == 1:
-            if prefix == "3":
-                for c in CHARACTERS:
-                    if c == "4" or c == "7":
-                        nd[c] = 1000
-                    elif c.isnumeric():
-                        nd[c] = 100
-                    else:
-                        nd[c] = 0
-            else:
-                for c in CHARACTERS:
-                    if c.isnumeric():
-                        nd[c] = 1000
-                    else:
-                        nd[c] = 0
+        total_count = sum(char_counts.values())
+        return {c: (count / total_count) for c, count in char_counts.items()}
 
-        return nd
-##
-class CreditCardDictionaryStrong(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
-        length = len(prefix)
-        nd = {}
-        firsts = ["3", "4", "5", "6"]
+class ZipCodeDictionary(NumericDictionary):
 
-        if length == 0:
-            for c in CHARACTERS:
-                if c in firsts:
-                    nd[c] = 1000
-                elif c.isnumeric():
-                    nd[c] = 10
-                else:
-                    nd[c] = 0
+    def __init__(self):
+        super().__init__()
+        self._trie = Trie(max_depth=6)
+        self._is_built = False
 
-        elif length == 1:
-            for c in CHARACTERS:
+    def build(self, path: str, min_count: int, has_counts: bool):
+        with open(path, 'r') as fin:
+            for line in fin:
+                tokens = line.strip().split()
+                zip_code = tokens[0]
+                population = int(tokens[1])
 
-                if prefix == "3":
-                    if c in ["4", "7"]:
-                        nd[c] = 1000
-                    elif c.isnumeric():
-                        nd[c] = 10
-                    else:
-                        nd[c] = 0
-                elif prefix == "4":
-                    if c in ["0", "1", "4", "8", "9"]:
-                        nd[c] = "1000"
-                    elif c.isnumeric():
-                        nd[c] = 200
-                    else:
-                        nd[c] = 0
-                elif prefix == "5":
-                    if c in ["0", "1", "2", "3", "4", "5"]:
-                        nd[c] = "1000"
-                    elif c.isnumeric():
-                        nd[c] = 200
-                    else:
-                        nd[c] = 0
-                # continue making cc dict
+                if population >= min_count:
+                    self._trie.add_string(zip_code, count=population)
 
-        elif length > 1: # uniform
-            for c in CHARACTERS:
-                if c.isnumeric():
-                    nd[c] = 1000
-                else:
-                    nd[c] = 0
-                    
-       
+        self._is_build = True
 
-        return nd
-##
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, float]:
+        # Get the prior counts of the next characters using the given prefix
+        character_counts = self._trie.get_next_characters(prefix, length=5)  # All zip codes have length 5
+
+        if len(character_counts) == 0:
+            return {c: 0.1 for c in string.digits}
+
+        total_count = sum(character_counts.values())
+        return {c: (count / total_count) for c, count in character_counts.items()}
+
+    def save(self, path: str):
+        data_dict = {
+            'trie': self._trie,
+            'dict_type': 'zip_code'
+        }
+        save_pickle_gz(data_dict, path)
+
+    @classmethod
+    def restore(cls, serialized: Dict[str, Any]):
+        dictionary = cls()
+        dictionary._trie = serialized['trie']
+        dictionary._is_built = True
+        return dictionary
 
 
 class EnglishDictionary(CharacterDictionary):
@@ -249,9 +250,6 @@ class EnglishDictionary(CharacterDictionary):
                 line = line.strip()
                 if len(line) > 0:
                     yield line.split()[0]
-
-    def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
-        return 0.0
 
     def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[Tuple[str, float]]:
         return self._trie.get_words_for(prefixes, max_num_results, min_length=min_length, max_count_per_prefix=max_count_per_prefix)
@@ -449,6 +447,8 @@ class NgramDictionary(EnglishDictionary):
 def restore_dictionary(path: str) -> CharacterDictionary:
     if path == 'uniform':
         return UniformDictionary()
+    elif path == 'credit_card':
+        return CreditCardDictionary()
     else:
         data_dict = read_pickle_gz(path)
         dict_type = data_dict['dict_type']
@@ -457,5 +457,7 @@ def restore_dictionary(path: str) -> CharacterDictionary:
             return EnglishDictionary.restore(data_dict)
         elif dict_type == 'ngram':
             return NgramDictionary.restore(data_dict)
+        elif dict_type == 'zip_code':
+            return ZipCodeDictionary.restore(data_dict)
         else:
             raise ValueError('Unknown dictionary type: {}'.format(dict_type))

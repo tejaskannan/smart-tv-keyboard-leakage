@@ -2,7 +2,6 @@ from collections import namedtuple
 from typing import List, Optional, Tuple
 
 from smarttvleakage.audio import SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE, Move
-from smarttvleakage.keyboard_utils.word_to_move import findPath
 
 
 CreditCardSequence = namedtuple('CreditCardSequence', ['credit_card', 'zip_code', 'expiration_month', 'expiration_year', 'security_code'])
@@ -14,6 +13,26 @@ ZIP_CODE_LENGTH = (5, 5)
 MONTH_LENGTH = (1, 2)
 YEAR_LENGTH = (2, 4)
 SECURITY_CODE_LENGTH = (3, 4)
+
+
+def validate_credit_card_number(credit_card_number: str) -> bool:
+    """
+    Validates the credit card using the Luhn algorithm.
+    """
+    total_sum = 0
+    should_double = False
+
+    for idx in reversed(range(len(credit_card_number))):
+        char = credit_card_number[idx]
+        digit = int(char)
+
+        if should_double:
+            digit *= 2
+
+        total_sum += int(digit / 10) + int(digit % 10)
+        should_double = (not should_double)
+
+    return (total_sum % 10) == 0
 
 
 def get_field_with_bounds(seq_lengths: List[int], bounds: Tuple[int, int]) -> int:

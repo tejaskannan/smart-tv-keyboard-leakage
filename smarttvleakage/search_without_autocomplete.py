@@ -8,6 +8,7 @@ from typing import Set, List, Dict, Optional, Iterable, Tuple
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_SEARCH_ALPHABET, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
+from smarttvleakage.dictionary import NumericDictionary
 from smarttvleakage.dictionary.rainbow import PasswordRainbow
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
@@ -22,7 +23,7 @@ CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment', 'increme
 MISTAKE_RATE = 1e-2
 DECAY_RATE = 0.9
 SCORE_THRESHOLD = 1e-4
-MAX_NUM_CANDIDATES = 5000
+MAX_NUM_CANDIDATES = 250000
 MISTAKE_LIMIT = 3
 
 SUGGESTION_THRESHOLD = 8
@@ -51,7 +52,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             guessed_strings.add(result.word)
 
     target_length = len(move_sequence)
-    #should_renormalize_scores = (target_length >= 17)
     should_renormalize_scores = False
 
     candidate_queue = PriorityQueue()
@@ -77,13 +77,14 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     candidate_queue.put((init_state.score, init_state))
 
     # Link the initial state (we can start in any one of the these spots)
-    for linked_state in graph.get_linked_states(START_KEYS[keyboard_mode], keyboard_mode=keyboard_mode):
-        init_state = SearchState(keys=[],
-                                 score=0.0,
-                                 keyboard_mode=linked_state.mode,
-                                 current_key=linked_state.key,
-                                 move_idx=0)
-        candidate_queue.put((init_state.score, init_state))
+    if not isinstance(dictionary, NumericDictionary):
+        for linked_state in graph.get_linked_states(START_KEYS[keyboard_mode], keyboard_mode=keyboard_mode):
+            init_state = SearchState(keys=[],
+                                     score=0.0,
+                                     keyboard_mode=linked_state.mode,
+                                     current_key=linked_state.key,
+                                     move_idx=0)
+            candidate_queue.put((init_state.score, init_state))
 
     scores: Dict[str, float] = dict()
     visited: Set[VisitedState] = set()
@@ -100,7 +101,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         current_string = get_string_from_keys(keys=current_state.keys)
         candidate_count += 1
 
-        if len(current_state.keys) == target_length:
+        if len(current_state.keys) == target_length and dictionary.is_valid(current_string):
             if current_string not in guessed_strings:
                 yield current_string, current_state.score, candidate_count
 
@@ -226,15 +227,16 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                     visited.add(visited_state)
 
                     # Add any linked states (undetectable by keyboard audio alone)
-                    for linked_state in graph.get_linked_states(neighbor_key, keyboard_mode=next_keyboard):
-                        next_state = SearchState(keys=candidate_keys,
-                                                 score=next_state_score,
-                                                 keyboard_mode=linked_state.mode,
-                                                 current_key=linked_state.key,
-                                                 move_idx=next_move_idx)
+                    if not isinstance(dictionary, NumericDictionary):
+                        for linked_state in graph.get_linked_states(neighbor_key, keyboard_mode=next_keyboard):
+                            next_state = SearchState(keys=candidate_keys,
+                                                     score=next_state_score,
+                                                     keyboard_mode=linked_state.mode,
+                                                     current_key=linked_state.key,
+                                                     move_idx=next_move_idx)
 
-                        candidate_queue.put((priority, next_state))
-                        visited_state = VisitedState(keys=visited_str, current_key=linked_state.key)
+                            candidate_queue.put((priority, next_state))
+                            visited_state = VisitedState(keys=visited_str, current_key=linked_state.key)
 
 
 if __name__ == '__main__':
