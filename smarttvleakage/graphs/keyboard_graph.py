@@ -3,23 +3,50 @@ from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set
 import csv
-
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
+from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
+from .keyboard_linker import KeyboardLinker, KeyboardPosition
+from smarttvleakage.audio.constants import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
 
-
-class KeyboardMode(Enum):
-    STANDARD = auto()
-    SPECIAL_ONE = auto()
+SAMSUNG_STANDARD = 'samsung_standard'
+SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
+APPLETV_SEARCH_ALPHABET = 'appletv_search_alphabet'
+APPLETV_SEARCH_NUMBERS = 'appletv_search_numbers'
+APPLETV_SEARCH_SPECIAL = 'appletv_search_special'
+APPLETV_PASSWORD_STANDARD = 'appletv_password_standard'
+APPLETV_PASSWORD_CAPS = 'appletv_password_caps'
+APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
 
 
 START_KEYS = {
-    KeyboardMode.STANDARD: 'q',
-    KeyboardMode.SPECIAL_ONE: CHANGE
+    SAMSUNG_STANDARD: 'q',
+    SAMSUNG_SPECIAL_ONE: CHANGE,
+    APPLETV_SEARCH_ALPHABET: 't',
+    APPLETV_SEARCH_NUMBERS: CHANGE,
+    APPLETV_SEARCH_SPECIAL: CHANGE,
+    APPLETV_PASSWORD_STANDARD: 'a',
+    APPLETV_PASSWORD_CAPS: CHANGE,  # TODO: Fix This (should be <ABC>)
+    APPLETV_PASSWORD_SPECIAL: CHANGE  # TODO: Fix This (should be <SPECIAL>)
+}
+
+#If change key is the same as the select key leave it empty and we will default to select key
+CHANGE_KEYS = {
+    SAMSUNG_STANDARD: SAMSUNG_SELECT,
+    SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
 }
 
 
-FILTERED_KEYS = [BACKSPACE]
+SELECT_KEYS = {
+    SAMSUNG_STANDARD: SAMSUNG_KEY_SELECT,
+    SAMSUNG_SPECIAL_ONE: SAMSUNG_KEY_SELECT,
+    APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
+    APPLETV_PASSWORD_CAPS: APPLETV_KEYBOARD_SELECT,
+    APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
+    APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT
+}
 
 
 def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
@@ -38,27 +65,104 @@ def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
 
 class MultiKeyboardGraph:
 
-    def __init__(self):
+    def __init__(self, keyboard_type: KeyboardType):
+        self._keyboard_type = keyboard_type
+
         dir_name = os.path.dirname(__file__)
-        standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json.gz')
-        special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json.gz')
+        linker_path: Optional[str] = None
 
-        self._keyboards = {
-            KeyboardMode.STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[KeyboardMode.STANDARD]),
-            KeyboardMode.SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[KeyboardMode.SPECIAL_ONE])
-        }
+        if keyboard_type == KeyboardType.SAMSUNG:
+            standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json')
+            special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json')
+            self._start_mode = SAMSUNG_STANDARD
 
-    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: KeyboardMode, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+            self._keyboards = {
+                SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
+                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
+            }
+
+            linker_path = os.path.join(dir_name, 'samsung', 'link.json')
+        elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
+            alphabet_path = os.path.join(dir_name, 'apple_tv', 'alphabet.json')
+            numbers_path = os.path.join(dir_name, 'apple_tv', 'numbers.json')
+            special_path = os.path.join(dir_name, 'apple_tv', 'special.json')
+            self._start_mode = APPLETV_SEARCH_ALPHABET
+
+            self._keyboards = {
+                APPLETV_SEARCH_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_SEARCH_ALPHABET]),
+                APPLETV_SEARCH_NUMBERS: SingleKeyboardGraph(path=numbers_path, start_key=START_KEYS[APPLETV_SEARCH_NUMBERS]),
+                APPLETV_SEARCH_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_SEARCH_SPECIAL])
+            }
+
+            linker_path = os.path.join(dir_name, 'apple_tv', 'link.json')
+        elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
+            standard_path = os.path.join(dir_name, 'apple_tv_password', 'standard.json')
+            caps_path = os.path.join(dir_name, 'apple_tv_password', 'caps.json')
+            special_path = os.path.join(dir_name, 'apple_tv_password', 'special.json')
+
+            self._start_mode = APPLETV_PASSWORD_STANDARD
+
+            self._keyboards = {
+                APPLETV_PASSWORD_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[APPLETV_PASSWORD_STANDARD]),
+                APPLETV_PASSWORD_CAPS: SingleKeyboardGraph(path=caps_path, start_key=START_KEYS[APPLETV_PASSWORD_CAPS]),
+                APPLETV_PASSWORD_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_PASSWORD_SPECIAL])
+            }
+
+            linker_path = os.path.join(dir_name, 'apple_tv_password', 'link.json')
+        else:
+            raise ValueError('Unknown TV type: {}'.format(tv_type.name))
+
+        # Make the keyboard linker
+        self._linker = KeyboardLinker(linker_path)
+
+    def get_start_keyboard_mode(self) -> str:
+        return self._start_mode
+
+    def get_keyboard_type(self) -> KeyboardType:
+        return self._keyboard_type
+
+    def is_unclickable(self, key: str, mode: str) -> bool:
+        return self._keyboards[mode].is_unclickable(key)
+
+    def get_linked_states(self, current_key: str, keyboard_mode: str) -> List[KeyboardPosition]:
+        return self._linker.get_linked_states(current_key, keyboard_mode)
+
+    def get_characters(self) -> List[str]:
+        merged: Set[str] = set()
+
+        for keyboard in self._keyboards.values():
+            merged.update(keyboard.get_characters())
+
+        return list(merged)
+
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
         if num_moves < 0:
             return []
 
         return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
 
-    def printerthing(self, num_moves: int, mode: KeyboardMode) -> List[str]:
+    def printerthing(self, num_moves: int, mode: str) -> List[str]:
         return self._keyboards[mode].get_keys_for_moves(num_moves)
 
-    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool, mode: KeyboardMode) -> int:
+    def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
+
+    def get_keyboards(self) -> List:
+        return self._keyboards.values()
+
+    def get_nearest_link(self, current_key: str, mode: str, use_shortcuts: bool, use_wraparound: bool) -> str:
+        nearest_dist = 100
+        nearest_key = ''
+        for i in self._keyboards[mode].get_characters():
+            if self._linker.get_linked_states(i, mode) != []:
+                if self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)<nearest_dist:
+                    nearest_dist = self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)
+                    nearest_key = i
+            # print(i)
+            # print(mode)
+            # print(self._linker.get_linked_states(i, mode))
+        return nearest_key
+        
 
 class SingleKeyboardGraph:
 
@@ -66,16 +170,21 @@ class SingleKeyboardGraph:
         # Set the start key
         self._start_key = start_key
 
-        # Read in the precomputed shortest paths maps
-        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json.gz', '_normal.json.gz'))
-        self._no_wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json.gz', '_shortcuts.json.gz'))
+        # Read in the graph config to get the unclickable keys
+        graph_config = read_json(path)
+        self._characters = list(graph_config['adjacency_list'].keys())
+        self._unclickable_keys: Set[str] = set(graph_config['unclickable'])
 
-        wraparound_path = path.replace('.json.gz', '_wraparound.json.gz')
+        # Read in the precomputed shortest paths maps
+        self._no_wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json', '_normal.json.gz'))
+        self._no_wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=path.replace('.json', '_shortcuts.json.gz'))
+
+        wraparound_path = path.replace('.json', '_wraparound.json.gz')
         self._wraparound_distances: Dict[str, DefaultDict[int, Set[str]]] = parse_graph_distances(path=wraparound_path)
         if os.path.exists(wraparound_path):
             self._wraparound_distances = parse_graph_distances(path=wraparound_path)
 
-        wraparound_shortcuts_path = path.replace('.json.gz', '_all.json.gz')
+        wraparound_shortcuts_path = path.replace('.json', '_all.json.gz')
         self._wraparound_distances_shortcuts: Dict[str, DefaultDict[int, Set[str]]] = dict()
         if os.path.exists(wraparound_shortcuts_path):
             self._wraparound_distances_shortcuts = parse_graph_distances(path=wraparound_shortcuts_path)
@@ -83,24 +192,27 @@ class SingleKeyboardGraph:
     def get_keys_for_moves(self, num_moves: int) -> List[str]:
         return self.get_keys_for_moves_from(start_key=self._start_key, num_moves=num_moves, use_space=False)
 
+    def get_characters(self) -> List[str]:
+        return self._characters
+
+    def is_unclickable(self, key: str) -> bool:
+        return (key in self._unclickable_keys)
+
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
         assert num_moves >= 0, 'Must provide a non-negative number of moves. Got {}'.format(num_moves)
 
         if num_moves == 0:
             return [start_key]
 
-        no_wraparound_distance_dict = self._no_wraparound_distances.get(start_key, dict())
-        wraparound_distance_dict = self._wraparound_distances.get(start_key, dict())
+        no_wraparound_neighbors = self._no_wraparound_distances.get(start_key, dict()).get(num_moves, set())
+        wraparound_neighbors = self._wraparound_distances.get(start_key, dict()).get(num_moves, set())
 
         if use_shortcuts:
-            no_wraparound_distance_dict.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()))
-            wraparound_distance_dict.update(self._wraparound_distances_shortcuts.get(start_key, dict()))
+            no_wraparound_neighbors.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+            wraparound_neighbors.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
 
-        if (len(no_wraparound_distance_dict) == 0) and (len(wraparound_distance_dict) == 0):
+        if (len(no_wraparound_neighbors) == 0) and (len(wraparound_neighbors) == 0):
             return []
-
-        no_wraparound_neighbors = no_wraparound_distance_dict.get(num_moves, set())
-        wraparound_neighbors = wraparound_distance_dict.get(num_moves, set())
 
         if use_wraparound:
             combined = no_wraparound_neighbors.union(wraparound_neighbors)
@@ -108,10 +220,10 @@ class SingleKeyboardGraph:
         else:
             return list(sorted(no_wraparound_neighbors))
 
-    def get_moves_from_key(self, start_key:str, end_key:str, use_shortcuts:bool, use_wraparound: bool) -> int:
+    def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool) -> int:
         if end_key not in list(self._no_wraparound_distances.keys()):
             return -1
-        if end_key==start_key:
+        if end_key == start_key:
             return 0
         if use_shortcuts:
             if use_wraparound:

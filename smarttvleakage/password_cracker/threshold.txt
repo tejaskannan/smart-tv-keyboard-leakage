@@ -1,2 +1,0 @@
-Above is a special character. Below isn't.
-0.5467529296875

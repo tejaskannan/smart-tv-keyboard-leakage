@@ -1,286 +1,220 @@
 import re
 import argparse
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
-from smarttvleakage.audio.move_extractor import Move, Sound
-import random
-# spc = {"!": 1, "\"": 3, "#": 3, "$": 4, "%": 8, "&": 7, "'": 2, "(": 9, ")": 10, "*": 8, "+": 4, ",": 6, "-": 3, "/": 5, "0": 11, "1": 2, "2": 3, "3": 4, "4": 5, "5": 6, "6": 7, "7": 8, "8": 9, "9": 10, ":": 4, ";": 5, "<": 8, "<<": 12, "<BACK>": 12, "<CENT>": 14, "<DIV>": 6, "<DOWN>": 14, "<EURO>": 10, "<LANGUAGE>": 3, "<LEFT>": 13, "<MULT>": 5, "<NEXT>": 1, "<POUND>": 11, "<RIGHT>": 15, "<SETTINGS>": 4, "<SPACE>": 5, "<UP>": 13, "<YEN>": 12, "=": 7, ">": 9, ">>": 13, "?": 7, "@": 2, "[": 11, "\\": 9, "]": 12, "^": 6, "{": 10, "}": 11}
-# std = {"!": 12, "*": 11, ",": 9, "-": 13, ".": 10, "/": 11, "0": 10, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8, "9": 9, "<BACK>": 11, "<CANCEL>": 14, "<CAPS>": 2, "<CHANGE>": 1, "<COM>": 10, "<DELETEALL>": 12, "<DONE>": 13, "<DOWN>": 13, "<LANGUAGE>": 2, "<LEFT>": 12, "<RETURN>": 12, "<RIGHT>": 14, "<SETTINGS>": 3, "<SPACE>": 5, "<UP>": 12, "<WWW>": 9, "?": 11, "@": 11, "^": 10, "a": 1, "b": 6, "c": 4, "d": 3, "e": 2, "f": 4, "g": 5, "h": 6, "i": 7, "j": 7, "k": 8, "l": 9, "m": 8, "n": 7, "o": 8, "p": 9, "r": 3, "s": 2, "t": 4, "u": 6, "v": 5, "w": 1, "x": 3, "y": 5, "z": 2, "~": 10}
-# special = [[] for i in range(max(spc.values()))]
-# standard = [[] for i in range(max(std.values()))]
-# for i in spc:
-#   special[spc[i]-1].append(i)
-# for i in std:
-#   standard[std[i]-1].append(i)
-# print(special)
-# print('\n')
-# print(standard)
-
-
+from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+import itertools
 
 def get_possible(move, thing, pos):
-    output = []
-    pos_temp = []
-    #print(move)
-    #print(pos)
-    for i in pos:
-        #print(i)
-        if move[0] == 0:
-            for j in thing[i]:
-                if j not in output:
-                    output.append(j)
-            pos_temp.append(i)
-        else:
-            # print(move[0])
-            # print(i)
-            counter = move[0]+i
-            if counter>=len(thing):
-                if counter%2 == len(thing)%2:
-                    counter=len(thing)-2
-                else:
-                    counter=len(thing)-1
-            while counter>=i+1:
-                # print(counter)
-                # print(len(thing))
-                for j in thing[counter]:
-                    if j not in output:
-                        output.append(j)
-                pos_temp.append(counter)
-                counter-=2
-            counter = i-move[0]
-            if counter<0:
-                if counter%2 == 0:
-                    counter = 0
-                else:
-                    counter = 1
-            while counter<=i-1:
-                # print(counter)
-                # print(len(thing))
-                for j in thing[counter]:
-                    if j not in output:
-                        output.append(j)
-                        pos_temp.append(counter)
-                        counter+=2
-        random.shuffle(output)
-        output.insert(0,'[')
-        output.append(']')
-        return [''.join(output),pos_temp]
+	output = []
+	pos_temp = []
+	for i in pos:
+		if move[0] == 0:
+			for j in thing[i]:
+				if j not in output:
+					output.append(j)
+			pos_temp.append(i)
+		else:
+			counter = move[0] + i
+			if counter >= len(thing):
+				if counter % 2 == len(thing) % 2:
+					counter=len(thing)-2
+				else:
+					counter=len(thing)-1
+			while counter>=i+1:
+				counter = int(counter)
+				#print('counter: ',counter)
+				for j in thing[counter]:
+					if j not in output:
+						output.append(j)
+				pos_temp.append(counter)
+				counter-=2
+			counter = i-move[0]
+			if counter<0:
+				if counter%2 == 0:
+					counter = 0
+				else:
+					counter = 1
+			while counter<=i-1:
+				for j in thing[counter]:
+					if j not in output:
+						output.append(j)
+				pos_temp.append(counter)
+				counter+=2
+	output.insert(0, '[')
+	output.append(']')
+	return [''.join(output), pos_temp]
 
 
-def find_regex(moves1):
-    standard = [['q'], ['1', 'a', 'w'], ['2', 'e', 's', 'z'], ['3', 'd', 'r', 'x'], ['4', 'c', 'f', 't'], ['5', 'g', 'v', 'y'], ['6', 'b', 'h', 'u'], ['7', 'i', 'j', 'n'], ['8', 'k', 'm', 'o'], [',', '9', 'l', 'p'], ['.', '0', '^', '~'], ['*', '/', '?', '@'], ['!'], ['\\-']]
-    special = [[],['!'], ["'", '1', '@'], ['"', '#', '\\-', '2'], ['$', '+', '3', ':'], ['/', '4', ';'], [',', '5', '^'], ['&', '6', '=', '?'], ['%', '*', '7', '<'], ['(', '8', '>', '\\\\'], [')', '9', '{'], ['0', '\\[', '}'], ['\\]']]
+def find_regex(moves1, spaces, average):
+	standard = [['q'],
+		    ['1', 'a', 'w'],
+		    ['2', 'e', 's', 'z'],
+		    ['3', 'd', 'r', 'x'],
+		    ['4', 'c', 'f', 't'],
+		    ['5', 'g', 'v', 'y'],
+		    ['6', 'b', 'h', 'u'],
+		    ['7', 'i', 'j', 'n'],
+		    ['8', 'k', 'm', 'o'],
+		    [',', '9', 'l', 'p'],
+		    ['.', '0', '^', '~'],
+		    ['*', '/', '?', '@'],
+		    ['!'],
+		    ['\\-']]
+	special = [[],
+		    ['!'],
+		    ["'", '1', '@'],
+		    ['"', '#', '\\-', '2'],
+		    ['$', '+', '3', ':'],
+		    ['/', '4', ';'],
+		    [',', '5', '^'],
+		    ['&', '6', '=', '?'],
+		    ['%', '*', '7', '<'],
+		    ['(', '8', '>', '\\\\'],
+		    [')', '9', '{'],
+		    ['0', '\\[', '}'],
+		    ['\\]']]
 
-    escape = '.+*?^$()[]{}|\\'
-    moves = [moves1]
-    page_1 = '?l?d^*~@!\\,./-'
-    page_2 = '?d!@#$/^&*()[]\'";:\\,??<>{}-+=%\\'
-    pos = [[0] for i in moves]
-    words = []
-    #print(moves)
-    # for x,i in enumerate(moves):
-    #   print(i)
-    #   words.append(i.pop(0))
-    #   if i[0][1] == Sound.KEY_SELECT:
-    #       first_moves.append(i[0])
-    #   else:
-    #       first_moves.append(Move(num_moves=i[1][0], end_sound=Sound.SELECT))
+	# escape = '.+*?^$()[]{}|\\'
+	moves = [moves1]
+	# page_1 = '?l?d^*~@!\\,./-'
+	# page_2 = '?d!@#$/^&*()[]\'";:\\,??<>{}-+=%\\'
+	pos = [[0] for i in moves]
+	words = []
+	regex = [[] for i in moves]
+	pos = [[0] for i in moves]
+	for idx, move_list in enumerate(moves):
+		page2 = False
+		thing = []
+		for move_idx, move in enumerate(move_list):
+			if move[1] == SAMSUNG_SELECT:
+				if move_idx in spaces:
+					if page2:
+						thing = ['[ ]', [5]]
+					else:
+						thing = ['[ ]', [4]]
+					move_list[move_idx+1] = Move(num_moves = move_list[move_idx+1][0]-1, end_sound = move_list[move_idx+1][1])
+				else:
+					if page2:
+						page2 = False
+						pos[idx] = [0]
+					else:
+						page2 = True
+						pos[idx] = [0]
+			else:
+				thing = []
+				if page2:
+					thing = get_possible(move, special, pos[idx])
+				else:
+					thing = get_possible(move, standard, pos[idx])
+			if thing != []:
+				regex[idx].append(thing[0])
+				pos[idx] = thing[1]
 
-    regex = [[] for i in moves]
-    # for x,i in enumerate(first_moves):
-    #   thing = ''
-    #   if i[1] == Sound.SELECT:
-    #       thing = get_possible(i, special, pos[x])
-    #   else:
-    #       thing = get_possible(i, standard, pos[x])
-    #   regex[x].append(thing[0])
-    #   pos[x] = thing[1]
-    pos = [[0]for i in moves]
-    for x,i in enumerate(moves):
-        page2 = False
-        for j in i:
-            if j[1] == Sound.SELECT:
-                if page2:
-                    page2 = False
-                    pos[x] = [0]
-                else:
-                    page2 = True
-                    pos[x] = [0]
-            else:
-                thing = []
-                if page2:
-                    thing = get_possible(j, special, pos[x])
-                else:
-                    thing = get_possible(j, standard, pos[x])
-                #   print(thing)
-                #   print(j)
-                #   print(pos[x])
-                regex[x].append(thing[0])
-                pos[x] = thing[1]
+	# print(regex)
+	totals = []
+	averages = []
+	original = []
 
-    # for i in regex:
-    #   print(len(i))
-    # for x,i in enumerate(moves):
-    #   page2 = False
-    #   for j in i:
-    #       if j[1] == Sound.KEY_SELECT:
-    #           if page2:
-    #               regex[x].append(page_2)
-    #           else:
-    #               regex[x].append(page_1)
-    #       else:
-    #           if page2:
-    #               page2 = False
-    #           else:
-    #               page2 = True
-    # print(regex)
-    totals = []
-    averages = []
-    for x,i in enumerate(regex):
-        #print(regex[x].pop(0))
-        totals.append([])
-        #print(regex[x])
-        for y,j in enumerate(i):
-            totals[x].append(0)
-            prev = ''
-            for k in j:
-                if k != '\\':
-                    totals[x][y]+=1
-                elif prev == '\\':
-                    totals[x][y]+=1
-                prev = k
-            #print(totals[x])
-            #print(j)
-                # totals[-1].append(len(k))
-        #print(regex[x].pop(0))
-        #regex[x].insert(0,r'\b')
-        #regex[x].insert(0,r'(')
-        #regex[x].append(r'\b')
-        #regex[x].append(r')')
-
-    # print(len(totals))
-    # print(len(regex))
-    # print(regex[0])
-    # print(len(regex[0]))
-    # print(totals)
-    for i in totals:
-        # print(i)
-        averages.append(1)
-        # print(averages)
-        for j in i:
-            # print(j)
-            #averages*=j
-            averages[-1]*=j
-    total = 0
-    count = 0
-    #print(averages)
-    for i in averages:
-        #print(total)
-        total+=i
-        count+=1
-    # print(total/count)
-
-    words_combined = ' '.join(words)
-    incorrect = 0
-    # for x,i in enumerate(regex):
-    #   #print(i)
-    #   #print('\n')
-    #   #reg = ''.join(i)
-    #   #print(reg)
-    #   #temp = re.findall(''.join(i),words_combined)
-    #   if words[x] in temp:
-    #       incorrect+=1
-    #print(incorrect)
-    #print(regex)
-    #print(pos)
-    return regex
+	for word in regex:
+		totals.append([])
+		original.append([])
+		for character in word:
+			totals[-1].append(0)
+			prev = ''
+			for letter in list(character):
+				if letter != '\\':
+					#print(totals[-1][-1])
+					totals[-1][-1]+=1
+				elif prev == '\\':
+					totals[-1][-1]+=1
+				prev = letter
+			original[-1].append(71)
+	#print(totals)
+	for idx, word in enumerate(totals):
+		thing = 1
+		og_thing = 1
+		for character in word:
+			thing *= character
+			og_thing *= 71
+		totals[idx] = thing
+		original[idx] = og_thing
+	# print('\n')
+	# print(totals)
+	# print(original)
+	output = [totals, original]
+	for idx, num in enumerate(totals):
+		# print(original[idx]/num)
+		output.append(original[idx]/num)
+	if average:
+		return output
 
 
-    #HASHCAT
-    # rn = regex[0]
-    # # for i in regex:
-    # #     print(len(i))
-    # wordrn = words[0]
-    # rn_move = moves[0]
-    # rn_page = []
-    # rn.pop(0)
-    # rn.pop(-1)
-    # rn_temp = [i for i in rn]
-    # #print(len(rn))
-    # print(wordrn)
-    # shortest = [rn_temp.pop(0), rn_temp.pop(0)]
+	# for idx_exp, expression in enumerate(regex):
+	# 	totals.append([])
+	# 	for idx_letter, letter in enumerate(expression):
+	# 		totals[idx].append(0)
+	# 		prev = ''
+	# 		for character in letter:
+	# 			if character != '\\':
+	# 				totals[idx_exp][idx_letter]+=1
+	# 			elif prev == '\\':
+	# 				totals[idx_exp][idx_letter]+=1
+	# 			prev = character
 
-    # for i in rn:
-    #   if len(shortest[0])>len(shortest[1]):
-    #       shortest[0],shortest[1] = shortest[1],shortest[0]
-    #   if len(i)<len(shortest[1]):
-    #       shortest[1] = i
-    # print(shortest)
-    # page2 = False
-    # for i in rn_move:
-    #   if i[1]==Sound.SELECT:
-    #       if page2:
-    #           page2 = False
-    #       else:
-    #           page2 = True
-    #   else:
-    #       if page2:
-    #           rn_page.append(1)
-    #       else:
-    #           rn_page.append(0)
-    # print(rn_page)
-    # output = []
-    # for idx,exp in enumerate(rn):
-    #   print(exp)
-    #   if exp not in shortest:
-    #       if rn_page[idx]==0:
-    #           output.append(1)
-    #       else:
-    #           output.append(2)
-    #   elif exp == shortest[1]:
-    #       output.append(3)
-    #   else:
-    #       output.append(4)
-    # print(output)
-    # charsets = []
 
-    # charsets.append(page_1)
-    # charsets.append(page_2)
-    # for idx,exp in enumerate(shortest):
-    #   charsets.append([])
-    #   for letter in list(exp):
-    #       if letter == ',':
-    #           charsets[idk+2].append('\\')
-    #       charsets[idx+2].append(letter)
-    #       if letter == '?':
-    #           charsets[idx+2].append('?')
-    #   charsets[idx+2].pop(0)
-    #   charsets[idx+2].pop()
-    #   charsets[idx+2] = ''.join(charsets[idx+2])
-    # print(charsets)
-    # mask = ''
-    # mask+='[?1,'
-    # mask+=charsets[0]
-    # mask+='][?2,'
-    # mask+=charsets[1]
-    # mask+='][?3,'
-    # mask+=charsets[2]
-    # mask+='][?4,'
-    # mask+=charsets[3]
-    # mask+=']'
-    # print(mask)
-    # for num in output:
-    #   mask+='?'
-    #   mask+=str(num)
-    # print(mask)
+	# words_combined = ' '.join(words)
+	# incorrect = 0
+	regex_temp = [['' for j in i] for i in regex]
+	pos_temp = [[1] for i in moves]
+	for pos_idx, move_seq in enumerate(moves):
+		for idx, move in enumerate(move_seq):
+			if move[1] == SAMSUNG_SELECT:
+				for i in range(idx, 0, -1):
+					thing = get_possible(move_seq[i], standard, pos_temp[pos_idx])
+					regex_temp[pos_idx][i-1] = thing[0]
+					pos_temp[pos_idx] = thing[1]
+		for idx,expression in enumerate(regex[pos_idx]):
+			if regex_temp[pos_idx][idx] != '':
+				if len(regex_temp[pos_idx][idx])<len(expression):
+					regex[pos_idx][idx] = regex_temp[pos_idx][idx]
+		return regex
 
-    # with open('mask.hcmask', 'w') as f:
-    #   f.write(mask)
+
+def get_selects(moves):
+	with_select = []
+	output = []
+	# print(moves)
+	for idx, move in enumerate(moves):
+		# print(move)
+		# print('\n')
+		if move[1] == SAMSUNG_SELECT:
+			with_select.append(idx)
+			#print('1')
+	for L in range(0, len(with_select)+1):
+	    for subset in itertools.combinations(with_select, L):
+	        print(subset)
+	        output.append(subset)
+	return output
+
+
+def get_regex(moves):
+	regexes = []
+	for move_sequence in moves:
+		#print(move_sequence)
+		regexes.append([])
+		combinations = get_selects(move_sequence)
+		for combination in combinations:
+			regexes[-1].append(find_regex(move_sequence, combination))
+	return regexes
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-i', type=str, required=True)
-    args = parser.parse_args()
-    moves = read_moves(args.i)
-    regex = find_regex(moves)
-    with open('masks.txt', 'w') as f:
-        for exp in regex:
-                    f.write(''.join(exp))
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-i', type=str, required=True, help='input jsonl.gz file with move sequence')
+	args = parser.parse_args()
+	moves = read_moves(args.i)
+	regex = find_regex(moves)
+	with open('masks.txt', 'w') as f:
+		for exp in regex:
+			f.write(''.join(exp))
+

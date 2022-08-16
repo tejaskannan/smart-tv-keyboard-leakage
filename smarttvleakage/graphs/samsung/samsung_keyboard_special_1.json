@@ -82,5 +82,6 @@
         "<RETURN>": ["<CHANGE>"],
         "<LANGUAGE>": ["<DONE>"],
         "<DONE>": ["<LANGUAGE>"]
-    }
+    },
+    "unclickable": ["<LANGUAGE>", "<SETTINGS>", "<UP>", "<DOWN>", "<RETURN>"]
 }

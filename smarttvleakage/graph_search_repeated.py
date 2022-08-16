@@ -5,28 +5,31 @@ from dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
 from datetime import datetime, timedelta
 from smarttvleakage.utils.file_utils import read_jsonl_gz
-from smarttvleakage.audio.move_extractor import Move, Sound
+from smarttvleakage.utils.constants import SmartTVType
+from smarttvleakage.audio.move_extractor import Move
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
 parser.add_argument('--moves-list', type=str, required=True, help='jsonl. of words and the moves')
 parser.add_argument('--output', type=str, required=True, help='CSV output file')
+parser.add_argument('--tv-type', type=str, required=True, choices=[tv_type.name.lower() for tv_type in SmartTVType], help='The type of TV to use.')
 #parser.add_argument('-cutoff', type=int, required=True, help='When to stop if a word is taking too long')
 args = parser.parse_args()
 
 graph = MultiKeyboardGraph()
+characters = graph.get_characters()
 
 if args.dictionary_path == 'uniform':
-    dictionary = UniformDictionary()
+    dictionary = UniformDictionary(characters=characters)
 else:
-    dictionary = EnglishDictionary.restore(path=args.dictionary_path)
+    dictionary = EnglishDictionary.restore(characters=characters, path=args.dictionary_path)
 
 f = open(args.moves_list)
-c = csv.reader(f, delimiter = '\t')
+c = csv.reader(f, delimiter='\t')
 out = open(args.output, 'w')
 
-c=read_moves(args.moves_list)
+c = read_moves(args.moves_list)
 print(c)
 
 out1 = []

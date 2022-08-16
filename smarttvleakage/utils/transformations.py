@@ -1,32 +1,52 @@
-from typing import Set, Dict, List
+from typing import Set, Dict, List, Iterable
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, KeyboardMode, START_KEYS
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
-from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
+from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
+from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
+from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
+from .constants import KeyboardType
 
 
-def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str]) -> Dict[str, float]:
+MIN_COUNT = 3
+
+
+def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], current_string: str, dictionary: CharacterDictionary) -> Dict[str, float]:
     """
     Returns a dictionary of normalized scores for present keys.
     """
-    filtered_scores = { key: float(key_counts[key]) for key in candidate_keys if key in key_counts }
-    score_sum = sum(key_counts.values())
-    return { key: (score / score_sum) for key, score in filtered_scores.items() }
+    filtered_counts = { key: key_counts[key] for key in candidate_keys if key in key_counts }
+
+    # Smooth the counts (can add characters)
+    smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
+                                                      counts=filtered_counts,
+                                                      min_count=MIN_COUNT)
+
+    # Re-filter the counts
+    filtered_counts = {key: smoothed_counts[key] for key in candidate_keys if key in smoothed_counts}
+
+    score_sum = sum(map(lambda t: t[0], filtered_counts.values()))
+    return { key: score[1] * (score[0] / score_sum) for key, score in filtered_counts.items() }
 
 
-def get_keyboard_mode(key: str, mode: KeyboardMode) -> KeyboardMode:
+def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
     """
     Fetches the keyboard mode based on the current key (change or not)
     """
     if key != CHANGE:
         return mode
 
-    if mode == KeyboardMode.STANDARD:
-        return KeyboardMode.SPECIAL_ONE
-    elif mode == KeyboardMode.SPECIAL_ONE:
-        return KeyboardMode.STANDARD
+    if keyboard_type == KeyboardType.SAMSUNG:
+        keyboards = [SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE]
+    elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
+        keyboards = [APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL]
+    elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
+        keyboards = [APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL]
     else:
-        raise ValueError('Unknown mode {}'.format(mode))
+        raise ValueError('Unknown keyboard type: {}'.format(keyboard_type))
+
+    idx = keyboards.index(mode)
+    return keyboards[(idx + 1) % len(keyboards)]
 
 
 def get_string_from_keys(keys: List[str]) -> str:
@@ -59,6 +79,14 @@ def get_string_from_keys(keys: List[str]) -> str:
             prev_turn_off_caps_lock = False
 
     return ''.join(characters)
+
+
+def create_trigrams(string: str) -> Iterable[str]:
+    """
+    Computes the moving-window tri-grams in the given word
+    """
+    for idx in range(len(string) - 2):
+        yield string[idx:idx+3]
 
 
 def get_bit(val: int, bit_idx: int) -> int:

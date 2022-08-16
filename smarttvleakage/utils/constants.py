@@ -6,6 +6,12 @@ class SmartTVType(Enum):
     APPLE_TV = auto()
 
 
+class KeyboardType(Enum):
+    SAMSUNG = auto()
+    APPLE_TV_SEARCH = auto()
+    APPLE_TV_PASSWORD = auto()
+
+
 CAPS = '<CAPS>'
 CHANGE = '<CHANGE>'
 DONE = '<DONE>'
