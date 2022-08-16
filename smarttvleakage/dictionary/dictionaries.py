@@ -3,11 +3,11 @@ import os.path
 import io
 import gzip
 import numpy as np
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, namedtuple, deque
 from typing import Dict, List, Optional, Iterable, Tuple, Any
 
-from smarttvleakage.utils.ngrams import create_ngrams
-from smarttvleakage.utils.constants import BIG_NUMBER
+from smarttvleakage.utils.ngrams import create_ngrams, prepend_start_characters, split_ngram
+from smarttvleakage.utils.constants import BIG_NUMBER, START_CHAR, END_CHAR, SMALL_NUMBER
 from smarttvleakage.utils.credit_card_detection import validate_credit_card_number
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
@@ -37,6 +37,9 @@ CHARACTER_TRANSLATION = {
 }
 
 REVERSE_CHARACTER_TRANSLATION = { value: key for key, value in CHARACTER_TRANSLATION.items() }
+
+
+ProjectedState = namedtuple('ProjectedState', ['string', 'score', 'depth'])
 
 
 class CharacterDictionary:
@@ -317,12 +320,11 @@ class NgramDictionary(EnglishDictionary):
         self._is_built = False
 
         self._counts_per_length: Dict[int, Dict[str, Counter]] = dict()
-        self._single_counts: Dict[int, Counter] = dict()
+        self._ngram_size = 5
 
-        self._max_length = 10
+        self._max_length = 12
         for length in range(1, self._max_length + 1):
             self._counts_per_length[length] = defaultdict(Counter)
-            self._single_counts[length] = Counter()
 
         self._total_count = 0
 
@@ -341,18 +343,22 @@ class NgramDictionary(EnglishDictionary):
                 continue
 
             count = max(count, 1)
-
             length_bucket = self.get_length_bucket(len(word))
-            self._single_counts[length_bucket][word[0]] += 1
 
-            if len(word) >= 2:
-                self._counts_per_length[length_bucket][word[0]][word[1]] += 1
+            for ngram in create_ngrams(word, self._ngram_size):
+                ngram_prefix, ngram_suffix = split_ngram(ngram)
+                self._counts_per_length[length_bucket][ngram_prefix][ngram_suffix] += 1
 
-            if len(word) >= 3:
-                self._counts_per_length[length_bucket][word[0:2]][word[2]] += 1
+            #self._single_counts[length_bucket][word[0]] += 1
 
-            for four_gram in create_ngrams(word, 4):
-                self._counts_per_length[length_bucket][four_gram[0:3]][four_gram[3]] += 1
+            #if len(word) >= 2:
+            #    self._counts_per_length[length_bucket][word[0]][word[1]] += 1
+
+            #if len(word) >= 3:
+            #    self._counts_per_length[length_bucket][word[0:2]][word[2]] += 1
+
+            #for four_gram in create_ngrams(word, 4):
+            #    self._counts_per_length[length_bucket][four_gram[0:3]][four_gram[3]] += 1
 
             self._total_count += 1
 
@@ -382,20 +388,28 @@ class NgramDictionary(EnglishDictionary):
         return score
 
     def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
-        neg_log_prob = 0.0
+        neg_log_prob = BIG_NUMBER
+        max_depth = min(3, length - len(prefix))
+        num_to_keep = 3
 
-        for _ in range(length - len(prefix)):
-            next_letter_counts = self.get_letter_counts(prefix, length=length)
+        frontier = deque()
+        init_state = ProjectedState(string=prefix, score=0.0, depth=max_depth)
+        frontier.append(init_state)
 
-            max_freq = 0.0
-            max_char = None
-            for character, freq in next_letter_counts.items():
-                if freq > max_freq:
-                    max_char = character
-                    max_freq = freq
+        while len(frontier) > 0:
+            state = frontier.pop()
 
-            neg_log_prob -= np.log(max_freq)
-            prefix = '{}{}'.format(prefix, max_char)
+            if (state.depth <= 0) or len(state.string) >= length:
+                end_freq = self.get_letter_counts(state.string, length=length).get(END_CHAR, SMALL_NUMBER)
+                neg_log_prob = min(neg_log_prob, state.score - np.log(end_freq))
+            else:
+                next_letter_freq = Counter({c: freq for c, freq in self.get_letter_counts(state.string, length=length).items() if c != END_CHAR})
+
+                for character, freq in next_letter_freq.most_common(num_to_keep):
+                    next_state = ProjectedState(string=state.string + character,
+                                                score=state.score - np.log(freq),
+                                                depth=state.depth - 1)
+                    frontier.append(next_state)
 
         return neg_log_prob
 
@@ -404,19 +418,21 @@ class NgramDictionary(EnglishDictionary):
 
         length_bucket = self.get_length_bucket(length)
 
-        if len(prefix) == 0:
-            character_counts = self._single_counts[length_bucket]
-        elif len(prefix) in (1, 2):
+        # Look up the string in the counts dictionary
+        if len(prefix) <= (self._ngram_size - 1):
+            prefix = prepend_start_characters(prefix, self._ngram_size - 1)
             character_counts = self._counts_per_length[length_bucket].get(prefix, dict())
         else:
-            character_counts = self._counts_per_length[length_bucket].get(prefix[-3:], dict())
+            character_counts = self._counts_per_length[length_bucket].get(prefix[-self._ngram_size + 1:], dict())
 
         # Convert any characters
         character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
 
-        # Apply Laplace Smoothing
+        # Apply Laplace Smoothing and include the end character
         for character in self._characters:
-            character_counts[character] = character_counts.get(character, 0) + 1
+            character_counts[character] = character_counts.get(character, 0) + 0.01
+
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + 0.01
 
         # Normalize the result
         total_count = sum(character_counts.values())
@@ -430,14 +446,14 @@ class NgramDictionary(EnglishDictionary):
     @classmethod
     def restore(cls, serialized: Dict[str, Any]):
         dictionary = cls()
-        dictionary._single_counts = serialized['1gram']
+        #dictionary._single_counts = serialized['1gram']
         dictionary._counts_per_length = serialized['ngram']
         dictionary._is_built = True
         return dictionary
 
     def save(self, path: str):
         data_dict = {
-            '1gram': self._single_counts,
+            #'1gram': self._single_counts,
             'ngram': self._counts_per_length,
             'dict_type': 'ngram'
         }

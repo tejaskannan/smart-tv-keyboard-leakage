@@ -10,7 +10,7 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS,
 from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.dictionary import NumericDictionary
 from smarttvleakage.dictionary.rainbow import PasswordRainbow
-from smarttvleakage.utils.constants import SmartTVType, KeyboardType
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 from smarttvleakage.keyboard_utils.word_to_move import findPath
@@ -102,8 +102,19 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         candidate_count += 1
 
         if len(current_state.keys) == target_length and dictionary.is_valid(current_string):
+            end_score = dictionary.get_letter_counts(current_string, length=target_length).get(END_CHAR, 0.0)
+
+            end_state = SearchState(keys=current_state.keys + [END_CHAR],
+                                    score=current_state.score - np.log(end_score),
+                                    keyboard_mode=current_state.keyboard_mode,
+                                    current_key=current_state.current_key,
+                                    move_idx=next_move_idx)
+            candidate_queue.put((-1 * end_state.score, end_state))
+            continue
+
+        if current_string.endswith(END_CHAR):
             if current_string not in guessed_strings:
-                yield current_string, current_state.score, candidate_count
+                yield current_string.replace(END_CHAR, ''), current_state.score, candidate_count
 
                 result_count += 1
                 guessed_strings.add(current_string)

@@ -1,4 +1,6 @@
+import time
 from argparse import ArgumentParser
+
 from smarttvleakage.dictionary.dictionaries import restore_dictionary
 from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.transformations import filter_and_normalize_scores
@@ -16,6 +18,12 @@ if __name__ == '__main__':
     
     graph = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
     dictionary.set_characters(graph.get_characters())
+
+    start = time.time()
+    projected = dictionary.projected_remaining_log_prob(args.prefix, length=args.length)
+    end = time.time()
+
+    print('Projected: {:.5f}, Elapsed: {:.5f}sec'.format(projected, end - start))
 
     counts = dictionary.get_letter_counts(prefix=args.prefix, length=args.length)
     print(counts)

@@ -6,7 +6,7 @@ from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLET
 from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
-from .constants import KeyboardType, SmartTVType
+from .constants import KeyboardType, SmartTVType, END_CHAR
 
 
 def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], should_renormalize: bool) -> Dict[str, float]:
@@ -20,17 +20,6 @@ def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List
         return {key: (count / total_count) for key, count in filtered_counts.items()}
     else:
         return filtered_counts
-
-    # Smooth the counts (can add characters)
-    #smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
-    #                                                  counts=filtered_counts,
-    #                                                  min_count=MIN_COUNT)
-
-    ## Re-filter the counts
-    #filtered_counts = {key: smoothed_counts[key] for key in candidate_keys if key in smoothed_counts}
-
-    #score_sum = sum(map(lambda t: t[0], filtered_counts.values()))
-    #return { key: score[1] * (score[0] / score_sum) for key, score in filtered_counts.items() }
 
 
 def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
@@ -77,6 +66,8 @@ def get_string_from_keys(keys: List[str]) -> str:
         elif key == BACKSPACE:
             if len(characters) > 0:
                 characters.pop()
+        elif key == END_CHAR:
+            characters.append(key)
         elif key not in UNPRINTED_CHARACTERS:
             character = CHARACTER_TRANSLATION.get(key, key)
 

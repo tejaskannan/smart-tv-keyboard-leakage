@@ -18,6 +18,11 @@ DONE = '<DONE>'
 CANCEL = '<CANCEL>'
 BACKSPACE = '<BACK>'
 
+
+START_CHAR = '<S>'
+END_CHAR = '<E>'
+
+
 SMALL_NUMBER = 1e-9
 BIG_NUMBER = 1e9
 
