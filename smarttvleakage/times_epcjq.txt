@@ -1,0 +1,5 @@
+epcjq
+Datetime from start: 0:00:24.916634
+Perf_counter from start: 24.916612934321165
+Datetime of jtr: 0:00:24.884563
+Perf_counter of jtr: 24.88454658165574

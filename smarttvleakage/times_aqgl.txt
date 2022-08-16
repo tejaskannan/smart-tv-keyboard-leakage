@@ -1,0 +1,5 @@
+aqgl
+Datetime from start: 0:00:01.524382
+Perf_counter from start: 1.5243608951568604
+Datetime of jtr: 0:00:01.494914
+Perf_counter of jtr: 1.4949007257819176

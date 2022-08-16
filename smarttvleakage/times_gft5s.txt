@@ -1,0 +1,5 @@
+gft5s
+Datetime from start: 0:00:28.059360
+Perf_counter from start: 28.05933251976967
+Datetime of jtr: 0:00:28.028257
+Perf_counter of jtr: 28.02823692932725

@@ -1,0 +1,5 @@
+v($*
+Datetime from start: 0:00:02.942800
+Perf_counter from start: 2.942779026925564
+Datetime of jtr: 0:00:02.911033
+Perf_counter of jtr: 2.911018207669258

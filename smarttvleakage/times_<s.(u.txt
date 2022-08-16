@@ -1,0 +1,5 @@
+<s.(u
+Datetime from start: 0:00:06.255417
+Perf_counter from start: 6.255397416651249
+Datetime of jtr: 0:00:06.224993
+Perf_counter of jtr: 6.224980551749468

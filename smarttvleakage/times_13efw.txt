@@ -1,0 +1,5 @@
+13efw
+Datetime from start: 0:00:02.019138
+Perf_counter from start: 2.019118260592222
+Datetime of jtr: 0:00:01.989537
+Perf_counter of jtr: 1.9895240738987923

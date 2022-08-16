@@ -1,0 +1,5 @@
+kpigf
+Datetime from start: 0:02:05.801398
+Perf_counter from start: 125.80137794464827
+Datetime of jtr: 0:02:05.768349
+Perf_counter of jtr: 125.76833315938711

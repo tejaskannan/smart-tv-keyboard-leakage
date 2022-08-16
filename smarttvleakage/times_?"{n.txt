@@ -1,0 +1,5 @@
+?"{n
+Datetime from start: 0:00:02.142401
+Perf_counter from start: 2.142381653189659
+Datetime of jtr: 0:00:02.112328
+Perf_counter of jtr: 2.1123150810599327

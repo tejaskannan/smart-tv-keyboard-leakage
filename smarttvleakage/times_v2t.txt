@@ -1,0 +1,5 @@
+v2t
+Datetime from start: 0:00:01.521986
+Perf_counter from start: 1.5219649225473404
+Datetime of jtr: 0:00:01.490933
+Perf_counter of jtr: 1.490918394178152

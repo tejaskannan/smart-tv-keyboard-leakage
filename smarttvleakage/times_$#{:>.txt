@@ -1,0 +1,5 @@
+$#{:>
+Datetime from start: 0:00:11.413264
+Perf_counter from start: 11.413237549364567
+Datetime of jtr: 0:00:11.382190
+Perf_counter of jtr: 11.382172118872404

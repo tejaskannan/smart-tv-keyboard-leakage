@@ -1,0 +1,5 @@
+a3a
+Datetime from start: 0:00:01.421180
+Perf_counter from start: 1.42115942761302
+Datetime of jtr: 0:00:01.389673
+Perf_counter of jtr: 1.3896589614450932

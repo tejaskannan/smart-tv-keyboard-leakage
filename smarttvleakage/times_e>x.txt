@@ -1,0 +1,5 @@
+e>x
+Datetime from start: 0:00:01.458592
+Perf_counter from start: 1.458571944385767
+Datetime of jtr: 0:00:01.428554
+Perf_counter of jtr: 1.4285410903394222

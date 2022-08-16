@@ -1,10 +1,10 @@
 import os.path
 import numpy as np
-import matplotlib.pyplot as plt
-import moviepy.editor as mp
+#import matplotlib.pyplot as plt
+#import moviepy.editor as mp
 from collections import namedtuple, defaultdict
 from enum import Enum, auto
-from scipy.signal import spectrogram, find_peaks, convolve
+#from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict
 
 from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER

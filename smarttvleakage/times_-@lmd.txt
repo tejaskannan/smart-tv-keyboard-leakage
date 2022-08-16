@@ -1,0 +1,5 @@
+-@lmd
+Datetime from start: 0:00:00.086365
+Perf_counter from start: 0.08634680137038231
+Datetime of jtr: 0:00:00.056397
+Perf_counter of jtr: 0.05638527125120163
