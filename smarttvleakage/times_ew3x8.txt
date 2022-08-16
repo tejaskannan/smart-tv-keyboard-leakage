@@ -1,5 +1,0 @@
-ew3x8
-Datetime from start: 0:00:04.770135
-Perf_counter from start: 4.770115081220865
-Datetime of jtr: 0:00:04.738958
-Perf_counter of jtr: 4.738945633172989

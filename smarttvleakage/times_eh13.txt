@@ -1,5 +1,0 @@
-eh13
-Datetime from start: 0:00:01.993293
-Perf_counter from start: 1.9932695180177689
-Datetime of jtr: 0:00:01.962893
-Perf_counter of jtr: 1.9628754891455173

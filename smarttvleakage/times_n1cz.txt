@@ -1,5 +1,0 @@
-n1cz
-Datetime from start: 0:00:05.978431
-Perf_counter from start: 5.97841190174222
-Datetime of jtr: 0:00:05.948250
-Perf_counter of jtr: 5.94823781400919

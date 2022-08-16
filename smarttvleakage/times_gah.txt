@@ -1,5 +1,0 @@
-gah
-Datetime from start: 0:00:01.530536
-Perf_counter from start: 1.5305139049887657
-Datetime of jtr: 0:00:01.498153
-Perf_counter of jtr: 1.4981371834874153

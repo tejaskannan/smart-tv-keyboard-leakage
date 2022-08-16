@@ -1,5 +1,0 @@
-{k]=
-Datetime from start: 0:00:03.881117
-Perf_counter from start: 3.881096675992012
-Datetime of jtr: 0:00:03.851005
-Perf_counter of jtr: 3.8509920686483383

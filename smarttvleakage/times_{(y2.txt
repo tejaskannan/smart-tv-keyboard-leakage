@@ -1,5 +1,0 @@
-{(y2
-Datetime from start: 0:00:03.347686
-Perf_counter from start: 3.3476613983511925
-Datetime of jtr: 0:00:03.317673
-Perf_counter of jtr: 3.317656647413969

@@ -1,5 +1,0 @@
-(e=,
-Datetime from start: 0:00:01.745516
-Perf_counter from start: 1.7454946339130402
-Datetime of jtr: 0:00:01.715947
-Perf_counter of jtr: 1.71593052521348
