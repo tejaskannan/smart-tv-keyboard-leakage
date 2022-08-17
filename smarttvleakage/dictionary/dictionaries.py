@@ -90,6 +90,25 @@ class NumericDictionary(CharacterDictionary):
         total_count = sum(counts.values())
         return {c: (count / total_count) for c, count in counts.items()}
 
+class ExpDateDictionary(CharacterDictionary):
+
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            return True
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        months = list(map(lambda x : "0" + str(x), range(1, 10))) + ["10", "11", "12"]
+        years = list(map(str, range(22, 40)))
+        dates = [m + y for m in months for y in years]
+        
+        counts = {c: 1 for c in dates}
+        counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
+
 
 class CreditCardDictionary(NumericDictionary):
 
@@ -441,6 +460,8 @@ def restore_dictionary(path: str) -> CharacterDictionary:
         return CreditCardDictionary()
     elif path == 'numeric':
         return NumericDictionary()
+    elif path == 'exp_date':
+        return ExpDateDictionary()
     else:
         data_dict = read_pickle_gz(path)
         dict_type = data_dict['dict_type']
