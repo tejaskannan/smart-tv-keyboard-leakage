@@ -85,13 +85,10 @@ class NumericDictionary(CharacterDictionary):
             return False
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
-        nd = {}
-        for c in CHARACTERS:
-            if c.isnumeric():
-                nd[c] = 1000
-            else:
-                nd[c] = 0
-        return nd
+        counts = {c: 1 for c in string.digits}
+        counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
 
 
 class CreditCardDictionary(NumericDictionary):
@@ -442,6 +439,8 @@ def restore_dictionary(path: str) -> CharacterDictionary:
         return UniformDictionary()
     elif path == 'credit_card':
         return CreditCardDictionary()
+    elif path == 'numeric':
+        return NumericDictionary()
     else:
         data_dict = read_pickle_gz(path)
         dict_type = data_dict['dict_type']
