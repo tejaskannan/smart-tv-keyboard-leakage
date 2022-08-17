@@ -11,7 +11,7 @@ from smarttvleakage.suggestions_model.alg_determine_autocomplete import get_scor
 from smarttvleakage.suggestions_model.manual_score_dict import (build_msfd,
                                                                 build_ms_dict, build_rockyou_ms_dict)
 from smarttvleakage.suggestions_model.simulate_ms import grab_words, simulate_ms
-from smarttvleakage.utils.file_utils import save_pickle_gz
+from smarttvleakage.utils.file_utils import read_pickle_gz, save_pickle_gz
 
 
 
@@ -205,6 +205,8 @@ if __name__ == "__main__":
     parser.add_argument("--words-path", type=str, required=False)
     parser.add_argument("--msfd-path", type=str, required=False)
     parser.add_argument("--results-path", type=str, required=False)
+    parser.add_argument("--save-path", type=str, required=False)
+    parser.add_argument("--model-path", type=str, required=False)
     args = parser.parse_args()
 
     if args.ms_path_auto is None:
@@ -243,13 +245,83 @@ if __name__ == "__main__":
     # 2 - test all dicts configs
     # 3 - (1) with sim model
     # 4 - (2) with sim model
-    test = 2
+    # 5 - reveal mistake words ADD
+    # 6 - (5) with build model (sim)
+    test = 6
+
+
+    if test == 6:
+        print("test 6")
+
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
+
+        model = read_pickle_gz(args.model_path)
+        errors = []
+        for key, val in ms_dict_auto_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.25)
+            if pred != 1:
+                errors.append((key, "auto", val))
+
+        for key, val in ms_dict_non_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.25)
+            if pred != 0:
+                errors.append((key, "non", val))
+
+        for key, val in ms_dict_rockyou_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.25)
+            if pred != 0:
+                errors.append((key, "rockyou", val))
+
+        print("errors:")
+        for word, ty, ms in errors:
+            print(word + ", " + ty, end=": ")
+            print(ms)
+
+    if test == 5:
+        print("test 5")
+        split = 53
+        ms_dict_auto_train = build_ms_dict(args.ms_path_auto, take=split)
+        ms_dict_non_train = build_ms_dict(args.ms_path_non, take=split)
+        ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take=(0-split))
+        ms_dict_non_test = build_ms_dict(args.ms_path_non, take=(0-split))
+        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
+
+        results = {}
+        model = build_model(include_rockyou=True, bins=3, weight=3,
+                            ms_dict_auto=ms_dict_auto_train, ms_dict_non=ms_dict_non_train,
+                            ms_dict_rockyou=ms_dict_rockyou_train)
+
+        errors = []
+        for key, val in ms_dict_auto_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.25)
+            if pred != 1:
+                errors.append((key, "auto", val))
+
+        for key, val in ms_dict_non_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.25)
+            if pred != 0:
+                errors.append((key, "non", val))
+
+        for key, val in ms_dict_rockyou_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.25)
+            if pred != 0:
+                errors.append((key, "rockyou", val))
+
+        print("errors:")
+        for word, ty, ms in errors:
+            print(word + ", " + ty, end=": ")
+            print(ms)
+    
+
 
 
     if test == 4:
 
-        auto_words = grab_words(2000, args.words_path)
-        non_words = grab_words(2000, args.words_path)
+        auto_words = grab_words(200, args.words_path)
+        non_words = grab_words(200, args.words_path)
         ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
         ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
         ms_dict_non_test = build_ms_dict(args.ms_path_non)
@@ -388,9 +460,6 @@ if __name__ == "__main__":
         certainty_cutoffs = [.25, .3, .35, .4, .45, .5]
         print("test 2")
 
-        print("building rockyou dict")
-        print("build rockyou dict")
-
         results = {}
         for bs in bss:
             for w in weights:
@@ -528,6 +597,25 @@ if __name__ == "__main__":
 
     # build and save model
     elif test == 0:
-        model = build_model_sim(build_rockyou_ms_dict(args.ms_path_rockyou, 200), englishDictionary, grab_words(1000, args.words_path), grab_words(1000, args.words_path), include_rockyou=True)
-        save_model("max/model_rockyou_sim.pkl.gz", model)
-        print("model saved")
+        if args.save_path is None:
+            print("no save path")
+        else:
+            ms_dict_auto_train = build_ms_dict(args.ms_path_auto)
+            ms_dict_non_train = build_ms_dict(args.ms_path_non)
+            ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
+            model = build_model(
+                include_rockyou=True, bins=3, weight=3,
+                ms_dict_auto=ms_dict_auto_train, ms_dict_non=ms_dict_non_train,
+                ms_dict_rockyou=ms_dict_rockyou_train)
+            save_model(args.save_path + "_gt.pkl.gz", model)
+
+            auto_words = grab_words(2000, args.words_path)
+            non_words = grab_words(2000, args.words_path)
+            ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
+            model = build_model_sim(ms_dict_rockyou=ms_dict_rockyou_train,
+                                        englishDictionary=englishDictionary,
+                                        words_auto=auto_words, words_non=non_words,
+                                        include_rockyou=True, bins=3, weight=3)
+            save_model(args.save_path + "_sim.pkl.gz", model)
+
+            print("models saved")
