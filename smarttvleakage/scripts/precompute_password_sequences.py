@@ -25,24 +25,20 @@ def create_records(input_path: str, max_num_records: int, dictionary: NgramDicti
         for line in io_wrapper:
             word = line.strip()
 
+            if len(word) == 0:
+                continue
+
             if all((c in string.printable) and (c != '_') for c in word):
                 words.append(word)
 
-    num_words = len(words)
-
-    if num_words < max_num_records:
-        word_indices = np.arange(num_words)
-    else:
-        rand = np.random.RandomState(seed=5481)
-        word_indices = rand.choice(num_words, size=max_num_records, replace=False)
-
-    print('Read {} passwords. Generating dataset...'.format(num_words))
+    print('Read {} passwords. Generating dataset...'.format(len(words)))
     keyboard = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
 
-    for count, word_idx in enumerate(word_indices):
-        word = words[word_idx]
-        word_score = dictionary.get_score_for_string(word)
+    for idx, word in enumerate(words):
+        if idx >= max_num_records:
+            break
 
+        word_score = dictionary.get_score_for_string(word)
         if word_score > SCORE_THRESHOLD:
             continue
 
@@ -63,8 +59,8 @@ def create_records(input_path: str, max_num_records: int, dictionary: NgramDicti
             if (shortcut_vector != wraparound_vector) and (shortcut_vector != move_vector):
                 yield { 'target': word, 'move_seq': shortcut_vector, 'score': word_score }
 
-            if ((count + 1) % 10000) == 0:
-                print('Completed {} records.'.format(count + 1), end='\r')
+            if ((idx + 1) % 10000) == 0:
+                print('Completed {} records.'.format(idx + 1), end='\r')
         except AssertionError as ex:
             print('\nWARNING: Caught {} for {}'.format(ex, word))
 
