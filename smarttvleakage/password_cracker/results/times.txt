@@ -1,0 +1,150 @@
+4s2
+Datetime from start: 0:00:01.570760
+Perf_counter from start: 1.5707325637340546
+Datetime of jtr: 0:00:01.537595
+Perf_counter of jtr: 1.5375792309641838
+^\$
+Datetime from start: 0:00:01.552340
+Perf_counter from start: 1.5523176230490208
+Datetime of jtr: 0:00:01.520213
+Perf_counter of jtr: 1.5201985128223896
+r$]
+Datetime from start: 0:00:01.517328
+Perf_counter from start: 1.517307125031948
+Datetime of jtr: 0:00:01.486453
+Perf_counter of jtr: 1.486438125371933
+v2t
+Datetime from start: 0:00:01.606633
+Perf_counter from start: 1.6066152974963188
+Datetime of jtr: 0:00:01.576582
+Perf_counter of jtr: 1.5765713639557362
+?);
+Datetime from start: 0:00:01.609595
+Perf_counter from start: 1.6095771044492722
+Datetime of jtr: 0:00:01.582472
+Perf_counter of jtr: 1.5824560597538948
+5jv
+Datetime from start: 0:00:01.555581
+Perf_counter from start: 1.555557206273079
+Datetime of jtr: 0:00:01.516214
+Perf_counter of jtr: 1.516197793185711
+gah
+Datetime from start: 0:00:01.524604
+Perf_counter from start: 1.524584662169218
+Datetime of jtr: 0:00:01.493286
+Perf_counter of jtr: 1.4932712502777576
+e>x
+Datetime from start: 0:00:01.456462
+Perf_counter from start: 1.456442043185234
+Datetime of jtr: 0:00:01.426629
+Perf_counter of jtr: 1.4266166538000107
+a3a
+Datetime from start: 0:00:01.455853
+Perf_counter from start: 1.4558320716023445
+Datetime of jtr: 0:00:01.425057
+Perf_counter of jtr: 1.4250437952578068
+>7)
+Datetime from start: 0:00:01.551202
+Perf_counter from start: 1.5511819757521152
+Datetime of jtr: 0:00:01.520916
+Perf_counter of jtr: 1.5208997279405594
+n1cz
+Datetime from start: 0:00:05.901818
+Perf_counter from start: 5.901796452701092
+Datetime of jtr: 0:00:05.870356
+Perf_counter of jtr: 5.87033898383379
+{(y2
+Datetime from start: 0:00:03.400191
+Perf_counter from start: 3.4001663960516453
+Datetime of jtr: 0:00:03.368986
+Perf_counter of jtr: 3.3689714074134827
+aqgl
+Datetime from start: 0:00:01.577089
+Perf_counter from start: 1.5770672298967838
+Datetime of jtr: 0:00:01.546799
+Perf_counter of jtr: 1.5467859990894794
+(e=,
+Datetime from start: 0:00:01.688643
+Perf_counter from start: 1.6886229813098907
+Datetime of jtr: 0:00:01.658726
+Perf_counter of jtr: 1.6587113104760647
+?"{n
+Datetime from start: 0:00:02.185717
+Perf_counter from start: 2.1856955513358116
+Datetime of jtr: 0:00:02.156125
+Perf_counter of jtr: 2.1561099775135517
+i0o2
+Datetime from start: 0:00:05.447442
+Perf_counter from start: 5.4474220238626
+Datetime of jtr: 0:00:05.417071
+Perf_counter of jtr: 5.417057480663061
+{k]=
+Datetime from start: 0:00:03.804683
+Perf_counter from start: 3.804662335664034
+Datetime of jtr: 0:00:03.773517
+Perf_counter of jtr: 3.773505214601755
+eh13
+Datetime from start: 0:00:01.919442
+Perf_counter from start: 1.9194189868867397
+Datetime of jtr: 0:00:01.888789
+Perf_counter of jtr: 1.888774286955595
+v($*
+Datetime from start: 0:00:02.914701
+Perf_counter from start: 2.9146796204149723
+Datetime of jtr: 0:00:02.883879
+Perf_counter of jtr: 2.883864387869835
+4jfa
+Datetime from start: 0:00:03.532216
+Perf_counter from start: 3.5321852155029774
+Datetime of jtr: 0:00:03.502396
+Perf_counter of jtr: 3.502371232956648
+l1@ja
+Datetime from start: 0:02:47.453107
+Perf_counter from start: 167.45308654010296
+Datetime of jtr: 0:02:47.413082
+Perf_counter of jtr: 167.41306655853987
+gft5s
+Datetime from start: 0:00:27.975686
+Perf_counter from start: 27.97566670179367
+Datetime of jtr: 0:00:27.945290
+Perf_counter of jtr: 27.94527618214488
+kpigf
+Datetime from start: 0:02:04.770062
+Perf_counter from start: 124.77004126831889
+Datetime of jtr: 0:02:04.740076
+Perf_counter of jtr: 124.74006134271622
+<s.(u
+Datetime from start: 0:00:06.249123
+Perf_counter from start: 6.24910020083189
+Datetime of jtr: 0:00:06.219379
+Perf_counter of jtr: 6.219363000243902
+13efw
+Datetime from start: 0:00:02.038910
+Perf_counter from start: 2.0388912074267864
+Datetime of jtr: 0:00:02.008603
+Perf_counter of jtr: 2.008590951561928
+1o:<.
+Datetime from start: 0:00:04.643011
+Perf_counter from start: 4.642990585416555
+Datetime of jtr: 0:00:04.613111
+Perf_counter of jtr: 4.613098882138729
+epcjq
+Datetime from start: 0:00:24.617642
+Perf_counter from start: 24.61761263757944
+Datetime of jtr: 0:00:24.585305
+Perf_counter of jtr: 24.58527971804142
+$#{:>
+Datetime from start: 0:00:10.497556
+Perf_counter from start: 10.497534401714802
+Datetime of jtr: 0:00:10.466643
+Perf_counter of jtr: 10.466630309820175
+-@lmd
+Datetime from start: 0:03:19.027180
+Perf_counter from start: 199.0271512530744
+Datetime of jtr: 0:03:18.996240
+Perf_counter of jtr: 198.9962184280157
+ew3x8
+Datetime from start: 0:00:04.768404
+Perf_counter from start: 4.768380910158157
+Datetime of jtr: 0:00:04.737522
+Perf_counter of jtr: 4.7375084310770035

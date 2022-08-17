@@ -1,5 +1,5 @@
 from smarttvleakage.utils.file_utils import read_jsonl_gz
-from smarttvleakage.audio.move_extractor import Move, Sound
+from smarttvleakage.audio import Move
 
 def read_moves(file_path: str):
 	output=[]
@@ -7,6 +7,6 @@ def read_moves(file_path: str):
 	    temp = []
 	    temp.append(i["word"])
 	    for j in i["move_seq"]:
-	        temp.append(Move(num_moves=int(j["num_moves"]),end_sound=Sound[j["sound"]]))
+	        temp.append(Move(num_moves=int(j["num_moves"]),end_sound=j["sound"]))
 	    output.append(temp)
 	return output

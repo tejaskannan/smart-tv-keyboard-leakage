@@ -1,12 +1,17 @@
 import random
-
-
 from smarttvleakage.utils.file_utils import read_json, save_pickle_gz, read_pickle_gz
-from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, NumericDictionary, CreditCardDictionary, CreditCardDictionaryStrong, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS
 
-
+def fill_zeroes(n : int, l : int) -> str:
+    """Returns n as a string with l digits filled out"""
+    if len(str(n)) >= l:
+        return str(n)
+    n_str = ""
+    for i in range((l - len(str(n)))):
+        n_str += "0"
+    return n_str + str(n)
 
 def random_digits(n : int) -> list[int]:
+    """returns n random digits as a list"""
     num = 0
     for i in range(n):
         newDigit = random.randint(0, 9)
@@ -14,8 +19,10 @@ def random_digits(n : int) -> list[int]:
         num += newDigit
     return num
 
-
+# CREDIT CARDS
+# Could improve this
 def checksum(num : int) -> int:
+    """Calculates the mod 10 checksum of a number"""
     num_str = str(num)
     total = 0
     digits = list(map(int, num_str))
@@ -25,27 +32,18 @@ def checksum(num : int) -> int:
         else:
             next = digits[i]
         total += next
-        
     return total % 10
 
 def validate_cc(num : int) -> bool:
+    """Validates a cc via checksum"""
     return checksum(num) == 0
 
-
-
+# *double check
 def finish_cc(num : int) -> int:
+    """Finishes a cc with valid checksum digit"""
     cs = checksum(num)
     #print("cs: " + str(cs))
-    
-    if cs == 0:
-        last = 0
-    else:
-        last = 10-cs
-    
-
-    return num*10 + last
-
-
+    return num*10 + ((10-cs) % 10)
 
 def generate_bin(ty : str = "") -> int:
     if ty == "amex":
@@ -84,11 +82,9 @@ def generate_bin(ty : str = "") -> int:
     end = random_digits(6 - len(str(start)))
     return start * (pow(10, (6 - len(str(start))))) + end
     
-
 def add_acc(bin : int) -> int:
     start = bin * (pow(10, 9))
     return start + random_digits(9)
-
 
 def generate_cc(ty : str = "") -> int:
     bin = generate_bin(ty)
@@ -105,18 +101,15 @@ def print_cc(cc : str):
 
 
 
+
+# ZIPS
 # work on this 
-def save_zip_dictionary(path):
+def save_zip_dictionary(path : str):
     zip_counts = {}
 
     zip_dicts = read_json(path)
     for zip_dict in zip_dicts:
-        zip = str(zip_dict["zip_code"])
-        zeroes = 5 - len(zip)
-        zip_str = ""
-        for i in range(zeroes):
-            zip_str += "0"
-        zip_str += zip
+        zip_str = fill_zeroes(zip_dict["zip_code"], 5)
 
         if zip_str in zip_counts:
             zip_counts[zip_str] += 1
@@ -130,21 +123,56 @@ def save_zip_dictionary(path):
 
 
 # work on this 
-def load_zip_dictionary(path):
+def load_zip_dictionary(path : str) -> dict[str, int]:
     return read_pickle_gz(path)
     # turn zip dict into englishDictionary type
 
 
-
-
 # read from zip pkl
 # generate random one?
-def generate_zip(zip_counts):
+def generate_zip(zip_counts : dict[str, int]) -> str:
     return random.choice(list(zip_counts.keys()))
 
-def validate_zip(zip_counts, zip : int):
+def validate_zip(zip_counts, zip : int) -> bool:
     return zip in zip_counts
 
+
+
+
+# DATES
+
+def generate_date() -> str:
+    mon = str(random.randint(1, 12))
+    if len(mon) == 1:
+        mon = "0" + mon
+    yr = str(random.randint(20, 30))
+    return mon + yr 
+
+def validate_date(date : str) -> bool:
+    if len(date) != 4:
+        return False
+    
+    if int(date[:2]) > 12:
+        return False
+
+    return True
+
+
+
+
+
+# Sec CODES
+
+
+def generate_sec() -> str:
+    if random.randint(0, 3) == 3:
+        sec = str(random.randint(0, 9999))
+        return fill_zeroes(sec, 4)
+    sec = str(random.randint(0, 999))
+    return fill_zeroes(sec, 3)
+
+def validate_sec(date : str) -> bool:
+    return len(date) in [3, 4]
 
 
 
