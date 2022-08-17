@@ -70,10 +70,10 @@ def grab_words(count : int, path : str) -> List[str]:
     return words
 
 ## todo** fix hardcoded autocomplete singlesuggestions file
-def get_autos(e_dict, prefix : str) -> List[str]:
+def get_autos(e_dict, ss_path : str, prefix : str) -> List[str]:
     """Returns simulated autocomplete suggestions using an EnglishDictionary"""
     if len(prefix) == 1: # then use single suggestions
-        single_suggestions = read_json("graphs/autocomplete.json")
+        single_suggestions = read_json(ss_path)
         return single_suggestions[prefix.lower()]
 
     char_dict = e_dict.get_letter_counts(prefix, None)
@@ -91,7 +91,7 @@ def get_autos(e_dict, prefix : str) -> List[str]:
 
     return suggestions
 
-def find_path_auto(e_dict, word : str) -> List[int]:
+def find_path_auto(e_dict, ss_path, word : str) -> List[int]:
     """Simulates the path for a word using autocomplete"""
     path = []
     keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
@@ -100,7 +100,7 @@ def find_path_auto(e_dict, word : str) -> List[int]:
     last_auto = 0
     for i in list(word.lower()):
         if len(path) > 0:
-            autos = get_autos(e_dict, word[:len(path)])
+            autos = get_autos(e_dict, ss_path, word[:len(path)])
             if autos == []: # Ensure that autos is not empty
                 autos.append("\t")
 
@@ -153,7 +153,7 @@ def find_path_auto(e_dict, word : str) -> List[int]:
 
 
 
-def simulate_ms(dict, word : str, auto : bool) -> List[int]:
+def simulate_ms(dict, ss_path : str, word : str, auto : bool) -> List[int]:
     """Simulates a move sequence"""
     keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
     if not auto:
@@ -162,7 +162,7 @@ def simulate_ms(dict, word : str, auto : bool) -> List[int]:
         for m in move:
             ms.append(m.num_moves)
     else:
-        ms = find_path_auto(dict, word)
+        ms = find_path_auto(dict, ss_path, word)
     return ms
 
 
@@ -171,6 +171,7 @@ if __name__ == "__main__":
     parser.add_argument("--ms-path-auto", type=str, required=False)
     parser.add_argument("--ms-path-non", type=str, required=False)
     parser.add_argument("--ed-path", type=str, required=False)
+    parser.add_argument("--ss-path", type=str, required=False)
     args = parser.parse_args()
 
     # tests
@@ -194,12 +195,14 @@ if __name__ == "__main__":
         englishDictionary.save("suggestions_model/local/dictionaries/ed.pkl.gz")
     else:
         englishDictionary = EnglishDictionary.restore(args.ed_path)
+    if args.ss_path is None:
+        args.ss_path = "graphs/autocomplete.json"
 
 
     if test == 1:
         # test non words
         for key in ms_dict_non:
-            sim_ms = simulate_ms(englishDictionary, key, False)
+            sim_ms = simulate_ms(englishDictionary, args.ss_path, key, False)
             if sim_ms != ms_dict_non[key]:
                 print("failed sim on: " + key)
                 print("gt: ", end = "")
@@ -211,7 +214,7 @@ if __name__ == "__main__":
         # test auto words
         for key in ms_dict_auto:
             if len(key) == 5:
-                sim_ms = simulate_ms(englishDictionary, key, True)
+                sim_ms = simulate_ms(englishDictionary, args.ss_path, key, True)
                 if sim_ms != ms_dict_auto[key]:
                     print("failed sim on: " + key)
                     print("gt: ", end = "")

@@ -132,16 +132,16 @@ def build_model(ms_dict_auto, ms_dict_non, ms_dict_rockyou,
     return model
 
 def build_model_sim(ms_dict_rockyou,
-                    englishDictionary, words_auto, words_non,
+                    englishDictionary, ss_path : str, words_auto, words_non,
                     include_rockyou : bool = False, bins : int = 4, weight : int = 3):
     """Builds a model on simulated data"""
 
     ms_dict_auto = {}
     ms_dict_non = {}
     for word in words_auto:
-        ms_dict_auto[word] = simulate_ms(englishDictionary, word, True)
+        ms_dict_auto[word] = simulate_ms(englishDictionary, ss_path, word, True)
     for word in words_non:
-        ms_dict_non[word] = simulate_ms(englishDictionary, word, False)
+        ms_dict_non[word] = simulate_ms(englishDictionary, ss_path, word, False)
 
     if include_rockyou:
         for key in ms_dict_rockyou:
@@ -198,15 +198,16 @@ def classify_ms(model, msfd,
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--ms-path-auto", type=str, required=False)
-    parser.add_argument("--ms-path-non", type=str, required=False)
-    parser.add_argument("--ms-path-rockyou", type=str, required=False)
-    parser.add_argument("--ed-path", type=str, required=False)
-    parser.add_argument("--words-path", type=str, required=False)
-    parser.add_argument("--msfd-path", type=str, required=False)
-    parser.add_argument("--results-path", type=str, required=False)
-    parser.add_argument("--save-path", type=str, required=False)
-    parser.add_argument("--model-path", type=str, required=False)
+    parser.add_argument("--ms-path-auto", type=str, required=False) #ms_auto_dict pkl.gz
+    parser.add_argument("--ms-path-non", type=str, required=False) #ms_non_dict pkl.gz
+    parser.add_argument("--ms-path-rockyou", type=str, required=False) #rockyou.txt
+    parser.add_argument("--ed-path", type=str, required=False) #ed pkl.gz
+    parser.add_argument("--words-path", type=str, required=False) #big.txt
+    parser.add_argument("--msfd-path", type=str, required=False) #msfd pkl.gz
+    parser.add_argument("--results-path", type=str, required=False) #where to save results
+    parser.add_argument("--save-path", type=str, required=False) #where to save model
+    parser.add_argument("--model-path", type=str, required=False) #where to load model
+    parser.add_argument("--ss-path", type=str, required=False) #single suggestions .json
     args = parser.parse_args()
 
     if args.ms_path_auto is None:
@@ -239,6 +240,9 @@ if __name__ == "__main__":
     if args.words_path is None:
         args.words_path = "suggestions_model/local/dictionaries/big.txt"
 
+    if args.ss_path is None:
+        args.ss_path = "graphs/autocomplete.json"
+
     # Tests
     # 0 - save model
     # 1 - test all dicts
@@ -247,7 +251,7 @@ if __name__ == "__main__":
     # 4 - (2) with sim model
     # 5 - reveal mistake words ADD
     # 6 - (5) with build model (sim)
-    test = 6
+    test = 5
 
 
     if test == 6:
@@ -339,7 +343,7 @@ if __name__ == "__main__":
         for bs in bss:
             for w in weights:
                 model = build_model_sim(ms_dict_rockyou=ms_dict_rockyou_train,
-                                        englishDictionary=englishDictionary,
+                                        englishDictionary=englishDictionary, ss_path=args.ss_path,
                                         words_auto=auto_words, words_non=non_words,
                                         include_rockyou=True, bins=bs, weight=w)
                     
@@ -401,7 +405,11 @@ if __name__ == "__main__":
     if test == 3:
         print("test 14")
         #model = read_pickle_gz("max/model_rockyou.pkl.gz")
-        model = build_model_sim(build_rockyou_ms_dict(args.ms_path_rockyou, 200), englishDictionary, grab_words(2000, args.words_path), grab_words(2000, args.words_path), include_rockyou=True)
+        model = build_model_sim(build_rockyou_ms_dict(args.ms_path_rockyou, 200), englishDictionary,
+                                ss_path=args.ss_path,
+                                words_auto=grab_words(2000, args.words_path),
+                                words_non=grab_words(2000, args.words_path),
+                                include_rockyou=True)
 
         ms_dict_rockyou = build_rockyou_ms_dict(args.ms_path_rockyou, 105, 200)
 
@@ -614,6 +622,7 @@ if __name__ == "__main__":
             ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
             model = build_model_sim(ms_dict_rockyou=ms_dict_rockyou_train,
                                         englishDictionary=englishDictionary,
+                                        ss_path=args.ss_path,
                                         words_auto=auto_words, words_non=non_words,
                                         include_rockyou=True, bins=3, weight=3)
             save_model(args.save_path + "_sim.pkl.gz", model)
