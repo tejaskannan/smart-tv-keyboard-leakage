@@ -109,7 +109,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                     keyboard_mode=current_state.keyboard_mode,
                                     current_key=current_state.current_key,
                                     move_idx=next_move_idx)
-            candidate_queue.put((-1 * end_state.score, end_state))
+            candidate_queue.put((end_state.score, end_state))
             continue
 
         if current_string.endswith(END_CHAR):

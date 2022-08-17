@@ -6,7 +6,10 @@ from queue import PriorityQueue
 from typing import Optional, Dict, Any, List, DefaultDict, Set, Iterable
 
 from smarttvleakage.utils.file_utils import read_jsonl_gz, append_jsonl_gz
-from smarttvleakage.utils.constants import BIG_NUMBER
+from smarttvleakage.utils.constants import BIG_NUMBER, END_CHAR
+
+
+ROOT = '<ROOT>'
 
 
 @dataclass(order=True)
@@ -26,11 +29,10 @@ def get_min_priority(pq: PriorityQueue) -> float:
 
 class TrieNode:
     
-    def __init__(self, character: str, count: int, is_end: bool):
+    def __init__(self, character: str, count: int):
         self._character = character
         self._count = count
-        self._children = []
-        self._is_end = is_end
+        self._children: Dict[str, Any] = dict()  # Maps character to trie node
 
     @property
     def count(self) -> int:
@@ -41,51 +43,40 @@ class TrieNode:
         return self._character
 
     @property
-    def children(self) -> List[Any]:
+    def children(self) -> Dict[str, Any]:
         return self._children
 
     @property
     def is_end(self) -> bool:
-        return self._is_end
-
-    def set_is_end(self):
-        self._is_end = True
+        return END_CHAR in self.children
 
     def increase_count(self, count: count):
         self._count += count
 
     def set_children(self, children: List[Any]):
-        self._children = children
+        self._children = {child.character: child for child in children}
 
-    def add_child(self, character: str, count: int, is_end: bool):
+    def add_child(self, character: str, count: int):
         node = self.get_child(character)
 
         if node is None:
-            node = TrieNode(character=character, count=count, is_end=is_end)
-            self._children.append(node)
+            node = TrieNode(character=character, count=count)
+            self._children[node.character] = node
         else:
             node.increase_count(count=count)
 
-            if (not node.is_end) and (is_end):
-                node.set_is_end()
-
         return node
 
-    def get_child(self, character: str):
-        for child in self._children:
-            if child.character == character:
-                return child
-
-        return None
+    def get_child(self, character: str) -> Any:
+        return self._children.get(character)
 
     def get_child_characters(self, length: Optional[int]) -> Dict[str, int]:
         children: Dict[str, int] = dict()
 
-        if length is None:
-            for child in self._children:
+        for child in self._children.values():
+            if length is None:
                 children[child.character] = child.count
-        else:
-            for child in self._children:
+            else:
                 count = get_count_for_depth(root=child, depth=(length - 1))
 
                 if count > 0:
@@ -93,102 +84,63 @@ class TrieNode:
 
         return children
 
+    def __str__(self) -> str:
+        return 'Character: {}, Count: {}'.format(self.character, self.count)
+
 
 class Trie:
 
     def __init__(self, max_depth: int):
-        self._root = TrieNode(character='<ROOT>', count=0, is_end=False)
+        self._root = TrieNode(character=ROOT, count=0)
         self._max_depth = max_depth
 
     @property
     def max_depth(self) -> int:
         return self._max_depth
 
-    def add_string(self, string: str, count: int):
+    def add_string(self, string: str, count: int, should_index_prefixes: bool):
         node = self._root
         self._root.increase_count(count=count)
 
         for idx, character in enumerate(string):
-            next_node = node.add_child(character, count=count, is_end=(idx == (len(string) - 1)))
+            next_node = node.add_child(character, count=count)
+
+            if should_index_prefixes or (idx == (len(string) - 1)):
+                if idx >= self.max_depth:
+                    node.add_child(END_CHAR, count=count)
+                else:
+                    next_node.add_child(END_CHAR, count=count)
 
             if idx < self.max_depth:
                 node = next_node
 
-    def get_score_for_prefix(self, prefix: str, min_length: int) -> float:
-        total_count = self._root.count
-
-        node = self._root
-        length = 0
-        for character in prefix:
-            node = node.get_child(character=character)
-            length += 1
-
-            if node is None:
-                return 0.0
-
-        if length >= min_length:
-            return node.count / total_count
-
-        frontier = deque()
-        frontier.append((length, node))
-        unnormalized_score = 0.0
-
-        while len(frontier) > 0:
-            length, node = frontier.popleft()
-
-            if length == min_length:
-                unnormalized_score += node.count
-            else:
-                for child in node.children:
-                    frontier.append((length + 1, child))
-
-        return unnormalized_score / total_count
-
-    def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
-        total_count = self._root.count
-
-        node = self._root
-        for character in string:
-            node = node.get_child(character=character)
-
-            if node is None:
-                return 0.0
-
-        if should_aggregate:
-            count = node.count
-        else:
-            count = node.count - sum(c for c in node.get_child_characters(length=None).values())
-
-        return count / total_count
+        #node.add_child(END_CHAR, count=count)
 
     def get_next_characters(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         node = self._root
 
         if prefix == '':
             return node.get_child_characters(length=length)
+        elif (length is not None) and (len(prefix) > length):
+            return dict()
 
         child_dict = dict()
 
         for idx, character in enumerate(prefix):
-            node = node.get_child(character=character)
+            if idx >= self.max_depth:
+                break
 
-            if not (length is None):
-                length -= 1
+            node = node.get_child(character=character)
 
             if node is None:
                 return dict()  # If we couldn't find the prefix, return an empty dictionary
-            else:
-                if idx == (len(prefix) - 1):
-                    next_dict = node.get_child_characters(length=length)
-                else:
-                    next_dict = node.get_child_characters(length=None)
 
-                if len(next_dict) == 0:
-                    return child_dict
-                else:
-                    child_dict = next_dict
+        if (length is not None) and ((length >= self.max_depth) or (len(prefix) == length)):
+            adjusted_length = None
+        else:
+            adjusted_length = max(length - len(prefix), 0) if length is not None else None
 
-        return child_dict
+        return node.get_child_characters(length=adjusted_length)
 
     def get_max_log_prob(self, prefix: str, single_char_counts: Counter, length: int) -> float:
         if len(prefix) >= length:
@@ -225,7 +177,7 @@ class Trie:
             if len(root.children) == 0:
                 return 1
 
-            return 1 + sum(get_num_nodes_helper(child) for child in root.children)
+            return 1 + sum(get_num_nodes_helper(child) for child in root.children.values())
 
         return get_num_nodes_helper(root=self._root) - 1
 
@@ -276,12 +228,11 @@ class Trie:
                     prefix_queue.put(PrioritizedItem(priority=score, item=string))
                     prefix_min_score = min(prefix_min_score, score) if (prefix_min_score > 0) else score
 
-
             global_min_score = min(global_min_score, prefix_min_score)
             if (node.count < global_min_score) and all(pq.full() for pq in recommended_queues.values()):
                 continue
 
-            for child in node.children:
+            for child in node.children.values():
                 next_item = PrioritizedItem(priority=-1 * child.count, item=(child, string + child.character, prefix))
                 node_queue.put(next_item)
 
@@ -292,7 +243,9 @@ class Trie:
             while not prefix_queue.empty():
                 item = prefix_queue.get()
                 count, word = item.priority, item.item
-                words.append((word, count / total_count))
+
+                if word.endswith(END_CHAR):
+                    words.append((word.replace(END_CHAR, ''), count / total_count))
 
         return list(reversed(sorted(words, key=lambda t: t[1])))[0:max_num_results]
 
@@ -303,4 +256,4 @@ def get_count_for_depth(root: TrieNode, depth: int) -> int:
     elif depth <= 0:
         return 0
     else:
-        return sum(get_count_for_depth(child, depth=(depth - 1)) for child in root.children)
+        return sum(get_count_for_depth(child, depth=(depth - 1)) for child in root.children.values())

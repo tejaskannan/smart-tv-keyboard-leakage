@@ -1,6 +1,7 @@
 import time
 import string
 import os.path
+import numpy as np
 from argparse import ArgumentParser
 from queue import PriorityQueue
 from collections import namedtuple, defaultdict, Counter
@@ -9,11 +10,12 @@ from typing import Set, List, Dict, Optional, Iterable, Tuple, DefaultDict
 from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SPACE, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
+from smarttvleakage.utils.constants import END_CHAR
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.file_utils import read_json
 
 
-SearchState = namedtuple('SearchState', ['keys', 'score', 'score_factor', 'keyboard_mode', 'was_on_suggested', 'current_key', 'center_key'])
+SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode', 'was_on_suggested', 'current_key', 'center_key'])
 VisitedState = namedtuple('VisitedState', ['string', 'was_on_suggested'])
 
 INCORRECT_FACTOR = 1e-3
@@ -43,30 +45,6 @@ def get_current_prefix(string: str) -> str:
         return tokens[-1]
 
 
-def get_score_for_string(string: str, dictionary: CharacterDictionary, min_length: int) -> float:
-    return dictionary.get_score_for_prefix(string, min_length=min_length)
-
-
-#def get_score_for_string(string: str, dictionary: CharacterDictionary, should_aggregate_score: bool) -> float:
-#    tokens = list(filter(lambda t: len(t) > 0, string.split()))
-#    score = 0.0
-#
-#    if len(tokens) == 0:
-#        return score
-#    elif len(tokens) == 1:
-#        should_aggregate_score = should_aggregate_score and (string[-1] != ' ')
-#        return dictionary.get_score_for_string(tokens[0], should_aggregate=should_aggregate_score)
-#
-#    num_tokens = 0
-#    for token in tokens[0:-1]:
-#        score += dictionary.get_score_for_string(string, should_aggregate=False)
-#
-#    if len(tokens[-1]) > 0:
-#        score += dictionary.get_score_for_string(tokens[-1], should_aggregate=should_aggregate_score)
-#
-#    return score
-
-
 def apply_autocomplete(prefixes: List[str], dictionary: CharacterDictionary, min_length: int, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     for idx, (word, score) in enumerate(dictionary.get_words_for(prefixes, max_num_results=max_num_results, min_length=min_length, max_count_per_prefix=MAX_COUNT_PER_PREFIX)):
         if idx >= max_num_results:
@@ -76,9 +54,6 @@ def apply_autocomplete(prefixes: List[str], dictionary: CharacterDictionary, min
 
 
 def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, did_use_autocomplete: bool, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
-    directory = os.path.dirname(__file__)
-    single_suggestions = read_json(os.path.join(directory, 'graphs/autocomplete.json'))
-
     # Remove false positive zeros from the front of the move sequence (use the rule: q always followed by u)
     while (len(move_sequence) > 1) and (move_sequence[0].num_moves == 0) and (move_sequence[1].num_moves != 1):
         move_sequence.pop(0)
@@ -107,8 +82,7 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
 
     # Create the start state, which has reached zero keys
     init_state = SearchState(keys=[],
-                             score=1.0,
-                             score_factor=1.0,
+                             score=0.0,
                              keyboard_mode=SAMSUNG_STANDARD,
                              was_on_suggested=False,
                              current_key=None,
@@ -137,10 +111,22 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
         candidate_count += 1
 
         # Check the stopping condition (whether we reach the target number of keys)
-        if (len(current_state.keys) == target_length):
+        if len(current_state.keys) == target_length:
+            end_score = dictionary.get_letter_counts(current_string, length=target_length).get(END_CHAR, 0.0)
+
+            end_state = SearchState(keys=current_state.keys + [END_CHAR],
+                                    score=current_state.score - np.log(end_score),
+                                    keyboard_mode=current_state.keyboard_mode,
+                                    current_key=current_state.current_key,
+                                    center_key=current_state.center_key,
+                                    was_on_suggested=current_state.was_on_suggested)
+            candidate_queue.put((end_state.score, end_state))
+            continue
+
+        if current_string.endswith(END_CHAR):
             # Make sure we do not produce duplicate strings
             if current_string not in seen_strings:
-                yield current_string, current_state.score, candidate_count
+                yield current_string.replace(END_CHAR, ''), current_state.score, candidate_count
                 result_count += 1
 
                 if (max_num_results is not None) and (result_count >= max_num_results):
@@ -190,8 +176,7 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
         # Get the unnormalized scores for the next keys
         current_prefix = get_current_prefix(current_string)
         next_key_counts = dictionary.get_letter_counts(prefix=current_prefix,
-                                                       length=string_length,
-                                                       should_smooth=True)
+                                                       length=string_length)
 
         # If we didn't take 1 move (or are on the first move), then the user may be using the normal keyboard
         if (num_moves != 1) or (len(current_state.keys) == 0):
@@ -223,16 +208,15 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
                     neighbors = list(filter(lambda n: (n not in SELECT_SOUND_KEYS) and (n not in DELETE_SOUND_KEYS), neighbors))
                     filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                                  candidate_keys=neighbors,
-                                                                 current_string=current_string,
-                                                                 dictionary=dictionary)
+                                                                 should_renormalize=False)
 
-                for neighbor_key, score in filtered_probs.items():
+                for neighbor_key, freq in filtered_probs.items():
                     candidate_keys = current_state.keys + [neighbor_key]
                     candidate_string = get_string_from_keys(candidate_keys)
 
                     visited_state = VisitedState(string=candidate_string, was_on_suggested=False)
 
-                    should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
+                    #should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
                     score_factor = TOP_KEY_FACTOR if (neighbor_key in top_keys) else 1.0
 
                     # Make the next state
@@ -241,22 +225,22 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
                                                           mode=current_state.keyboard_mode,
                                                           keyboard_type=keyboard_type)
 
-                        string_score = get_score_for_string(candidate_string, dictionary=dictionary, min_length=min_length)
+                        adjusted_score = score_factor * move_score * freq
+                        string_score = current_state.score - np.log(adjusted_score)
+
                         next_state = SearchState(keys=candidate_keys,
                                                  score=string_score,
-                                                 score_factor=current_state.score_factor * move_score * score_factor,
                                                  keyboard_mode=next_keyboard,
                                                  was_on_suggested=False,
                                                  current_key=neighbor_key,
                                                  center_key=neighbor_key)
 
-                        candidate_queue.put((-1 * next_state.score * next_state.score_factor, next_state))
+                        candidate_queue.put((next_state.score, next_state))
                         visited.add(visited_state)
 
         # Consider suggested_keys
         if (prev_key in string.ascii_letters) and (num_moves <= 2) and (len(current_state.keys) > 0):
-
-            autocomplete_counts = dictionary.get_letter_counts(prefix=current_prefix, should_smooth=False, length=None)
+            autocomplete_counts = dictionary.get_letter_counts(prefix=current_prefix, length=None)
             total_count = sum(autocomplete_counts.values())
             next_key_freq = {key: count / total_count for key, count in autocomplete_counts.items()}
 
@@ -268,31 +252,31 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
             next_key_scores = {key: count / total_count for key, count in next_key_counts.items()}
 
             for (neighbor_key, _) in sorted_keys:
-                score = next_key_scores.get(neighbor_key, 0.0)
+                freq = next_key_scores.get(neighbor_key, 0.0)
 
-                if score < SUGGESTION_THRESHOLD:
+                if freq < SUGGESTION_THRESHOLD:
                     continue
 
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_string = get_string_from_keys(candidate_keys)
 
                 visited_state = VisitedState(string=candidate_string, was_on_suggested=True)
-                should_aggregate_score = (len(candidate_keys) < target_length) or (did_use_autocomplete)
 
                 if visited_state not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
                                                       mode=current_state.keyboard_mode,
                                                       keyboard_type=keyboard_type)
 
+                    string_score = current_state.score - np.log(freq)
+
                     next_state = SearchState(keys=candidate_keys,
-                                             score=get_score_for_string(candidate_string, dictionary=dictionary, min_length=min_length),
-                                             score_factor=current_state.score_factor,
+                                             score=string_score,
                                              keyboard_mode=current_state.keyboard_mode,
                                              was_on_suggested=True,
                                              current_key=neighbor_key,
                                              center_key=current_state.center_key)
 
-                    candidate_queue.put((-1 * next_state.score * next_state.score_factor, next_state))
+                    candidate_queue.put((next_state.score, next_state))
                     visited.add(visited_state)
 
 

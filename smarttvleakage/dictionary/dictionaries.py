@@ -2,6 +2,7 @@ import string
 import os.path
 import io
 import gzip
+import time
 import numpy as np
 from collections import Counter, defaultdict, namedtuple, deque
 from typing import Dict, List, Optional, Iterable, Tuple, Any
@@ -181,8 +182,6 @@ class EnglishDictionary(CharacterDictionary):
     def __init__(self, max_depth: int):
         super().__init__()
         self._trie = Trie(max_depth=max_depth)
-        self._single_char_counts: Counter = Counter()
-        self._bigram_counts = Trie(max_depth=2)
         self._is_built = False
         self._max_depth = max_depth
 
@@ -231,37 +230,24 @@ class EnglishDictionary(CharacterDictionary):
         print('Indexing {} Strings...'.format(len(string_dictionary)))
 
         # Build the trie
-        for word, count in string_dictionary.items():
+        elapsed = 0.0
+        for idx, (word, count) in enumerate(string_dictionary.items()):
             count = max(count, 1)
 
-            # Increment the single character counts
-            for character in word:
-                self._single_char_counts[character] += count
+            start = time.time()
+            self._trie.add_string(word, count=count, should_index_prefixes=False)
+            end = time.time()
 
-            for bigram in create_ngrams(word, 2):
-                self._bigram_counts.add_string(bigram, count=count)
+            elapsed += (end - start)
 
-            self._trie.add_string(word, count=count)
+            if (idx + 1) % 100000 == 0:
+                print('Completed {} strings. Avg Time / Insert {:.7f}ms'.format(idx + 1, 1000.0 * (elapsed / (idx + 1))), end='\r')
 
+        print()
         self._is_built = True
-
-    def iterate_words(self, path: str) -> Iterable[str]:
-        assert path.endswith('txt'), 'Must provide a text file'
-
-        with open(path, 'r', encoding='utf-8') as fin:
-            for line in fin:
-                line = line.strip()
-                if len(line) > 0:
-                    yield line.split()[0]
 
     def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[Tuple[str, float]]:
         return self._trie.get_words_for(prefixes, max_num_results, min_length=min_length, max_count_per_prefix=max_count_per_prefix)
-
-    def get_score_for_prefix(self, prefix: str, min_length: int) -> float:
-        return self._trie.get_score_for_prefix(prefix=prefix, min_length=min_length)
-
-    def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
-        return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
 
     def does_contain_prefix(self, prefix: str) -> bool:
         return self._trie.get_node_for(prefix) is not None
@@ -275,19 +261,14 @@ class EnglishDictionary(CharacterDictionary):
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix, length=length)
 
-        if (len(character_counts) == 0) and (len(prefix) >= 1):
-            character_counts = self._bigram_counts.get_next_characters(prefix=prefix[-1], length=None)
-
-        # If we still have no characters, then use the single-character counts
-        if len(character_counts) == 0:
-            character_counts = {key: count for key, count in self._single_char_counts.items()}
-
         # Re-map the character names
         character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
 
         # Apply Laplace Smoothing
         for character in self._characters:
-            character_counts[character] = character_counts.get(character, 0) + 1
+            character_counts[character] = character_counts.get(character, 0) + 0.01
+
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + 0.01
 
         # Normalize the result
         total_count = sum(character_counts.values())
@@ -297,8 +278,6 @@ class EnglishDictionary(CharacterDictionary):
     def restore(cls, serialized: Dict[str, Any]):
         dictionary = cls(max_depth=1)
         dictionary._trie = serialized['trie']
-        dictionary._single_char_counts = serialized['single_char_counts']
-        dictionary._bigram_counts = serialized['bigram_counts']
         dictionary._is_built = True
         dictionary._max_depth = dictionary._trie.max_depth
         return dictionary
@@ -306,8 +285,6 @@ class EnglishDictionary(CharacterDictionary):
     def save(self, path: str):
         data_dict = {
             'trie': self._trie,
-            'single_char_counts': self._single_char_counts,
-            'bigram_counts': self._bigram_counts,
             'dict_type': 'english'
         }
         save_pickle_gz(data_dict, path)
