@@ -10,14 +10,14 @@ def fill_zeroes(n : int, l : int) -> str:
     if len(str(n)) >= l:
         return str(n)
     n_str = ""
-    for i in range((l - len(str(n)))):
+    for _ in range((l - len(str(n)))):
         n_str += "0"
     return n_str + str(n)
 
 def random_digits(n : int) -> list[int]:
     """returns n random digits as a list"""
     num = 0
-    for i in range(n):
+    for _ in range(n):
         newDigit = random.randint(0, 9)
         num = num * 10
         num += newDigit
@@ -30,11 +30,11 @@ def checksum(num : int) -> int:
     num_str = str(num)
     total = 0
     digits = list(map(int, num_str))
-    for i in range(len(digits)):
+    for i, d in enumerate(digits):
         if i % 2 == 0:
-            next = (2 * digits[i]) % 9
+            next = (2 * d) % 9
         else:
-            next = digits[i]
+            next = d
         total += next
     return total % 10
 
@@ -56,10 +56,8 @@ def generate_bin(ty : str = "") -> int:
             start = 34
         else:
             start = 37
-    
     elif ty == "visa":
         start = 4
-    
     elif ty == "master":
         start = 5
 
@@ -72,21 +70,21 @@ def generate_bin(ty : str = "") -> int:
         r = random.randint(0, 99)
         if r < 20:
             return generate_bin("amex")
-        elif r < 40:
+        if r < 40:
             return generate_bin("visa")
-        elif r < 60:
+        if r < 60:
             return generate_bin("master")
-        elif r < 80:
+        if r < 80:
             return generate_bin("discover")
 
-        elif r < 90:
+        if r < 90:
             start = random.randint(0, 2)
         else:
             start = random.randint(7, 9)
 
     end = random_digits(6 - len(str(start)))
     return start * (pow(10, (6 - len(str(start))))) + end
-    
+
 def add_acc(bin : int) -> int:
     start = bin * (pow(10, 9))
     return start + random_digits(9)
@@ -108,7 +106,7 @@ def build_valid_cc_list(base_path):
     path = "suggestions_model/ccs"
     valids = []
 
-    for root, dirs, files in walk(path):
+    for _, _, files in walk(path):
         for name in files:
             if name.startswith(base_path):
                 full_path = path + "/" + name
@@ -118,11 +116,8 @@ def build_valid_cc_list(base_path):
                 for i in read_jsonl_gz(full_path):
                     num_end = i["cc"]
                     valids.append(num_start + num_end)
-    
-    #for valid in valids:
-        #print(valid)
-    return valids
 
+    return valids
 
 def build_valid_cc_dict(save_path : str):
     valids = build_valid_cc_list("cc_bin_dict000")
@@ -156,6 +151,13 @@ def generate_sec() -> str:
         return fill_zeroes(sec, 4)
     sec = str(random.randint(0, 999))
     return fill_zeroes(sec, 3)
+
+#Zip
+def generate_zip(path : str) -> str:
+    with open(path, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+        random_line = random.randint(0, len(lines)-1)
+        return(lines[random_line].split(" ")[0])
 
 
 if __name__ == '__main__':
