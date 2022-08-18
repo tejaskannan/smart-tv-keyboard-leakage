@@ -80,7 +80,8 @@ class NumericDictionary(CharacterDictionary):
     def is_valid(self, string: str) -> bool:
         try:
             int_val = int(string)
-            return True
+            if len(string) == 4:
+                return True
         except ValueError:
             return False
 
@@ -113,6 +114,27 @@ class ExpDateDictionary(CharacterDictionary):
             counts[c] = count
 
         counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
+
+class CVVDictionary(CharacterDictionary):
+
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            if len(string) in [3, 4]:
+                return True
+            return False
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        counts = {}
+        if len(prefix) < 4:
+            for c in string.digits:
+                counts[c] = 10
+        if len(prefix) > 2:
+            counts[END_CHAR] = 10
         total_count = sum(counts.values())
         return {c: (count / total_count) for c, count in counts.items()}
 
@@ -469,6 +491,8 @@ def restore_dictionary(path: str) -> CharacterDictionary:
         return NumericDictionary()
     elif path == 'exp_date':
         return ExpDateDictionary()
+    elif path == 'cvv':
+        return CVVDictionary()
     else:
         data_dict = read_pickle_gz(path)
         dict_type = data_dict['dict_type']

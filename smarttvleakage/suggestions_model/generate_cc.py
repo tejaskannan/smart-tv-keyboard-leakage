@@ -1,5 +1,9 @@
 import random
-from smarttvleakage.utils.file_utils import read_json, save_pickle_gz, read_pickle_gz
+
+from os import walk
+
+from smarttvleakage.utils.file_utils import read_jsonl_gz
+from smarttvleakage.dictionary import EnglishDictionary
 
 def fill_zeroes(n : int, l : int) -> str:
     """Returns n as a string with l digits filled out"""
@@ -38,13 +42,14 @@ def validate_cc(num : int) -> bool:
     """Validates a cc via checksum"""
     return checksum(num) == 0
 
-# *double check
+
 def finish_cc(num : int) -> int:
     """Finishes a cc with valid checksum digit"""
     cs = checksum(num)
     #print("cs: " + str(cs))
     return num*10 + ((10-cs) % 10)
 
+# Ineffective
 def generate_bin(ty : str = "") -> int:
     if ty == "amex":
         if random.randint(0, 1) == 0:
@@ -99,93 +104,63 @@ def print_cc(cc : str):
     print("\n", end="")
 
 
+def build_valid_cc_list(base_path):
+    path = "suggestions_model/ccs"
+    valids = []
 
+    for root, dirs, files in walk(path):
+        for name in files:
+            if name.startswith(base_path):
+                full_path = path + "/" + name
+                num_start = base_path.split("000", 1)[1]
+                num_start = num_start[:3]
 
-
-# ZIPS
-# work on this 
-def save_zip_dictionary(path : str):
-    zip_counts = {}
-
-    zip_dicts = read_json(path)
-    for zip_dict in zip_dicts:
-        zip_str = fill_zeroes(zip_dict["zip_code"], 5)
-
-        if zip_str in zip_counts:
-            zip_counts[zip_str] += 1
-        else:
-            zip_counts[zip_str] = 1
+                for i in read_jsonl_gz(full_path):
+                    num_end = i["cc"]
+                    valids.append(num_start + num_end)
     
-    save_path = "local/dictionaries/zip.pkl.gz"
-    save_pickle_gz(zip_counts, save_path)
-    
-    return
+    #for valid in valids:
+        #print(valid)
+    return valids
 
 
-# work on this 
-def load_zip_dictionary(path : str) -> dict[str, int]:
-    return read_pickle_gz(path)
-    # turn zip dict into englishDictionary type
+def build_valid_cc_dict(save_path : str):
+    valids = build_valid_cc_list("cc_bin_dict000")
+    lines = []
+    for valid in valids:
+        lines.append(str(valid) + " 1000")
 
+    with open(save_path, "w") as f:
+        f.writelines(lines)
 
-# read from zip pkl
-# generate random one?
-def generate_zip(zip_counts : dict[str, int]) -> str:
-    return random.choice(list(zip_counts.keys()))
-
-def validate_zip(zip_counts, zip : int) -> bool:
-    return zip in zip_counts
-
+    cc_dictionary  = EnglishDictionary(50)
+    cc_dictionary.build(save_path, 50, True)
+    return cc_dictionary
 
 
 
 # DATES
-
 def generate_date() -> str:
+    """Generates a random valid exp date"""
     mon = str(random.randint(1, 12))
     if len(mon) == 1:
         mon = "0" + mon
     yr = str(random.randint(22, 39))
     return mon + yr 
 
-def validate_date(date : str) -> bool:
-    if len(date) != 4:
-        return False
-    
-    if int(date[:2]) > 12:
-        return False
-
-    return True
-
-
-
-
-
 # Sec CODES
-
-
 def generate_sec() -> str:
+    """Generates a random valid Sec Code"""
     if random.randint(0, 3) == 3:
         sec = str(random.randint(0, 9999))
         return fill_zeroes(sec, 4)
     sec = str(random.randint(0, 999))
     return fill_zeroes(sec, 3)
 
-def validate_sec(date : str) -> bool:
-    return len(date) in [3, 4]
-
-
-
-
-
-
-
-
-
 
 if __name__ == '__main__':
 
-    test = 3
+    test = 0
 
     if test == 0:
         for i in range(10):
@@ -194,25 +169,9 @@ if __name__ == '__main__':
             print_cc(cc)
             print(valid)
 
-        print("\n\n\n")
-
         for i in range(10):
             cc = generate_cc("visa")
             valid = validate_cc(cc)
             print_cc(cc)
             print(valid)
 
-
-    elif test == 1:
-        #save_zip_dictionary("local/zips.json")
-        print("zip saved already")
-
-    elif test == 2:
-        zip_counts = load_zip_dictionary("local/dictionaries/zip.pkl.gz")
-        print(generate_zip(zip_counts))
-    elif test == 3:
-        zip_counts = load_zip_dictionary("local/dictionaries/zip.pkl.gz")
-        for i in range(100):
-            test_zip = str(random.randint(0, 99999))
-            print(test_zip, end=": ")
-            print(validate_zip(zip_counts, test_zip))
