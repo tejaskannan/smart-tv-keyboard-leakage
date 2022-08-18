@@ -56,7 +56,7 @@ def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
         		if mode in CHANGE_KEYS.keys():
         			# print('\n')
         			# print(CHANGE_KEYS[mode])
-        			path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
+        			path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode], move_times=[])))
         		prev = changer
         		#print(on_key)
         		linked_state = keyboard.get_linked_states(on_key, original_mode)
@@ -70,16 +70,16 @@ def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
 
         if character == '<SPACE>':
         	if mode in CHANGE_KEYS.keys():
-        		path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+        		path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode], move_times=[])))
         	else:
-        		path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+        		path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode], move_times=[])))
         else:
-        	path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+        	path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode], move_times=[])))
 
         rand = random.random()
         for x, j in enumerate(mistakes):
             if rand < j:
-                path[-1] = Move(num_moves=path[-1][0] + 2 * (x + 1), end_sound=path[-1][1])
+                path[-1] = Move(num_moves=path[-1][0] + 2 * (x + 1), end_sound=path[-1][1], move_times=[])
 
         prev = character
     

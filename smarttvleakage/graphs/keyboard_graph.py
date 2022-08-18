@@ -1,13 +1,16 @@
 import os.path
 from collections import deque, defaultdict
 from enum import Enum, auto
-from typing import Dict, DefaultDict, List, Set
+from typing import Dict, DefaultDict, List, Set, Union
 import csv
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
+from smarttvleakage.keyboard_utils.graph_search import breadth_first_search
 from smarttvleakage.utils.constants import KeyboardType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
-from .keyboard_linker import KeyboardLinker, KeyboardPosition
 from smarttvleakage.audio.constants import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
+from smarttvleakage.audio.move_extractor import Direction
+from .keyboard_linker import KeyboardLinker, KeyboardPosition
+
 
 SAMSUNG_STANDARD = 'samsung_standard'
 SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
@@ -139,11 +142,11 @@ class MultiKeyboardGraph:
 
         return list(merged)
 
-    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool, directions: Union[Direction, List[Direction]]) -> List[str]:
         if num_moves < 0:
             return []
 
-        return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
+        return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound, directions=directions)
 
     def printerthing(self, num_moves: int, mode: str) -> List[str]:
         return self._keyboards[mode].get_keys_for_moves(num_moves)
@@ -175,7 +178,10 @@ class SingleKeyboardGraph:
 
         # Read in the graph config to get the unclickable keys
         graph_config = read_json(path)
-        self._characters = list(graph_config['adjacency_list'].keys())
+        self._adj_list = graph_config['adjacency_list']
+        self._wraparound_list = graph_config['wraparound']
+        self._shortcuts_list = graph_config['shortcuts']
+        self._characters = list(self._adj_list.keys())
         self._unclickable_keys: Set[str] = set(graph_config['unclickable'])
 
         # Read in the precomputed shortest paths maps
@@ -192,36 +198,66 @@ class SingleKeyboardGraph:
         if os.path.exists(wraparound_shortcuts_path):
             self._wraparound_distances_shortcuts = parse_graph_distances(path=wraparound_shortcuts_path)
 
-    def get_keys_for_moves(self, num_moves: int) -> List[str]:
-        return self.get_keys_for_moves_from(start_key=self._start_key, num_moves=num_moves, use_space=False)
-
     def get_characters(self) -> List[str]:
         return self._characters
 
     def is_unclickable(self, key: str) -> bool:
         return (key in self._unclickable_keys)
 
-    def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+    def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool, directions: Union[Direction, List[Direction]]) -> List[str]:
         assert num_moves >= 0, 'Must provide a non-negative number of moves. Got {}'.format(num_moves)
 
         if num_moves == 0:
             return [start_key]
 
-        no_wraparound_neighbors = self._no_wraparound_distances.get(start_key, dict()).get(num_moves, set())
-        wraparound_neighbors = self._wraparound_distances.get(start_key, dict()).get(num_moves, set())
+        if isinstance(directions, list) and isinstance(self._adj_list[start_key], dict):
+            assert len(directions) == num_moves, 'Must provide the same number of directionsi ({}) as moves ({})'.format(len(directions), num_moves)
 
-        if use_shortcuts:
-            no_wraparound_neighbors.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
-            wraparound_neighbors.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+            result_set: Set[str] = set()
 
-        if (len(no_wraparound_neighbors) == 0) and (len(wraparound_neighbors) == 0):
-            return []
+            standard = breadth_first_search(start_key=start_key,
+                                            distance=num_moves,
+                                            adj_list=self._adj_list,
+                                            wraparound=None,
+                                            shortcuts=None,
+                                            directions=directions)
+            result_set.update(standard)
 
-        if use_wraparound:
-            combined = no_wraparound_neighbors.union(wraparound_neighbors)
-            return list(sorted(combined))
+            if use_wraparound:
+                wraparound = breadth_first_search(start_key=start_key,
+                                                  distance=num_moves,
+                                                  adj_list=self._adj_list,
+                                                  wraparound=self._wraparound_list,
+                                                  shortcuts=None,
+                                                  directions=directions)
+                result_set.update(wraparound)
+
+            if use_shortcuts:
+                shortcuts = breadth_first_search(start_key=start_key,
+                                                 distance=num_moves,
+                                                 adj_list=self._adj_list,
+                                                 wraparound=self._wraparound_list,
+                                                 shortcuts=self._shortcuts_list,
+                                                 directions=directions)
+                result_set.update(shortcuts)
+
+            return list(sorted(result_set))
         else:
-            return list(sorted(no_wraparound_neighbors))
+            no_wraparound_neighbors = self._no_wraparound_distances.get(start_key, dict()).get(num_moves, set())
+            wraparound_neighbors = self._wraparound_distances.get(start_key, dict()).get(num_moves, set())
+
+            if use_shortcuts:
+                no_wraparound_neighbors.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+                wraparound_neighbors.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+
+            if (len(no_wraparound_neighbors) == 0) and (len(wraparound_neighbors) == 0):
+                return []
+
+            if use_wraparound:
+                combined = no_wraparound_neighbors.union(wraparound_neighbors)
+                return list(sorted(combined))
+            else:
+                return list(sorted(no_wraparound_neighbors))
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool) -> int:
         if end_key not in list(self._no_wraparound_distances.keys()):

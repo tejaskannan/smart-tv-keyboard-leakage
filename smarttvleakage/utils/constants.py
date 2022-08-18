@@ -12,6 +12,12 @@ class KeyboardType(Enum):
     APPLE_TV_PASSWORD = auto()
 
 
+class Direction(Enum):
+    ANY = auto()
+    HORIZONTAL = auto()
+    VERTICAL = auto()
+
+
 CAPS = '<CAPS>'
 CHANGE = '<CHANGE>'
 DONE = '<DONE>'

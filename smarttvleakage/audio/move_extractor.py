@@ -1,13 +1,13 @@
 import os.path
 import numpy as np
-#import matplotlib.pyplot as plt
-#import moviepy.editor as mp
+import matplotlib.pyplot as plt
+import moviepy.editor as mp
 from collections import namedtuple, defaultdict
 from enum import Enum, auto
-#from scipy.signal import spectrogram, find_peaks, convolve
-from typing import List, Dict, Tuple, DefaultDict
+from scipy.signal import spectrogram, find_peaks, convolve
+from typing import List, Dict, Tuple, DefaultDict, Union
 
-from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType
+from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType, Direction
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, SAMSUNG_KEY_SELECT
@@ -18,7 +18,7 @@ from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLE
 
 MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold'])
-Move = namedtuple('Move', ['num_moves', 'end_sound'])
+Move = namedtuple('Move', ['num_moves', 'end_sound', 'move_times'])
 
 
 APPLETV_PASSWORD_THRESHOLD = 800
@@ -32,6 +32,49 @@ SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
 SELECT_MOVE_DISTANCE = 30
 MOVE_DELETE_THRESHOLD = 315
+CHANGE_DIR_MAX_THRESHOLD = 150  # Very long delays may be a user just pausing, so we filter them out
+
+
+def extract_move_directions(move: Move) -> Union[List[Direction], Direction]:
+    if (len(move.move_times) <= 4) or (move.end_sound != SAMSUNG_KEY_SELECT):
+        return Direction.ANY
+
+    # List of at least length 4 diffs
+    time_diffs = [ahead - behind for ahead, behind in zip(move.move_times[1:], move.move_times[:-1])]
+
+    baseline_avg = np.average(time_diffs[0:-1])
+    baseline_std = np.std(time_diffs[0:-1])
+    cutoff = baseline_avg + 3 * baseline_std
+
+    if (time_diffs[-1] >= cutoff) and (time_diffs[-1] < CHANGE_DIR_MAX_THRESHOLD):
+        directions = [Direction.HORIZONTAL for _  in range(len(move.move_times) - 1)]
+        directions.append(Direction.VERTICAL)
+        return directions
+
+    if len(time_diffs) < 5:
+        return Direction.ANY
+
+    baseline_avg = np.average(time_diffs[0:-2])
+    baseline_std = np.std(time_diffs[0:-2])
+    cutoff = baseline_avg + 3 * baseline_std
+
+    if (time_diffs[-1] < cutoff) and (time_diffs[-2] >= cutoff and time_diffs[-2] < CHANGE_DIR_MAX_THRESHOLD):
+        directions = [Direction.HORIZONTAL for _ in range(len(move.move_times) - 2)]
+        directions.extend([Direction.VERTICAL, Direction.VERTICAL])
+        return directions
+
+    return Direction.ANY
+
+    #if is_above_threshold[-1] and (not any(is_above_threshold[0:-1])):
+    #    directions = [Direction.HORIZONTAL for _  in range(len(move.move_times) - 1)]
+    #    directions.append(Direction.VERTICAL)
+    #    return directions
+    #elif (len(time_diffs) >= 5) and (is_above_threshold[-2]) and (not is_above_threshold[-1]) and (not any(is_above_threshold[0:-2])):
+    #    directions = [Direction.HORIZONTAL for _ in range(len(move.move_times) - 2)]
+    #    directions.extend([Direction.VERTICAL, Direction.VERTICAL])
+    #    return directions
+    #else:
+    #    return Direction.ANY
 
 
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:
@@ -342,22 +385,29 @@ class SamsungMoveExtractor(MoveExtractor):
         num_moves = 0
         last_num_moves = 0
         result: List[int] = []
+        window_move_times: List[int] = []
 
         while move_idx < len(clipped_move_times):
+
             while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, move_times=window_move_times))
                 key_idx += 1
                 num_moves = 0
+                window_move_times = []
 
             while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, move_times=window_move_times))
                 select_idx += 1
                 num_moves = 0
+                window_move_times = []
 
             while (delete_idx < len(clipped_delete_times)) and (clipped_move_times[move_idx] > clipped_delete_times[delete_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, move_times=window_move_times))
                 delete_idx += 1
                 num_moves = 0
+                window_move_times = []
+
+            window_move_times.append(clipped_move_times[move_idx])
 
             if (double_move_idx < len(clipped_double_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
                 move_idx += 1
@@ -372,7 +422,7 @@ class SamsungMoveExtractor(MoveExtractor):
 
         # Write out the last group if we haven't reached the last key
         if key_idx < len(key_select_times):
-            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT))
+            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, move_times=window_move_times))
 
         # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
         # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
@@ -388,7 +438,7 @@ class SamsungMoveExtractor(MoveExtractor):
             return result[0:-1], did_use_autocomplete, KeyboardType.SAMSUNG
 
         # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
-        # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV not suceptible)
+        # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
 
         # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
         # <Done> at the end (no special sound), so give the option to stop early (verify with recordings)
@@ -456,6 +506,7 @@ class AppleTVMoveExtractor(MoveExtractor):
 
         # Extract the move sequence
         move_sequence: List[Move] = []
+        window_move_times: List[int] = []
 
         num_moves = 0
         move_idx = 0
@@ -466,14 +517,18 @@ class AppleTVMoveExtractor(MoveExtractor):
         while (move_idx < len(keyboard_move_times)) and (keyboard_move_times[move_idx] < end_time):
             # Write move elements
             while (key_select_idx < len(keyboard_select_times)) and (keyboard_move_times[move_idx] > keyboard_select_times[key_select_idx]):
-                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
+                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT, move_times=window_move_times))
                 num_moves = 0
                 key_select_idx += 1
+                window_move_times = []
 
             while (delete_idx < len(keyboard_delete_times)) and (keyboard_move_times[move_idx] > keyboard_delete_times[delete_idx]):
-                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_DELETE))
+                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_DELETE, move_times=window_move_times))
                 num_moves = 0
                 delete_idx += 1
+                window_move_times = []
+
+            window_move_times.append(keyboard_move_times[move_idx])
 
             if (double_move_idx < len(keyboard_double_move_times)) and (move_idx < (len(keyboard_move_times) - 1)) and (keyboard_double_move_times[double_move_idx] > keyboard_move_times[move_idx]) and (keyboard_double_move_times[double_move_idx] < keyboard_move_times[move_idx + 1]):
                 double_move_idx += 1
@@ -483,7 +538,7 @@ class AppleTVMoveExtractor(MoveExtractor):
             move_idx += 1
 
         if key_select_idx < len(keyboard_select_times):
-            move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT))
+            move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT, move_times=window_move_times))
 
         # We use the password keyboard both of the following hold:
         #   (1) The time between the first toolbar move and first keyboard move is "long"
@@ -507,11 +562,11 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/smart-tv-2-word/now_we.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-rockyou/heather1.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_SELECT
+    sound = SAMSUNG_MOVE
 
     extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
@@ -521,6 +576,10 @@ if __name__ == '__main__':
     print('Move Sequence: {}'.format(move_seq))
     print('Did use autocomplete: {}'.format(did_use_autocomplete))
     print('Keyboard type: {}'.format(keyboard_type.name))
+
+    for idx, move in enumerate(move_seq):
+        directions = extract_move_directions(move)
+        print('Move {}: {}'.format(idx, directions))
 
     fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 

@@ -6,11 +6,12 @@ from collections import namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
+from smarttvleakage.audio.move_extractor import extract_move_directions
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_SEARCH_ALPHABET, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.dictionary import NumericDictionary
 from smarttvleakage.dictionary.rainbow import PasswordRainbow
-from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 from smarttvleakage.keyboard_utils.word_to_move import findPath
@@ -51,9 +52,10 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
             guessed_strings.add(result.word)
 
-    target_length = len(move_sequence)
-    should_renormalize_scores = False
+    # Extract the move directions
+    directions_list = list(map(extract_move_directions, move_sequence))
 
+    target_length = len(move_sequence)
     candidate_queue = PriorityQueue()
 
     # Set the default keyboard mode
@@ -170,11 +172,13 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
         for candidate_move in move_candidates:
             # Get the neighboring keys for this number of moves
+            directions = directions_list[move_idx] if candidate_move.num_moves == num_moves else Direction.ANY
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_move.num_moves,
                                                       mode=current_state.keyboard_mode,
                                                       use_shortcuts=True,
-                                                      use_wraparound=True)
+                                                      use_wraparound=True,
+                                                      directions=directions)
 
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
@@ -193,7 +197,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
                 filtered_probs = filter_and_normalize_scores(key_counts=next_key_counts,
                                                              candidate_keys=neighbors,
-                                                             should_renormalize=should_renormalize_scores)
+                                                             should_renormalize=False)
 
            
             #if max(filtered_probs.values()) < PROB_THRESHOLD:
@@ -256,9 +260,10 @@ if __name__ == '__main__':
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     parser.add_argument('--max-num-results', type=int, required=True, help='The maximum number of search results.')
     parser.add_argument('--precomputed-path', type=str, help='Optional path to precomputed sequences.')
+    parser.add_argument('--keyboard-type', type=str, choices=[t.name.lower() for t in KeyboardType], help='The type of keyboard TV.')
     args = parser.parse_args()
 
-    keyboard_type = KeyboardType.SAMSUNG
+    keyboard_type = KeyboardType[args.keyboard_type.upper()]
     graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
 
@@ -270,8 +275,10 @@ if __name__ == '__main__':
     if args.precomputed_path is not None:
         precomputed = PasswordRainbow(args.precomputed_path)
 
-    default_sound = SAMSUNG_KEY_SELECT
-    tv_type = SmartTVType.SAMSUNG
+    if keyboard_type == KeyboardType.SAMSUNG:
+        tv_type = SmartTVType.SAMSUNG
+    else:
+        tv_type = SmartTVType.APPLE_TV
 
     print('Target String: {}'.format(args.target))
     moves = findPath(args.target, True, True, 0.0, 1.0, 0, graph)
