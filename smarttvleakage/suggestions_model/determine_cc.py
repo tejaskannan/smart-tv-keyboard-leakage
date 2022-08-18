@@ -196,8 +196,8 @@ if __name__ == '__main__':
         print("testing numeric")
         uni_success, uni_tt, uni_total, uni_rank_sum = test_dict(NumericDictionary(), ms_dict)
         print("testing zip dict")
-        zipDictionary = EnglishDictionary(1)
-        zipDictionary.build(args.zip_dict_path, 1, True)
+        zipDictionary = EnglishDictionary(5)
+        zipDictionary.build(args.zip_dict_path, 5, True)
         val_success, val_tt, val_total, val_rank_sum = test_dict(zipDictionary, ms_dict)
 
         print("uni total: " + str(uni_total))
