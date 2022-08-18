@@ -103,8 +103,15 @@ class ExpDateDictionary(CharacterDictionary):
         months = list(map(lambda x : "0" + str(x), range(1, 10))) + ["10", "11", "12"]
         years = list(map(str, range(22, 40)))
         dates = [m + y for m in months for y in years]
-        
-        counts = {c: 1 for c in dates}
+
+        counts = {}
+        for c in string.digits:
+            count = 0
+            for date in dates:
+                if date.startswith(prefix + c):
+                    count += 1
+            counts[c] = count
+
         counts[END_CHAR] = 1
         total_count = sum(counts.values())
         return {c: (count / total_count) for c, count in counts.items()}

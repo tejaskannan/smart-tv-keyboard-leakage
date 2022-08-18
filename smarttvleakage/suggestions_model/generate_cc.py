@@ -145,7 +145,7 @@ def generate_date() -> str:
     mon = str(random.randint(1, 12))
     if len(mon) == 1:
         mon = "0" + mon
-    yr = str(random.randint(20, 30))
+    yr = str(random.randint(22, 39))
     return mon + yr 
 
 def validate_date(date : str) -> bool:
