@@ -24,7 +24,7 @@ CHANGE = '<CHANGE>'
 BACKSPACE = '<BACK>'
 NEXT = '<NEXT>'
 SPACE = '<SPACE>'
-DISCOUNT_FACTOR = 0.1
+SMOOTH_DELTA = 0.5
 
 
 CHARACTER_TRANSLATION = {
@@ -263,9 +263,9 @@ class EnglishDictionary(CharacterDictionary):
 
         # Apply Laplace Smoothing
         for character in self._characters:
-            character_counts[character] = character_counts.get(character, 0) + 0.01
+            character_counts[character] = character_counts.get(character, 0) + SMOOTH_DELTA
 
-        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + 0.01
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + SMOOTH_DELTA
 
         # Normalize the result
         total_count = sum(character_counts.values())
@@ -373,9 +373,12 @@ class NgramDictionary(EnglishDictionary):
         while len(frontier) > 0:
             state = frontier.pop()
 
-            if (state.depth <= 0) or len(state.string) >= length:
-                end_freq = self.get_letter_counts(state.string, length=length).get(END_CHAR, SMALL_NUMBER)
-                neg_log_prob = min(neg_log_prob, state.score - np.log(end_freq))
+            #if (state.depth <= 0) or len(state.string) >= length:
+            #    end_freq = self.get_letter_counts(state.string, length=length).get(END_CHAR, SMALL_NUMBER)
+            #    neg_log_prob = min(neg_log_prob, state.score - np.log(end_freq))
+
+            if state.depth <= 0 or len(state.string) >= length:
+                neg_log_prob = min(neg_log_prob, state.score)
             else:
                 next_letter_freq = Counter({c: freq for c, freq in self.get_letter_counts(state.string, length=length).items() if c != END_CHAR})
 
@@ -404,9 +407,9 @@ class NgramDictionary(EnglishDictionary):
 
         # Apply Laplace Smoothing and include the end character
         for character in self._characters:
-            character_counts[character] = character_counts.get(character, 0) + 0.01
+            character_counts[character] = character_counts.get(character, 0) + SMOOTH_DELTA
 
-        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + 0.01
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + SMOOTH_DELTA
 
         # Normalize the result
         total_count = sum(character_counts.values())

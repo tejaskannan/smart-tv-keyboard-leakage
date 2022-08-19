@@ -16,13 +16,14 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--benchmark-path', type=str, required=True)
     parser.add_argument('--dictionary-path', type=str, required=True)
-    parser.add_argument('--precomputed-path', type=str, required=True)
+    parser.add_argument('--precomputed-path', type=str)
     parser.add_argument('--max-num-results', type=int, required=True)
     parser.add_argument('--output-path', type=str, required=True)
+    parser.add_argument('--keyboard-type', type=str, choices=['samsung', 'apple_tv_password'], required=True)
     args = parser.parse_args()
 
-    tv_type = SmartTVType.SAMSUNG
-    keyboard_type = KeyboardType.SAMSUNG
+    keyboard_type = KeyboardType[args.keyboard_type.upper()]
+    tv_type = SmartTVType.SAMSUNG if keyboard_type == KeyboardType.SAMSUNG else SmartTVType.APPLE_TV
 
     graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
@@ -32,7 +33,7 @@ if __name__ == '__main__':
     dictionary.set_characters(characters)
 
     print('Loading precomputed strings...')
-    precomputed = PasswordRainbow(args.precomputed_path)
+    precomputed = PasswordRainbow(args.precomputed_path) if args.precomputed_path else None
 
     top1_found = 0
     top10_found = 0
@@ -47,7 +48,7 @@ if __name__ == '__main__':
 
     for record in read_jsonl_gz(args.benchmark_path):
         target = record['target']
-        move_seq = [Move(num_moves=r['moves'], end_sound=r['end_sound']) for r in record['move_seq']]
+        move_seq = [Move(num_moves=r['moves'], end_sound=r['end_sound'], move_times=[]) for r in record['move_seq']]
 
         did_find = False
         rank = BIG_NUMBER

@@ -19,11 +19,14 @@ if __name__ == '__main__':
     graph = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
     dictionary.set_characters(graph.get_characters())
 
-    #start = time.time()
-    #projected = dictionary.projected_remaining_log_prob(args.prefix, length=args.length)
-    #end = time.time()
+    start = time.time()
+    projected = dictionary.projected_remaining_log_prob(args.prefix, length=args.length)
+    end = time.time()
 
-    #print('Projected: {:.5f}, Elapsed: {:.5f}sec'.format(projected, end - start))
+    print('Projected: {:.5f}, Elapsed: {:.5f}sec'.format(projected, end - start))
+
+    score = dictionary.get_score_for_string(args.prefix)
+    print('String Score: {:.5f}'.format(score))
 
     counts = dictionary.get_letter_counts(prefix=args.prefix, length=args.length)
     print(counts)

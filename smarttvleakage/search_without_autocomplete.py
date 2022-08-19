@@ -231,6 +231,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                     # Project the remaining score (as a heuristic for A* search)
                     estimated_remaining = dictionary.projected_remaining_log_prob(candidate_word, length=target_length)
                     priority = next_state_score + estimated_remaining
+                    #priority = next_state_score
 
                     next_state = SearchState(keys=candidate_keys,
                                              score=next_state_score,

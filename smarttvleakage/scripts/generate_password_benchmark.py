@@ -11,7 +11,7 @@ from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 
 
-def create_records(input_path: str, max_num_records: int) -> Iterable[Dict[str, Any]]:
+def create_records(input_path: str, max_num_records: int, keyboard_type: KeyboardType) -> Iterable[Dict[str, Any]]:
     words: List[str] = []
 
     with open(input_path, 'rb') as fin:
@@ -30,7 +30,7 @@ def create_records(input_path: str, max_num_records: int) -> Iterable[Dict[str, 
     #word_indices = rand.choice(num_words, size=max_num_records, replace=False)
 
     print('Read {} passwords. Generating dataset...'.format(num_words))
-    keyboard = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
+    keyboard = MultiKeyboardGraph(keyboard_type=keyboard_type)
 
     for count, word in enumerate(words):
         if count >= max_num_records:
@@ -54,7 +54,8 @@ if __name__ == '__main__':
     parser.add_argument('--input-path', type=str, required=True)
     parser.add_argument('--output-path', type=str, required=True)
     parser.add_argument('--max-num-records', type=int, required=True)
+    parser.add_argument('--keyboard-type', type=str, choices=['samung', 'apple_tv_password'], required=True)
     args = parser.parse_args()
 
-    records = list(create_records(args.input_path, max_num_records=args.max_num_records))
+    records = list(create_records(args.input_path, max_num_records=args.max_num_records, keyboard_type=KeyboardType[args.keyboard_type.upper()]))
     save_jsonl_gz(records, args.output_path)
