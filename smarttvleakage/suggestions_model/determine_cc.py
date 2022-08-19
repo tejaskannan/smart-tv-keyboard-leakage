@@ -15,7 +15,7 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.dictionary import NumericDictionary, restore_dictionary
 
 # Build Testing Dicts
-def build_cc_ms_dict(kb, count : int, ty : str = "k") -> dict[str, list[int]]:
+def build_cc_ms_dict(kb, count : int) -> dict[str, list[int]]:
     """Build an ms dictionary of valid cc numbers"""
     ms_dict = {}
     valid_bins = build_valid_cc_list("cc_bin_dict000")
@@ -58,7 +58,7 @@ def build_sec_ms_dict(kb, count : int) -> dict[str, list[int]]:
 def build_zip_ms_dict(kb, count : int, zip_path : str) -> dict[str, list[int]]:
     """Build an ms dictionary of valid zip codes"""
     ms_dict = {}
-    for i in range(count):
+    for _ in range(count):
         zip_code = generate_zip(zip_path)
         path = []
         for m in findPath(zip_code, False, False, 0, 0, 0, kb):
@@ -124,11 +124,64 @@ if __name__ == '__main__':
     # 1 - date
     # 2 - sec
     # 3 - zip
-    test = 3
+    # 4 - total
+    test = 4
+
+    #uni success: 50485
+    #uni tt: 50409
+    #uni rank average: 37619967.12157895
+    #spec success: 591
+    #spec tt: 577
+    #spec rank average: 2171.5645
+    if test == 4:
+        print("building dicts")
+        ms_dict_cc = build_cc_ms_dict(kb, 100)
+        ms_dict_date = build_date_ms_dict(MultiKeyboardGraph(KeyboardType.SAMSUNG), 100)
+        ms_dict_cvv = build_sec_ms_dict(MultiKeyboardGraph(KeyboardType.SAMSUNG), 100)
+        ms_dict_zip = build_zip_ms_dict(
+                                MultiKeyboardGraph(KeyboardType.SAMSUNG), 100, args.zip_text_path)
+        print("built dicts")
+
+        print("testing uniform")
+        uni_success_cc, uni_tt_cc, uni_total_cc, uni_rank_sum_cc = (
+            test_dict(NumericDictionary(), ms_dict_cc))
+        uni_success_date, uni_tt_date, uni_total_date, uni_rank_sum_date = (
+            test_dict(NumericDictionary(), ms_dict_date))
+        uni_success_cvv, uni_tt_cvv, uni_total_cvv, uni_rank_sum_cvv = (
+            test_dict(NumericDictionary(), ms_dict_cvv))
+        uni_success_zip, uni_tt_zip, uni_total_zip, uni_rank_sum_zip = (
+            test_dict(NumericDictionary(), ms_dict_zip))
+        print("testing spec")
+        spec_success_cc, spec_tt_cc, spec_total_cc, spec_rank_sum_cc = (
+            test_dict(restore_dictionary("credit_card"), ms_dict_cc))
+        spec_success_date, spec_tt_date, spec_total_date, spec_rank_sum_date = (
+            test_dict(restore_dictionary("exp_date"), ms_dict_date))
+        spec_success_cvv, spec_tt_cvv, spec_total_cvv, spec_rank_sum_cvv = (
+            test_dict(restore_dictionary("cvv"), ms_dict_cvv))
+        spec_success_zip, spec_tt_zip, spec_total_zip, spec_rank_sum_zip = (
+            test_dict(zipDictionary, ms_dict_zip))
+
+        uni_success = uni_success_cc + uni_rank_sum_cvv + uni_rank_sum_date + uni_rank_sum_zip
+        uni_tt = uni_tt_cc + uni_total_date + uni_rank_sum_cvv + uni_rank_sum_zip
+        uni_average = (
+            (uni_rank_sum_cc * uni_rank_sum_date * uni_rank_sum_cvv * uni_rank_sum_zip)/
+            (uni_total_cc * uni_total_date * uni_total_cvv * uni_total_zip))
+        print("uni success: " + str(uni_success))
+        print("uni tt: " + str(uni_tt))
+        print("uni rank average: " + str(uni_average))
+
+        spec_success = spec_success_cc + spec_rank_sum_cvv + spec_rank_sum_date + spec_rank_sum_zip
+        spec_tt = spec_tt_cc + spec_total_date + spec_rank_sum_cvv + spec_rank_sum_zip
+        spec_average = (
+            (spec_rank_sum_cc * spec_rank_sum_date * spec_rank_sum_cvv * spec_rank_sum_zip)/
+            (spec_total_cc * spec_total_date * spec_total_cvv * spec_total_zip))
+        print("spec success: " + str(spec_success))
+        print("spec tt: " + str(spec_tt))
+        print("spec rank average: " + str(spec_average))
 
     if test == 0:
         print("building dict")
-        ms_dict = build_cc_ms_dict(kb, 30, ty="discover")
+        ms_dict = build_cc_ms_dict(kb, 30)
         print("built dict")
 
         print("testing numeric")
@@ -155,7 +208,8 @@ if __name__ == '__main__':
         print("testing numeric")
         uni_success, uni_tt, uni_total, uni_rank_sum = test_dict(NumericDictionary(), ms_dict)
         print("testing exp")
-        exp_success, exp_tt, exp_total, exp_rank_sum = test_dict(restore_dictionary("exp_date"), ms_dict)
+        exp_success, exp_tt, exp_total, exp_rank_sum = test_dict(
+                                                                restore_dictionary("exp_date"), ms_dict)
 
         print("uni total: " + str(uni_total))
         print("uni success: " + str(uni_success))
@@ -188,9 +242,9 @@ if __name__ == '__main__':
         print("cvv dict average: " + str(val_rank_sum/val_total))
 
     if test == 3:
-        
         print("building dict")
-        ms_dict = build_zip_ms_dict(MultiKeyboardGraph(KeyboardType.SAMSUNG), 300, args.zip_text_path)
+        ms_dict = build_zip_ms_dict(
+                                MultiKeyboardGraph(KeyboardType.SAMSUNG), 300, args.zip_text_path)
         print("built dict")
 
         print("testing numeric")

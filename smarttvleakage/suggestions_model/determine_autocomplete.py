@@ -201,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--ms-path-auto", type=str, required=False) #ms_auto_dict pkl.gz
     parser.add_argument("--ms-path-non", type=str, required=False) #ms_non_dict pkl.gz
     parser.add_argument("--ms-path-rockyou", type=str, required=False) #rockyou.txt
-    parser.add_argument("--ed-path", type=str, required=False) #ed pkl.gz
+    parser.add_argument("--ed-path", type=str, required=False) #ed pkl.gz, only build works rn
     parser.add_argument("--words-path", type=str, required=False) #big.txt
     parser.add_argument("--msfd-path", type=str, required=False) #msfd pkl.gz
     parser.add_argument("--results-path", type=str, required=False) #where to save results
@@ -251,7 +251,41 @@ if __name__ == "__main__":
     # 4 - (2) with sim model
     # 5 - reveal mistake words ADD
     # 6 - (5) with build model (sim)
-    test = 5
+    # 7 - test sim model with 3 class breakdown
+    test = 7
+
+    if test == 7:
+        print("test 7")
+        model = read_pickle_gz(args.model_path)
+        print("building test dicts")
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 3000, 500)
+        print("test dicts built")
+        results = []
+
+        print("classifying autos")
+        for key, val in ms_dict_auto_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.5)
+            if pred == 0:
+                results.append((key, "auto"))
+        print("classifying nons")
+        for key, val in ms_dict_non_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.5)
+            if pred == 1:
+                results.append((key, "non"))
+        print("classifying rockyous")
+        for key, val in ms_dict_rockyou_test.items():
+            pred = classify_ms(model, msfd, val, bins=3, weight=3, certainty_cutoff=.5)
+            if pred == 1:
+                results.append((key, "rockyou"))
+
+        for key, ty in results:
+            print(key + ", " + ty)
+        print("auto wrong: " + str(len(list(filter(lambda x : x[1] == "auto", results)))))
+        print("non wrong: " + str(len(list(filter(lambda x : x[1] == "non", results)))))
+        print("rockyou wrong: " + str(len(list(filter(lambda x : x[1] == "rockyou", results)))))
+
 
 
     if test == 6:
@@ -323,7 +357,7 @@ if __name__ == "__main__":
 
 
     if test == 4:
-
+        print("test 4")
         auto_words = grab_words(200, args.words_path)
         non_words = grab_words(200, args.words_path)
         ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
@@ -334,7 +368,6 @@ if __name__ == "__main__":
         bss = [3, 4, 5]
         weights = [3, 4, 5]
         certainty_cutoffs = [.25, .3, .35, .4, .45, .5]
-        print("test 2")
 
         print("building rockyou dict")
         print("build rockyou dict")
@@ -403,9 +436,8 @@ if __name__ == "__main__":
 
 
     if test == 3:
-        print("test 14")
-        #model = read_pickle_gz("max/model_rockyou.pkl.gz")
-        model = build_model_sim(build_rockyou_ms_dict(args.ms_path_rockyou, 200), englishDictionary,
+        print("test 3")
+        model = build_model_sim(build_rockyou_ms_dict(args.ms_path_rockyou, 500), englishDictionary,
                                 ss_path=args.ss_path,
                                 words_auto=grab_words(2000, args.words_path),
                                 words_non=grab_words(2000, args.words_path),
