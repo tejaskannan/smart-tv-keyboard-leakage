@@ -1,4 +1,5 @@
 import unittest
+import string
 from typing import List
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE, APPLETV_SEARCH_ALPHABET
@@ -232,6 +233,18 @@ class SamsungGraphMoveCounts(unittest.TestCase):
                                                           directions=Direction.ANY)
         expected = ['i','<BACK>','9','l','?','@','*']
         self.list_equal(neighbors, expected)
+
+    def test_3_numeric(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='3',
+                                                          num_moves=6,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+
+        neighbors = list(filter(lambda k: k in string.digits, neighbors))
+        expected = ['0', '9']
+        self.assertEqual(neighbors, expected)
 
     def list_equal(self, observed: List[str], expected: List[str]):
         self.assertEqual(list(sorted(observed)), list(sorted(expected)))

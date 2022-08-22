@@ -1,61 +1,36 @@
 import time
 import numpy as np
 from argparse import ArgumentParser
-from queue import PriorityQueue
 from collections import namedtuple
+from queue import PriorityQueue
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
-from smarttvleakage.audio.move_extractor import extract_move_directions
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_SEARCH_ALPHABET, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.dictionary import NumericDictionary
-from smarttvleakage.dictionary.rainbow import PasswordRainbow
-from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction, SMALL_NUMBER
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction, SMALL_NUMBER, BIG_NUMBER
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 
 
-SearchState = namedtuple('SearchState', ['keys', 'score', 'keyboard_mode', 'current_key', 'move_idx'])
-VisitedState = namedtuple('VisitedState', ['keys', 'current_key'])
+NumericSearchState = namedtuple('NumericSearchState', ['keys', 'score', 'keyboard_mode', 'current_key', 'move_idx'])
 CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment', 'increment'])
 
 MISTAKE_RATE = 1e-2
 DECAY_RATE = 0.9
-SCORE_THRESHOLD = 1e-4
 MAX_NUM_CANDIDATES = 5000000
 MISTAKE_LIMIT = 3
 
-SUGGESTION_THRESHOLD = 8
-SUGGESTION_FACTOR = 2.0
-CUTOFF = 0.05
 
-
-def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int], precomputed: PasswordRainbow) -> Iterable[Tuple[str, float, int]]:
+def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: NumericDictionary, tv_type: SmartTVType, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
     # Variables to track progress
     guessed_strings: Set[str] = set()
     result_count = 0
     candidate_count = 0
 
-    # If provided, use the precomputed index to look up this move sequence. We start with these guesses
-    if precomputed is not None:
-        rainbow_results = precomputed.get_strings_for_seq(move_sequence, tv_type=tv_type, max_num_results=max_num_results)
-
-        for idx, result in enumerate(rainbow_results):
-            if (max_num_results is not None) and (result_count > max_num_results):
-                return
-
-            result_count += 1 
-            candidate_count += 1
-            yield result.word, result.score, candidate_count
-
-            guessed_strings.add(result.word)
-
-    # Extract the move directions
-    directions_list = list(map(extract_move_directions, move_sequence))
-
-    target_length = len(move_sequence)
+    target_length = len(move_sequence) - 1  # Account for the move to the `Done` key at the end
     candidate_queue = PriorityQueue()
 
     # Set the default keyboard mode
@@ -71,54 +46,39 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     keyboard_mode = graph.get_start_keyboard_mode()
     keyboard_type = graph.get_keyboard_type()
 
-    init_state = SearchState(keys=[],
-                             score=0.0,
-                             keyboard_mode=keyboard_mode,
-                             current_key=START_KEYS[keyboard_mode],
-                             move_idx=0)
+    init_state = NumericSearchState(keys=[],
+                                    score=0.0,
+                                    keyboard_mode=keyboard_mode,
+                                    current_key=START_KEYS[keyboard_mode],
+                                    move_idx=0)
     candidate_queue.put((init_state.score, init_state))
 
-    # Link the initial state (we can start in any one of the these spots)
-    if not isinstance(dictionary, NumericDictionary):
-        for linked_state in graph.get_linked_states(START_KEYS[keyboard_mode], keyboard_mode=keyboard_mode):
-            init_state = SearchState(keys=[],
-                                     score=0.0,
-                                     keyboard_mode=linked_state.mode,
-                                     current_key=linked_state.key,
-                                     move_idx=0)
-            candidate_queue.put((init_state.score, init_state))
-
     scores: Dict[str, float] = dict()
-    visited: Set[VisitedState] = set()
+    visited: Set[str] = set()
     guessed_strings: Set[str] = set()
 
     mistake_model = DecayingMistakeModel(mistake_rate=MISTAKE_RATE,
                                          decay_rate=DECAY_RATE,
-                                         suggestion_threshold=SUGGESTION_THRESHOLD,
-                                         suggestion_factor=SUGGESTION_FACTOR)
+                                         suggestion_threshold=BIG_NUMBER,
+                                         suggestion_factor=1.0)
 
     while not candidate_queue.empty():
         _, current_state = candidate_queue.get()
 
         current_string = get_string_from_keys(keys=current_state.keys)
+        move_idx = current_state.move_idx
         candidate_count += 1
 
         if len(current_state.keys) == target_length:
-            if dictionary.is_valid(current_string):
-                end_score = dictionary.get_letter_counts(current_string, length=target_length).get(END_CHAR, SMALL_NUMBER)
-                next_score = current_state.score - np.log(end_score)
+            moves_to_done = move_sequence[move_idx].num_moves
+            candidate_keys = graph.get_keys_for_moves_from(start_key=current_state.current_key,
+                                                           num_moves=moves_to_done,
+                                                           use_shortcuts=True,
+                                                           use_wraparound=True,
+                                                           directions=Direction.ANY,
+                                                           mode=current_state.keyboard_mode)
 
-                end_state = SearchState(keys=current_state.keys + [END_CHAR],
-                                        score=next_score,
-                                        keyboard_mode=current_state.keyboard_mode,
-                                        current_key=current_state.current_key,
-                                        move_idx=next_move_idx)
-                candidate_queue.put((end_state.score, end_state))
-
-            continue
-
-        if current_string.endswith(END_CHAR):
-            if current_string not in guessed_strings:
+            if (current_string not in guessed_strings) and ('<DONE>' in candidate_keys) and dictionary.is_valid(current_string):
                 yield current_string.replace(END_CHAR, ''), current_state.score, candidate_count
 
                 result_count += 1
@@ -131,8 +91,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
         if candidate_count >= MAX_NUM_CANDIDATES:
             break
-
-        move_idx = current_state.move_idx
 
         if move_idx >= len(move_sequence):
             continue
@@ -175,13 +133,12 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
         for candidate_move in move_candidates:
             # Get the neighboring keys for this number of moves
-            directions = directions_list[move_idx] if candidate_move.num_moves == num_moves else Direction.ANY
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_move.num_moves,
                                                       mode=current_state.keyboard_mode,
                                                       use_shortcuts=True,
                                                       use_wraparound=True,
-                                                      directions=directions)
+                                                      directions=Direction.ANY)
 
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
@@ -203,58 +160,35 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                                                              should_renormalize=False)
 
            
-            #if max(filtered_probs.values()) < PROB_THRESHOLD:
-            #    continue
-
             for neighbor_key, score in filtered_probs.items():
                 adjusted_score = score * candidate_move.adjustment
-
-                # Skip strings below a threshold. These are so low scoring, we are unlikely
-                # to consider them later on.
-                if adjusted_score < SCORE_THRESHOLD:
-                    continue
 
                 candidate_keys = current_state.keys + [neighbor_key]
                 candidate_word = get_string_from_keys(candidate_keys)
                 visited_str = ' '.join(candidate_keys)
-                visited_state = VisitedState(keys=visited_str, current_key=neighbor_key)
 
                 if (len(candidate_keys) == target_length) and (neighbor_key in ('<CHANGE>', '<SPACE>')):
                     continue
 
-                if visited_state not in visited:
+                if visited_str not in visited:
                     next_keyboard = get_keyboard_mode(key=neighbor_key,
                                                       mode=current_state.keyboard_mode,
                                                       keyboard_type=keyboard_type)
 
                     next_state_score = current_state.score - np.log(adjusted_score)
-
                     next_move_idx = move_idx + candidate_move.increment
 
                     # Project the remaining score (as a heuristic for A* search)
-                    estimated_remaining = dictionary.projected_remaining_log_prob(candidate_word, length=target_length)
-                    priority = next_state_score + estimated_remaining
+                    priority = next_state_score
 
-                    next_state = SearchState(keys=candidate_keys,
-                                             score=next_state_score,
-                                             keyboard_mode=next_keyboard,
-                                             current_key=neighbor_key,
-                                             move_idx=next_move_idx)
+                    next_state = NumericSearchState(keys=candidate_keys,
+                                                    score=next_state_score,
+                                                    keyboard_mode=next_keyboard,
+                                                    current_key=neighbor_key,
+                                                    move_idx=next_move_idx)
 
                     candidate_queue.put((priority, next_state))
-                    visited.add(visited_state)
-
-                    # Add any linked states (undetectable by keyboard audio alone)
-                    if not isinstance(dictionary, NumericDictionary):
-                        for linked_state in graph.get_linked_states(neighbor_key, keyboard_mode=next_keyboard):
-                            next_state = SearchState(keys=candidate_keys,
-                                                     score=next_state_score,
-                                                     keyboard_mode=linked_state.mode,
-                                                     current_key=linked_state.key,
-                                                     move_idx=next_move_idx)
-
-                            candidate_queue.put((priority, next_state))
-                            visited_state = VisitedState(keys=visited_str, current_key=linked_state.key)
+                    visited.add(visited_str)
 
 
 if __name__ == '__main__':

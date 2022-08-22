@@ -7,9 +7,10 @@ from typing import Tuple, List, Dict
 
 from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVTypeClassifier
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.dictionary import restore_dictionary
+from smarttvleakage.dictionary import restore_dictionary, NumericDictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions, apply_autocomplete
+from smarttvleakage.search_numeric import get_digits_from_moves
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
 from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir
 from smarttvleakage.suggestions_model.determine_autocomplete import classify_ms
@@ -22,7 +23,6 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--video-path', type=str, required=True)
     parser.add_argument('--dictionary-path', type=str, required=True)
-    #parser.add_argument('--tv-type', choices=[SmartTVType.SAMSUNG.name.lower(), SmartTVType.APPLE_TV.name.lower()], type=str, required=True)
     parser.add_argument('--max-num-results', type=int)
     parser.add_argument('--max-num-videos', type=int)
     args = parser.parse_args()
@@ -55,6 +55,7 @@ if __name__ == '__main__':
 
     prefix_top10_correct = 0
     prefix_total_count = 0
+    is_numeric = isinstance(dictionary, NumericDictionary)
 
     print('Number of video files: {}'.format(len(video_paths)))
 
@@ -75,13 +76,7 @@ if __name__ == '__main__':
 
         # Extract the move sequence
         move_extractor = make_move_extractor(tv_type=tv_type)
-        move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal)
-
-        #suggestions_model = build_model()
-        #if (classify_ms(suggestions_model, move_sequence) == 1) and (tv_type == SmartTVType.SAMSUNG):
-        #    use_suggestions = True
-        #else:
-        #    use_suggestions = False
+        move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal, include_moves_to_done=is_numeric)
 
         # Make the graph based on the keyboard type
         graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
@@ -94,7 +89,13 @@ if __name__ == '__main__':
         #use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
         use_suggestions = False
 
-        if use_suggestions:
+        if is_numeric:
+            ranked_candidates = get_digits_from_moves(move_sequence=move_sequence,
+                                                      graph=graph,
+                                                      dictionary=dictionary,
+                                                      tv_type=tv_type,
+                                                      max_num_results=args.max_num_results)
+        elif use_suggestions:
             max_num_results = args.max_num_results if (not did_use_autocomplete) else AUTOCOMPLETE_PREFIX_COUNT
             ranked_candidates = get_words_from_moves_suggestions(move_sequence=move_sequence,
                                                                  graph=graph,

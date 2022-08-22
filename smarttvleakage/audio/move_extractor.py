@@ -281,12 +281,13 @@ class MoveExtractor:
         else:
             return peaks, peak_heights
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool, KeyboardType]:
+    def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
         Args:
             audio: A 2d aduio signal where the last dimension is the channel.
+            include_moves_to_done: Whether to include the number of moves needed to reach the `done` key
         Returns:
             A tuple with three elements:
                 (1) A list of moves before selections. The length of this list is the number of selections.
@@ -301,7 +302,7 @@ class SamsungMoveExtractor(MoveExtractor):
     def __init__(self):
         super().__init__(SmartTVType.SAMSUNG)
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool, KeyboardType]:
+    def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
@@ -338,16 +339,6 @@ class SamsungMoveExtractor(MoveExtractor):
 
             if np.all(select_diff > SELECT_MOVE_DISTANCE) and np.all(delete_diff > SELECT_MOVE_DISTANCE):
                 double_move_times.append(t)
-
-        # Filter out selects using move detection
-        #select_times: List[int] = []
-
-        #for t in raw_select_times:
-        #    move_diff = np.abs(np.subtract(move_times, t))
-        #    double_move_diff = np.abs(np.subtract(double_move_times, t))
-
-        #    if np.all(move_diff > SELECT_MOVE_DISTANCE) and np.all(double_move_diff > MIN_DOUBLE_MOVE_DISTANCE):
-        #        select_times.append(t)
 
         # Filter out any conflicting key and normal selects
         key_select_times: List[int] = []
@@ -431,14 +422,18 @@ class SamsungMoveExtractor(MoveExtractor):
         selects_after = list(filter(lambda t: t > last_key_select, select_times))
         next_select = selects_after[0] if len(selects_after) > 0 else BIG_NUMBER
 
-        moves_between = len(list(filter(lambda t: (t <= next_select) and (t >= last_key_select), clipped_move_times)))
-        did_use_autocomplete = (moves_between == 0) and (len(selects_after) > 0)
+        moves_between = list(filter(lambda t: (t <= next_select) and (t >= last_key_select), clipped_move_times))
+        did_use_autocomplete = (len(moves_between) == 0) and (len(selects_after) > 0)
 
         if did_use_autocomplete and len(result) > 0:
             return result[0:-1], did_use_autocomplete, KeyboardType.SAMSUNG
 
+
         # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
         # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
+        if include_moves_to_done:
+            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, move_times=moves_between)
+            result.append(move_to_done)
 
         # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
         # <Done> at the end (no special sound), so give the option to stop early (verify with recordings)
@@ -451,7 +446,7 @@ class AppleTVMoveExtractor(MoveExtractor):
     def __init__(self):
         super().__init__(SmartTVType.APPLE_TV)
 
-    def extract_move_sequence(self, audio: np.ndarray) -> Tuple[List[Move], bool, KeyboardType]:
+    def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
 
@@ -572,7 +567,7 @@ if __name__ == '__main__':
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
-    move_seq, did_use_autocomplete, keyboard_type = extractor.extract_move_sequence(audio=audio_signal)
+    move_seq, did_use_autocomplete, keyboard_type = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=True)
     print('Move Sequence: {}'.format(move_seq))
     print('Did use autocomplete: {}'.format(did_use_autocomplete))
     print('Keyboard type: {}'.format(keyboard_type.name))

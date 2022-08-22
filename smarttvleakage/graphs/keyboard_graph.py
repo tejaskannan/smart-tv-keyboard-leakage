@@ -170,7 +170,7 @@ class MultiKeyboardGraph:
                     nearest_key = i
 
         return nearest_key
-        
+
 
 class SingleKeyboardGraph:
 
