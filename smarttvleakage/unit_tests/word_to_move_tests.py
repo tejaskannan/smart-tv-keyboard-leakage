@@ -97,6 +97,17 @@ class GraphMoveCounts(unittest.TestCase):
         expected = [Move(num_moves=19, end_sound=APPLETV_KEYBOARD_SELECT), Move(num_moves=1, end_sound=APPLETV_KEYBOARD_SELECT), Move(num_moves=2, end_sound=APPLETV_KEYBOARD_SELECT), Move(num_moves=3, end_sound=APPLETV_KEYBOARD_SELECT), Move(num_moves=1, end_sound=APPLETV_KEYBOARD_SELECT)]
         self.assertEqual(path, expected)
 
+    def test_done_exists(self):
+        path = findPath('q', False, True, True, 0.0, 0.1, 0, samsung)
+        expected = [Move(num_moves=0, end_sound=SAMSUNG_KEY_SELECT), Move(num_moves=13, end_sound=SAMSUNG_KEY_SELECT)]
+
+    def test_done_exists_ignored(self):
+        path = findPath('q', False, True, False, 0.0, 0.1, 0, samsung)
+        expected = [Move(num_moves=0, end_sound=SAMSUNG_KEY_SELECT)]
+
+    def test_done_doesnt_exist(self):
+        path = findPath('q', False, False, True, 0.0, 0.1, 0, samsung)
+        expected = [Move(num_moves=0, end_sound=SAMSUNG_KEY_SELECT)]
 
 if __name__ == '__main__':
     unittest.main()
