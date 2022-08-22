@@ -301,7 +301,7 @@ class AppleTVPasswordGraphMoveCounts(unittest.TestCase):
                                                                    mode=APPLETV_PASSWORD_STANDARD,
                                                                    use_shortcuts=True,
                                                                    use_wraparound=False)
-        expected = ['v', 'n', '^', '_']
+        expected = ['v', 'n', '^', '_', '<ABC>']
         self.list_equal(neighbors, expected)
 
     def test_R_four(self):
@@ -310,7 +310,7 @@ class AppleTVPasswordGraphMoveCounts(unittest.TestCase):
                                                                    mode=APPLETV_PASSWORD_CAPS,
                                                                    use_shortcuts=True,
                                                                    use_wraparound=False)
-        expected = ['V', 'N', '^', '_']
+        expected = ['V', 'N', '^', '_', '<ABC>']
         self.list_equal(neighbors, expected)
 
     def test_equals_three(self):
@@ -319,7 +319,7 @@ class AppleTVPasswordGraphMoveCounts(unittest.TestCase):
                                                                    mode=APPLETV_PASSWORD_SPECIAL,
                                                                    use_shortcuts=True,
                                                                    use_wraparound=False)
-        expected = [';', '?', '0', '5']
+        expected = [';', '?', '0', '5', '<DONE>', '<abc>']
         self.list_equal(neighbors, expected)
 
     def list_equal(self, observed: List[str], expected: List[str]):

@@ -296,7 +296,7 @@ def build_ms_dict(path : str, take : int = 0) -> Dict[str, List[int]]:
     return ms_dict
 
 
-def get_word_from_ms(ms : list[int], msfd : Dict[str, Tuple[str, int]]) -> Tuple[str, float]:
+def get_word_from_ms(ms : List[int], msfd : Dict[str, Tuple[str, int]]) -> Tuple[str, float]:
     """Gets the most common word and freq. score from a move sequence"""
     ms_string = ""
     for m in ms:
