@@ -15,7 +15,7 @@ from smarttvleakage.graphs.keyboard_graph import SAMSUNG_STANDARD, APPLETV_SEARC
 from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
 from datetime import datetime, timedelta
 #docstring comment
-def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate: float, decay_rate: float, max_errors: int, keyboard: MultiKeyboardGraph):
+def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: bool, mistake_rate: float, decay_rate: float, max_errors: int, keyboard: MultiKeyboardGraph):
     """
     Get the path taken to input the word.
 
@@ -36,8 +36,12 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate:
     path = []
     mode = keyboard.get_start_keyboard_mode()
     prev = START_KEYS[mode]
+    word = list(word.lower())
+    if use_done:
+        word.append("<DONE>")
+    #print(word)
 
-    for character in list(word.lower()):
+    for character in word:
         character = REVERSE_CHARACTER_TRANSLATION.get(character, character)
         distance = keyboard.get_moves_from_key(prev, character, use_shortcuts, use_wraparound, mode)
 
@@ -85,14 +89,16 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate:
                 counter+=1
             distance = keyboard.get_moves_from_key(prev, character, use_shortcuts, use_wraparound, mode)
 
-        assert distance != -1, 'No path from {} to {}'.format(prev, character)
+        if character != "<DONE>":
+        	assert distance != -1 and distance != None, 'No path from {} to {}'.format(prev, character)
 
         #assign the correct sound to space
-        if character == '<SPACE>':
-            if mode in CHANGE_KEYS.keys():
-                path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
-            else:
-                path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+        if character == '<SPACE>' or character == '<DONE>':
+        	if distance != -1 and distance != None:
+	            if mode in CHANGE_KEYS.keys():
+	                path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+	            else:
+	                path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
         else:
             path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
 
@@ -105,7 +111,8 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate:
             else:
                 break
 
-        path[-1] = Move(num_moves=path[-1][0] + num_errors, end_sound=path[-1][1])
+        if path != -1 and path != None:
+            path[-1] = Move(num_moves=path[-1][0] + num_errors, end_sound=path[-1][1])
 
         prev = character
     
