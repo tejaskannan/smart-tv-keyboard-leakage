@@ -162,6 +162,9 @@ class MultiKeyboardGraph:
             # print(mode)
             # print(self._linker.get_linked_states(i, mode))
         return nearest_key
+
+    def get_modes(self):
+        return self._keyboards
         
 
 class SingleKeyboardGraph:

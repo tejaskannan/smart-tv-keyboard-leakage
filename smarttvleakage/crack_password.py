@@ -8,42 +8,49 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.utils.constants import KeyboardType
 from time import perf_counter
 import os
+from smarttvleakage.keyboard_utils.generate_passwords import generate_password
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-password', type=str, required=True)
 args = parser.parse_args()
 
-kb = MultiKeyboardGraph(KeyboardType.APPLE_TV_PASSWORD)
+# kb = MultiKeyboardGraph(KeyboardType.APPLE_TV_SEARCH)
+kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
+error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+passwords = generate_password(10, 5)
+times = [[] for i in error_rates]
 
-if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
-	os.remove('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot')
+for password in passwords:
+	for error in error_rates:
+		if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
+			os.remove('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot')
 
-hashed = subprocess.run(['openssl', 'passwd', '-5', '-salt', 'agldf', args.password.strip()], capture_output=True, text=True)
-print(hashed)
-with open('hashed_password.txt', 'w') as f:
-    f.write(hashed.stdout)
+		hashed = subprocess.run(['openssl', 'passwd', '-5', '-salt', 'agldf', args.password.strip()], capture_output=True, text=True)
 
-beginning_perf = perf_counter()
+		with open('hashed_password.txt', 'w') as f:
+		    f.write(hashed.stdout)
+		print(password)
+		path = findPath(password, False, False, error, 0.9, 10, kb)
 
-masks = get_regex([findPath(args.password, False, False, 0, 0, 0, kb)])
+		beginning_perf = perf_counter()
 
-for mask in masks:
-	print(mask[0][0])
-	mask_line = "-mask='"+''.join(mask[0][0])+"'"
-	print(mask_line)
-	# john_datetime = datetime.now()
-	# john_perf = perf_counter()
+		masks = get_regex([path])
 
-	password = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
-	print('\n')
-	print(password.args)
-	
-	if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
-		break
+		for mask in masks:
+			mask_line = "-mask='"+''.join(mask[0][0])+"'"
 
-after_perf = perf_counter()
+			password = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+			
+			if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
+				break
 
-with open('times_{}.txt'.format(args.password), 'w') as f:
-	f.write('Perf_counter from start: ', after_perf-beginning_perf, '\n')
-	f.write('Datetime of jtr: ', after_datetime-beginning_john, '\n')
-	f.write('Perf_counter of jtr: ', after_perf-john_perf, '\n')
+		after_perf = perf_counter()
+		times[error_rates.index(error)].append(after_perf-beginning_perf)
+
+print('\n')
+print(times)
+
+with open('times.csv', 'w') as f:
+	csvwriter = csv.writer(f)
+	csvwriter.writerows(times)

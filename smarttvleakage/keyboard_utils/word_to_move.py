@@ -13,73 +13,91 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS,
 from smarttvleakage.graphs.keyboard_graph import SAMSUNG_STANDARD, APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL, APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
 from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
 from datetime import datetime, timedelta
+#docstring comment
+def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate: float, decay_rate: float, max_errors: int, keyboard: MultiKeyboardGraph):
+    """
+    Get the path taken to input the word.
 
-
-def findPath(word, shortcuts, wraparound, mr, dr, me, kb):
+    :param word: the word that the program finds the path for
+    :param use_shortcuts: whether or not the program will use shortcuts
+    :param use_wraparound: whether or not the program will use shortcuts
+    :param mistake_rate: the base probability of an error
+    :param decay_rate: the decay rate of the mistake rate
+    :param max_errors: the maximum number of errors for one letter to the next
+    :param keyboard: the keyboard that will be used
+    :return: a list of Move named tuple
+    """
     mistakes = []
-    for n in range(me):
-        mistakes.append(mr*(dr**n))
-    keyboard = kb
-    path = []
-    mode = kb.get_start_keyboard_mode()
-    prev = START_KEYS[mode]
 
+    #set up the probability of each number of errors
+    for n in range(max_errors):
+        mistakes.append(mistake_rate*(decay_rate**n))
+    path = []
+    mode = keyboard.get_start_keyboard_mode()
+    prev = START_KEYS[mode]
 
     for character in list(word.lower()):
         character = REVERSE_CHARACTER_TRANSLATION.get(character, character)
-        distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
-        #print(distance)
-        #print('link: ', keyboard.get_linked_states(prev, mode))
+        distance = keyboard.get_moves_from_key(prev, character, use_shortcuts, use_wraparound, mode)
+
+        #handle page switching
         if distance == -1:
-        	in_keyboard = ''
-        	found_char = False
-        	is_backwards = False
-        	for possible_keyboard in kb.get_keyboards():
-        		if found_char == True:
-        			break
-        		if character in possible_keyboard.get_characters():
-        			found_char = True
-        			in_keyboard = possible_keyboard
-        	#print(keyboard.get_keyboards())
-        	#original_prev = prev
-        	original_mode = mode
-        	counter = 0
-        	on_key = prev
-        	while keyboard._keyboards[mode] != in_keyboard:
-        		changer = keyboard.get_nearest_link(prev, mode, shortcuts, wraparound)
-        		if changer != prev:
-        			on_key = changer
-        			original_mode = mode
-        			counter = 0
-        		#print(counter)
-        		# print(CHANGE_KEYS.keys())
-        		if mode in CHANGE_KEYS.keys():
-        			# print('\n')
-        			# print(CHANGE_KEYS[mode])
-        			path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
-        		prev = changer
-        		#print(on_key)
-        		linked_state = keyboard.get_linked_states(on_key, original_mode)
-        		#print(linked_state)
-        		mode = linked_state[counter][1]
-        		prev = linked_state[counter][0]
-        		counter+=1
-        	distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
+            in_keyboard = ''
+            found_char = False
+            is_backwards = False
+
+            #find which page the target key is on
+            for possible_keyboard in kb.get_keyboards():
+                if found_char == True:
+                    break
+                if character in possible_keyboard.get_characters():
+                    found_char = True
+                    in_keyboard = possible_keyboard
+
+            original_mode = mode
+            counter = 0
+            on_key = prev
+
+            #navigate to the correct page by going to the nearest character that switches to the next page and repeating this until the page is the correct one
+            while keyboard.get_keyboards[mode] != in_keyboard:
+                changer = keyboard.get_nearest_link(prev, mode, use_shortcuts, use_wraparound)
+                if changer != prev:
+                    on_key = changer
+                    original_mode = mode
+                    counter = 0
+
+                if mode in CHANGE_KEYS.keys():
+                    path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
+                prev = changer
+                linked_state = keyboard.get_linked_states(on_key, original_mode)
+                if len(linked_state)<counter:
+                    break
+                mode = linked_state[counter][1]
+                prev = linked_state[counter][0]
+                counter+=1
+            distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
 
         assert distance != -1, 'No path from {} to {}'.format(prev, character)
 
+        #assign the correct sound to space
         if character == '<SPACE>':
-        	if mode in CHANGE_KEYS.keys():
-        		path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
-        	else:
-        		path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+            if mode in CHANGE_KEYS.keys():
+                path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+            else:
+                path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
         else:
-        	path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+            path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
 
+        #determine how many errors there will be by generating a random number and comparing it against the probability of each number of errors
         rand = random.random()
+        num_errors = 0
         for x, j in enumerate(mistakes):
             if rand < j:
-                path[-1] = Move(num_moves=path[-1][0] + 2 * (x + 1), end_sound=path[-1][1])
+                num_errors+=2
+            else:
+                break
+
+        path[-1] = Move(num_moves=path[-1][0] + num_errors, end_sound=path[-1][1])
 
         prev = character
     
