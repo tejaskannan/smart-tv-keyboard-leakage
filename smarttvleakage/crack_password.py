@@ -30,7 +30,7 @@ for password in passwords:
 
 		with open('hashed_password.txt', 'w') as f:
 		    f.write(hashed.stdout)
-		print(password)
+		# print(password)
 		path = findPath(password, False, False, error, 0.9, 10, kb)
 
 		beginning_perf = perf_counter()

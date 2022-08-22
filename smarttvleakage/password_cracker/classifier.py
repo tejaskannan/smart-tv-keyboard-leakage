@@ -47,7 +47,6 @@ def get_possible(move, thing, pos):
 
 def find_regex(moves1, spaces, average):
 	standard = [['q'],
-<<<<<<< HEAD
 				['1', 'a', 'w'],
 				['2', 'e', 's', 'z'],
 				['3', 'd', 'r', 'x'],
@@ -61,21 +60,7 @@ def find_regex(moves1, spaces, average):
 				['*', '/', '\\?', '@'],
 				['!'],
 				['\\-']]
-=======
-		    ['1', 'a', 'w'],
-		    ['2', 'e', 's', 'z'],
-		    ['3', 'd', 'r', 'x'],
-		    ['4', 'c', 'f', 't'],
-		    ['5', 'g', 'v', 'y'],
-		    ['6', 'b', 'h', 'u'],
-		    ['7', 'i', 'j', 'n'],
-		    ['8', 'k', 'm', 'o'],
-		    [',', '9', 'l', 'p'],
-		    ['.', '0', '^', '~'],
-		    ['*', '/', '?', '@'],
-		    ['!'],
-		    ['\\-']]
->>>>>>> 2a62c06243859012a03c938d8ded65a65b888187
+
 	special = [[],
 		    ['!'],
 		    ["'", '1', '@'],
@@ -208,7 +193,7 @@ def get_selects(moves):
 			#print('1')
 	for L in range(0, len(with_select)+1):
 	    for subset in itertools.combinations(with_select, L):
-	        print(subset)
+	        # print(subset)
 	        output.append(subset)
 	return output
 

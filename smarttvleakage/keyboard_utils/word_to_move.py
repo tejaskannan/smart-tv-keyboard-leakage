@@ -48,10 +48,10 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate:
             is_backwards = False
 
             #find which page the target key is on
-            for possible_keyboard in kb.get_keyboards():
+            for possible_keyboard in keyboard.get_keyboards().keys():
                 if found_char == True:
                     break
-                if character in possible_keyboard.get_characters():
+                if character in keyboard.get_keyboards()[possible_keyboard].get_characters():
                     found_char = True
                     in_keyboard = possible_keyboard
 
@@ -60,23 +60,30 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate:
             on_key = prev
 
             #navigate to the correct page by going to the nearest character that switches to the next page and repeating this until the page is the correct one
-            while keyboard.get_keyboards[mode] != in_keyboard:
-                changer = keyboard.get_nearest_link(prev, mode, use_shortcuts, use_wraparound)
+            while mode != in_keyboard:
+                # print(mode)
+                # print(in_keyboard)
+                changer = keyboard.get_nearest_link(prev, mode, in_keyboard, use_shortcuts, use_wraparound)
+                # print(changer)
                 if changer != prev:
                     on_key = changer
                     original_mode = mode
                     counter = 0
 
                 if mode in CHANGE_KEYS.keys():
-                    path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, shortcuts, wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
+                    path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, use_shortcuts, use_wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
                 prev = changer
                 linked_state = keyboard.get_linked_states(on_key, original_mode)
+                # print(on_key)
+                # print(original_mode)
                 if len(linked_state)<counter:
                     break
+                # print(linked_state)
+                # print(counter)
                 mode = linked_state[counter][1]
                 prev = linked_state[counter][0]
                 counter+=1
-            distance = keyboard.get_moves_from_key(prev, character, shortcuts, wraparound, mode)
+            distance = keyboard.get_moves_from_key(prev, character, use_shortcuts, use_wraparound, mode)
 
         assert distance != -1, 'No path from {} to {}'.format(prev, character)
 

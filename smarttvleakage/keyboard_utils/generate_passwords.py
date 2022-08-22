@@ -15,7 +15,6 @@ all_chars = chars+special
 
 
 def generate_password(number, length):
-<<<<<<< HEAD
 	passwords = [[] for i in range(number)]
 	for i in range(number):
 		for j in range(length):
@@ -35,14 +34,6 @@ def generate_password(number, length):
 	# for i, _ in enumerate(passwords):
 	# 	passwords[i] = ''.join(passwords[i])
 	# random.shuffle(passwords)
-=======
-        passwords = [[] for i in range(number)]
-        for i in range(number):
-            for j in range(length):
-                passwords[i].append(random.choice(all_chars))
-                ''.join(passwords[i])
-                return passwords
->>>>>>> 2a62c06243859012a03c938d8ded65a65b888187
 
 
 if __name__ == '__main__':

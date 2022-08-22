@@ -145,29 +145,23 @@ class MultiKeyboardGraph:
 
         return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
 
-    def printerthing(self, num_moves: int, mode: str) -> List[str]:
-        return self._keyboards[mode].get_keys_for_moves(num_moves)
-
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
 
     def get_keyboards(self) -> List:
-        return self._keyboards.values()
+        return self._keyboards
 
-    def get_nearest_link(self, current_key: str, mode: str, use_shortcuts: bool, use_wraparound: bool) -> str:
+    def get_nearest_link(self, current_key: str, mode: str, target_mode: str, use_shortcuts: bool, use_wraparound: bool) -> str:
         nearest_dist = BIG_NUMBER
         nearest_key = ''
 
         for i in self._keyboards[mode].get_characters():
-            if self._linker.get_linked_states(i, mode) != []:
+            if self._linker.get_linked_states(i, mode) != [] and target_mode in [j[1] for j in self._linker.get_linked_states(i, mode)]:
                 if self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode) < nearest_dist:
                     nearest_dist = self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)
                     nearest_key = i
 
         return nearest_key
-
-    def get_modes(self):
-        return self._keyboards
         
 
 class SingleKeyboardGraph:
