@@ -7,7 +7,7 @@ from typing import Tuple, List, Dict
 
 from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVTypeClassifier
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.dictionary import EnglishDictionary, UniformDictionary
+from smarttvleakage.dictionary import restore_dictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions, apply_autocomplete
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
@@ -34,12 +34,7 @@ if __name__ == '__main__':
 
     # Load the dictionary
     print('Starting to load the dictionary...')
-
-    if args.dictionary_path == 'uniform':
-        dictionary = UniformDictionary()
-    else:
-        dictionary = EnglishDictionary.restore(path=args.dictionary_path)
-
+    dictionary = restore_dictionary(path=args.dictionary_path)
     print('Finished loading dictionary.')
 
     # Make the TV Type classifier
@@ -97,7 +92,7 @@ if __name__ == '__main__':
         # Detect whether this sequence came from a keyboard with inline suggestions
         move_sequence_vals = list(map(lambda m: m.num_moves, move_sequence))
         #use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
-        use_suggestions = False
+        use_suggestions = True
 
         if use_suggestions:
             max_num_results = args.max_num_results if (not did_use_autocomplete) else AUTOCOMPLETE_PREFIX_COUNT

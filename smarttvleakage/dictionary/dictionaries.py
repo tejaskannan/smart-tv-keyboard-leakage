@@ -2,11 +2,17 @@ import string
 import os.path
 import io
 import gzip
-from collections import Counter
-from typing import Dict, List, Optional, Iterable, Tuple
+import time
+import numpy as np
+from collections import Counter, defaultdict, namedtuple, deque
+from typing import Dict, List, Optional, Iterable, Tuple, Any
 
+from smarttvleakage.utils.ngrams import create_ngrams, prepend_start_characters, split_ngram
+from smarttvleakage.utils.constants import BIG_NUMBER, START_CHAR, END_CHAR, SMALL_NUMBER
+from smarttvleakage.utils.credit_card_detection import validate_credit_card_number
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pickle_gz
 from smarttvleakage.dictionary.trie import Trie
+
 
 UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
 SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>', '<DONE>', '<CANCEL>'})
@@ -34,6 +40,9 @@ CHARACTER_TRANSLATION = {
 REVERSE_CHARACTER_TRANSLATION = { value: key for key, value in CHARACTER_TRANSLATION.items() }
 
 
+ProjectedState = namedtuple('ProjectedState', ['string', 'score', 'depth'])
+
+
 class CharacterDictionary:
 
     def __init__(self):
@@ -43,129 +52,174 @@ class CharacterDictionary:
     def characters(self) -> List[str]:
         return self._characters
 
+    def is_valid(self, _: str) -> bool:
+        return True
+
+    def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
+        return 0.0
+
     def set_characters(self, characters: List[str]):
         self._characters = characters
 
     def smooth_character_counts(self, prefix: str, counts: Dict[str, int]) -> Dict[str, int]:
         return counts
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert len(self.characters) > 0, 'Must call set_characters() first'
         raise NotImplementedError()
 
 
 class UniformDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         return { REVERSE_CHARACTER_TRANSLATION.get(char, char): 1 for char in self.characters }
 
-# for CCs
+
 class NumericDictionary(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
-        nd = {}
-        for c in CHARACTERS:
-            if c.isnumeric():
-                nd[c] = 1000
-            else:
-                nd[c] = 0
-        return nd
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            if len(string) == 4:
+                return True
+        except ValueError:
+            return False
 
-## could do stronger weighting?
-## add more for first digits?
-class CreditCardDictionary(CharacterDictionary):
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        counts = {c: 1 for c in string.digits}
+        counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
+class ExpDateDictionary(CharacterDictionary):
+
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            return True
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        months = list(map(lambda x : "0" + str(x), range(1, 10))) + ["10", "11", "12"]
+        years = list(map(str, range(22, 40)))
+        dates = [m + y for m in months for y in years]
+
+        counts = {}
+        for c in string.digits:
+            count = 0
+            for date in dates:
+                if date.startswith(prefix + c):
+                    count += 1
+            counts[c] = count
+
+        counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
+
+class CVVDictionary(CharacterDictionary):
+
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            if len(string) in [3, 4]:
+                return True
+            return False
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        counts = {}
+        if len(prefix) < 4:
+            for c in string.digits:
+                counts[c] = 10
+        if len(prefix) > 2:
+            counts[END_CHAR] = 10
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
+
+
+class CreditCardDictionary(NumericDictionary):
+
+    def __init__(self):
+        super().__init__()
+
+        self._single_counter: Counter = Counter()
+        self._prefix_counter: DefaultDict[str, Counter] = defaultdict(Counter)
+
+        dir_name = os.path.dirname(__file__)
+        with open(os.path.join(dir_name, 'cc_bins.txt')) as fin:
+            for line in fin:
+                prefix = line.strip()
+
+                if len(prefix) == 1:
+                    self._single_counter[prefix] += 1
+                elif len(prefix) > 1:
+                    self._prefix_counter[prefix[0:-1]][prefix[-1]] += 1
+
+    def is_valid(self, string: str) -> bool:
+        is_valid = super().is_valid(string)
+        return is_valid and validate_credit_card_number(string)
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        """
+        Credit Card formats from here: https://www.tokenex.com/blog/ab-what-is-a-bin-bank-identification-number
+        """
         length = len(prefix)
-        nd = {}
-        firsts = ["3", "4", "5", "6"]
 
-        if length > 1: # uniform
-            for c in CHARACTERS:
-                if c.isnumeric():
-                    nd[c] = 1000
-                else:
-                    nd[c] = 0
+        if len(prefix) == 0:
+            char_counts = self._single_counter
+        elif prefix in self._prefix_counter:
+            char_counts = self._prefix_counter[prefix]
+        else:
+            char_counts = {c: 1 for c in string.digits}
 
-        elif length == 0:
-            for c in CHARACTERS:
-                if c in firsts:
-                    nd[c] = 1000
-                elif c.isnumeric():
-                    nd[c] = 100
-                else:
-                    nd[c] = 0
-        elif length == 1:
-            if prefix == "3":
-                for c in CHARACTERS:
-                    if c == "4" or c == "7":
-                        nd[c] = 1000
-                    elif c.isnumeric():
-                        nd[c] = 100
-                    else:
-                        nd[c] = 0
-            else:
-                for c in CHARACTERS:
-                    if c.isnumeric():
-                        nd[c] = 1000
-                    else:
-                        nd[c] = 0
+        total_count = sum(char_counts.values())
+        return {c: (count / total_count) for c, count in char_counts.items()}
 
-        return nd
-##
-class CreditCardDictionaryStrong(CharacterDictionary):
 
-    def get_letter_counts(self, prefix: str, length: Optional[int], should_smooth: bool) -> Dict[str, int]:
-        length = len(prefix)
-        nd = {}
-        firsts = ["3", "4", "5", "6"]
+class ZipCodeDictionary(NumericDictionary):
 
-        if length == 0:
-            for c in CHARACTERS:
-                if c in firsts:
-                    nd[c] = 1000
-                elif c.isnumeric():
-                    nd[c] = 10
-                else:
-                    nd[c] = 0
+    def __init__(self):
+        super().__init__()
+        self._trie = Trie(max_depth=6)
+        self._is_built = False
 
-        elif length == 1:
-            for c in CHARACTERS:
+    def build(self, path: str, min_count: int, has_counts: bool):
+        with open(path, 'r') as fin:
+            for line in fin:
+                tokens = line.strip().split()
+                zip_code = tokens[0]
+                population = int(tokens[1])
 
-                if prefix == "3":
-                    if c in ["4", "7"]:
-                        nd[c] = 1000
-                    elif c.isnumeric():
-                        nd[c] = 10
-                    else:
-                        nd[c] = 0
-                elif prefix == "4":
-                    if c in ["0", "1", "4", "8", "9"]:
-                        nd[c] = "1000"
-                    elif c.isnumeric():
-                        nd[c] = 200
-                    else:
-                        nd[c] = 0
-                elif prefix == "5":
-                    if c in ["0", "1", "2", "3", "4", "5"]:
-                        nd[c] = "1000"
-                    elif c.isnumeric():
-                        nd[c] = 200
-                    else:
-                        nd[c] = 0
-                # continue making cc dict
+                if population >= min_count:
+                    self._trie.add_string(zip_code, count=population)
 
-        elif length > 1: # uniform
-            for c in CHARACTERS:
-                if c.isnumeric():
-                    nd[c] = 1000
-                else:
-                    nd[c] = 0
-                    
-       
+        self._is_build = True
 
-        return nd
-##
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, float]:
+        # Get the prior counts of the next characters using the given prefix
+        character_counts = self._trie.get_next_characters(prefix, length=5)  # All zip codes have length 5
+
+        if len(character_counts) == 0:
+            return {c: 0.1 for c in string.digits}
+
+        total_count = sum(character_counts.values())
+        return {c: (count / total_count) for c, count in character_counts.items()}
+
+    def save(self, path: str):
+        data_dict = {
+            'trie': self._trie,
+            'dict_type': 'zip_code'
+        }
+        save_pickle_gz(data_dict, path)
+
+    @classmethod
+    def restore(cls, serialized: Dict[str, Any]):
+        dictionary = cls()
+        dictionary._trie = serialized['trie']
+        dictionary._is_built = True
+        return dictionary
 
 
 class EnglishDictionary(CharacterDictionary):
@@ -176,24 +230,12 @@ class EnglishDictionary(CharacterDictionary):
         self._is_built = False
         self._max_depth = max_depth
 
-        self._single_char_counts: Counter = Counter()
-        self._two_char_counts: Dict[str, Counter] = dict()
+    def parse_dictionary_file(self, path: str, min_count: int, has_counts: bool) -> Dict[str, int]:
+        string_dictionary: Dict[str, int] = dict()
 
-    @property
-    def total_count(self) -> int:
-        assert self._is_built, 'Must call build() first'
-        return self._trie._root.count
-
-    def build(self, path: str, min_count: int, has_counts: bool):
-        if self._is_built:
-            return
-
-        # Read the input words
         if path.endswith('.json'):
             string_dictionary = read_json(path)
         elif path.endswith('.txt'):
-            string_dictionary: Dict[str, int] = dict()
-
             with open(path, 'rb') as fin:
                 io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
 
@@ -219,94 +261,68 @@ class EnglishDictionary(CharacterDictionary):
         else:
             raise ValueError('Unknown file type: {}'.format(path))
 
+        return string_dictionary
+
+    def build(self, path: str, min_count: int, has_counts: bool):
+        if self._is_built:
+            return
+
+        # Read the input words
+        string_dictionary = self.parse_dictionary_file(path=path,
+                                                       min_count=min_count,
+                                                       has_counts=has_counts)
+
+        print('Indexing {} Strings...'.format(len(string_dictionary)))
+
         # Build the trie
-        for word, count in string_dictionary.items():
+        elapsed = 0.0
+        for idx, (word, count) in enumerate(string_dictionary.items()):
             count = max(count, 1)
 
-            # Increment the single character counts
-            for character in word:
-                self._single_char_counts[character] += 1
+            start = time.time()
+            self._trie.add_string(word, count=count, should_index_prefixes=False)
+            end = time.time()
 
-            # Increment the bi-gram counts
-            for idx in range(len(word) - 1):
-                first_char = word[idx]
-                second_char = word[idx + 1]
+            elapsed += (end - start)
 
-                if first_char not in self._two_char_counts:
-                    self._two_char_counts[first_char] = Counter()
+            if (idx + 1) % 100000 == 0:
+                print('Completed {} strings. Avg Time / Insert {:.7f}ms'.format(idx + 1, 1000.0 * (elapsed / (idx + 1))), end='\r')
 
-                self._two_char_counts[first_char][second_char] += 1
-
-            self._trie.add_string(word, count=max(count, 1))
-
+        print()
         self._is_built = True
-
-    def iterate_words(self, path: str) -> Iterable[str]:
-        assert path.endswith('txt'), 'Must provide a text file'
-
-        with open(path, 'r', encoding='utf-8') as fin:
-            for line in fin:
-                line = line.strip()
-                if len(line) > 0:
-                    yield line.split()[0]
 
     def get_words_for(self, prefixes: Iterable[str], max_num_results: int, min_length: Optional[int], max_count_per_prefix: Optional[int]) -> Iterable[Tuple[str, float]]:
         return self._trie.get_words_for(prefixes, max_num_results, min_length=min_length, max_count_per_prefix=max_count_per_prefix)
 
-    def get_score_for_prefix(self, prefix: str, min_length: int) -> float:
-        return self._trie.get_score_for_prefix(prefix=prefix, min_length=min_length)
-
-    def get_score_for_string(self, string: str, should_aggregate: bool) -> float:
-        return self._trie.get_score_for_string(string=string, should_aggregate=should_aggregate)
-
-    def does_contain_string(self, string: str) -> bool:
-        return self._trie.does_contain_string(string)
-
-    def smooth_letter_counts(self, prefix: str, counts: Dict[str, int], min_count: int) -> Dict[str, Tuple[int, float]]:
-        smoothed: Dict[str, int] = { key: (count, 1.0) for key, count in counts.items() }
-
-        if prefix == 'ted l':
-            print(counts)
-
-        num_above_min_count = sum((int(count >= min_count) for count in counts.values()))
-
-        if (num_above_min_count == 0) and (len(prefix) >= 1):
-            bigram_suffix = prefix[-1]
-            smoothed = {char: (count + 100, DISCOUNT_FACTOR) for char, count in self._two_char_counts.get(bigram_suffix, dict()).items()}
-
-            if prefix == 'ted l':
-                print(smoothed)
-
-        if num_above_min_count == 0:
-            smoothed = {char: (count + 100, DISCOUNT_FACTOR) for char, count in self._single_char_counts.items()}
-
-        for c in self._characters:
-            if c in smoothed:
-                smoothed[c] = (smoothed[c][0] + 1, smoothed[c][1])
-            else:
-                smoothed[c] = (1, 1.0)
-
-        return smoothed
+    def does_contain_prefix(self, prefix: str) -> bool:
+        return self._trie.get_node_for(prefix) is not None
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
+        
+        #if length is not None:
+        #    length = min(length, self._max_depth)
 
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix, length=length)
 
-        # Convert any needed characters
+        # Re-map the character names
         character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
 
-        return character_counts
+        # Apply Laplace Smoothing
+        for character in self._characters:
+            character_counts[character] = character_counts.get(character, 0) + 0.01
+
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + 0.01
+
+        # Normalize the result
+        total_count = sum(character_counts.values())
+        return {char: (count / total_count) for char, count in character_counts.items()}
 
     @classmethod
-    def restore(cls, path: str):
-        data_dict = read_pickle_gz(path)
-
+    def restore(cls, serialized: Dict[str, Any]):
         dictionary = cls(max_depth=1)
-        dictionary._trie = data_dict['trie']
-        dictionary._single_char_counts = data_dict['single_char_counts']
-        dictionary._two_char_counts = data_dict['two_char_counts']
+        dictionary._trie = serialized['trie']
         dictionary._is_built = True
         dictionary._max_depth = dictionary._trie.max_depth
         return dictionary
@@ -314,7 +330,178 @@ class EnglishDictionary(CharacterDictionary):
     def save(self, path: str):
         data_dict = {
             'trie': self._trie,
-            'single_char_counts': self._single_char_counts,
-            'two_char_counts': self._two_char_counts
+            'dict_type': 'english'
         }
         save_pickle_gz(data_dict, path)
+
+
+class NgramDictionary(EnglishDictionary):
+
+    def __init__(self):
+        super().__init__(max_depth=0)
+        self._is_built = False
+
+        self._counts_per_length: Dict[int, Dict[str, Counter]] = dict()
+        self._ngram_size = 5
+
+        self._max_length = 12
+        for length in range(1, self._max_length + 1):
+            self._counts_per_length[length] = defaultdict(Counter)
+
+        self._total_count = 0
+
+    def build(self, path: str, min_count: int, has_counts: bool):
+        if self._is_built:
+            return
+
+        # Read the input words
+        string_dictionary = self.parse_dictionary_file(path=path,
+                                                       min_count=min_count,
+                                                       has_counts=has_counts)
+
+        # Build the ngram tries
+        for word, count in string_dictionary.items():
+            if len(word) == 0:
+                continue
+
+            count = max(count, 1)
+            length_bucket = self.get_length_bucket(len(word))
+
+            for ngram in create_ngrams(word, self._ngram_size):
+                ngram_prefix, ngram_suffix = split_ngram(ngram)
+                self._counts_per_length[length_bucket][ngram_prefix][ngram_suffix] += 1
+
+            #self._single_counts[length_bucket][word[0]] += 1
+
+            #if len(word) >= 2:
+            #    self._counts_per_length[length_bucket][word[0]][word[1]] += 1
+
+            #if len(word) >= 3:
+            #    self._counts_per_length[length_bucket][word[0:2]][word[2]] += 1
+
+            #for four_gram in create_ngrams(word, 4):
+            #    self._counts_per_length[length_bucket][four_gram[0:3]][four_gram[3]] += 1
+
+            self._total_count += 1
+
+            if (self._total_count % 10000) == 0:
+                print('Completed {} Strings...'.format(self._total_count), end='\r')
+
+        print()
+        self._is_built = True
+
+    def get_length_bucket(self, length: int) -> int:
+        return min(length, self._max_length)
+
+    def get_score_for_string(self, string: str) -> float:
+        length = len(string)
+        letter_freqs = self.get_letter_counts('', length=length)
+
+        score = 0.0
+        for idx, character in enumerate(string):
+            if character not in letter_freqs:
+                return BIG_NUMBER
+
+            prob = letter_freqs[character]
+            score -= np.log(prob)
+
+            letter_freqs = self.get_letter_counts(string[0:idx+1], length=length)
+
+        return score
+
+    def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
+        neg_log_prob = BIG_NUMBER
+        max_depth = min(3, length - len(prefix))
+        num_to_keep = 3
+
+        frontier = deque()
+        init_state = ProjectedState(string=prefix, score=0.0, depth=max_depth)
+        frontier.append(init_state)
+
+        while len(frontier) > 0:
+            state = frontier.pop()
+
+            if (state.depth <= 0) or len(state.string) >= length:
+                end_freq = self.get_letter_counts(state.string, length=length).get(END_CHAR, SMALL_NUMBER)
+                neg_log_prob = min(neg_log_prob, state.score - np.log(end_freq))
+            else:
+                next_letter_freq = Counter({c: freq for c, freq in self.get_letter_counts(state.string, length=length).items() if c != END_CHAR})
+
+                for character, freq in next_letter_freq.most_common(num_to_keep):
+                    next_state = ProjectedState(string=state.string + character,
+                                                score=state.score - np.log(freq),
+                                                depth=state.depth - 1)
+                    frontier.append(next_state)
+
+        return neg_log_prob
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        assert self._is_built, 'Must call build() first'
+
+        length_bucket = self.get_length_bucket(length)
+
+        # Look up the string in the counts dictionary
+        if len(prefix) <= (self._ngram_size - 1):
+            prefix = prepend_start_characters(prefix, self._ngram_size - 1)
+            character_counts = self._counts_per_length[length_bucket].get(prefix, dict())
+        else:
+            character_counts = self._counts_per_length[length_bucket].get(prefix[-self._ngram_size + 1:], dict())
+
+        # Convert any characters
+        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
+
+        # Apply Laplace Smoothing and include the end character
+        for character in self._characters:
+            character_counts[character] = character_counts.get(character, 0) + 0.01
+
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + 0.01
+
+        # Normalize the result
+        total_count = sum(character_counts.values())
+        character_counts = {char: (count / total_count) for char, count in character_counts.items()}
+
+        return character_counts
+
+    def does_contain_prefix(prefix: str) -> bool:
+        return False
+
+    @classmethod
+    def restore(cls, serialized: Dict[str, Any]):
+        dictionary = cls()
+        #dictionary._single_counts = serialized['1gram']
+        dictionary._counts_per_length = serialized['ngram']
+        dictionary._is_built = True
+        return dictionary
+
+    def save(self, path: str):
+        data_dict = {
+            #'1gram': self._single_counts,
+            'ngram': self._counts_per_length,
+            'dict_type': 'ngram'
+        }
+        save_pickle_gz(data_dict, path)
+
+
+def restore_dictionary(path: str) -> CharacterDictionary:
+    if path == 'uniform':
+        return UniformDictionary()
+    elif path == 'credit_card':
+        return CreditCardDictionary()
+    elif path == 'numeric':
+        return NumericDictionary()
+    elif path == 'exp_date':
+        return ExpDateDictionary()
+    elif path == 'cvv':
+        return CVVDictionary()
+    else:
+        data_dict = read_pickle_gz(path)
+        dict_type = data_dict['dict_type']
+
+        if dict_type == 'english':
+            return EnglishDictionary.restore(data_dict)
+        elif dict_type == 'ngram':
+            return NgramDictionary.restore(data_dict)
+        elif dict_type == 'zip_code':
+            return ZipCodeDictionary.restore(data_dict)
+        else:
+            raise ValueError('Unknown dictionary type: {}'.format(dict_type))

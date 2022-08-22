@@ -1,32 +1,25 @@
-from typing import Set, Dict, List, Iterable
+from typing import Set, Dict, List, Iterable, Tuple
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
+from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_SELECT, APPLETV_KEYBOARD_DELETE
+from smarttvleakage.graphs.keyboard_graph import START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
-from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
+from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
-from .constants import KeyboardType
+from .constants import KeyboardType, SmartTVType, END_CHAR
 
 
-MIN_COUNT = 3
-
-
-def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], current_string: str, dictionary: CharacterDictionary) -> Dict[str, float]:
+def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], should_renormalize: bool) -> Dict[str, float]:
     """
     Returns a dictionary of normalized scores for present keys.
     """
-    filtered_counts = { key: key_counts[key] for key in candidate_keys if key in key_counts }
+    filtered_counts = {key: key_counts[key] for key in candidate_keys if key in key_counts}
 
-    # Smooth the counts (can add characters)
-    smoothed_counts = dictionary.smooth_letter_counts(prefix=current_string,
-                                                      counts=filtered_counts,
-                                                      min_count=MIN_COUNT)
-
-    # Re-filter the counts
-    filtered_counts = {key: smoothed_counts[key] for key in candidate_keys if key in smoothed_counts}
-
-    score_sum = sum(map(lambda t: t[0], filtered_counts.values()))
-    return { key: score[1] * (score[0] / score_sum) for key, score in filtered_counts.items() }
+    if should_renormalize:
+        total_count = sum(filtered_counts.values())
+        return {key: (count / total_count) for key, count in filtered_counts.items()}
+    else:
+        return filtered_counts
 
 
 def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
@@ -38,6 +31,10 @@ def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
 
     if keyboard_type == KeyboardType.SAMSUNG:
         keyboards = [SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE]
+
+        # The `caps` mode behaves the same way as `standard`
+        if mode == SAMSUNG_CAPS:
+            mode = SAMSUNG_STANDARD
     elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
         keyboards = [APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL]
     elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
@@ -69,6 +66,8 @@ def get_string_from_keys(keys: List[str]) -> str:
         elif key == BACKSPACE:
             if len(characters) > 0:
                 characters.pop()
+        elif key == END_CHAR:
+            characters.append(key)
         elif key not in UNPRINTED_CHARACTERS:
             character = CHARACTER_TRANSLATION.get(key, key)
 
@@ -81,12 +80,28 @@ def get_string_from_keys(keys: List[str]) -> str:
     return ''.join(characters)
 
 
-def create_trigrams(string: str) -> Iterable[str]:
-    """
-    Computes the moving-window tri-grams in the given word
-    """
-    for idx in range(len(string) - 2):
-        yield string[idx:idx+3]
+def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> Tuple[int, ...]:
+    features: List[int] = []
+
+    if tv_type == SmartTVType.SAMSUNG:
+        sound_translation = {
+            SAMSUNG_KEY_SELECT: 0,
+            SAMSUNG_SELECT: 1,
+            SAMSUNG_DELETE: 2
+        }
+    elif tv_type == SmartTVType.APPLE_TV:
+        sound_translation = {
+            APPLETV_KEYBOARD_SELECT: 0,
+            APPLETV_KEYBOARD_DELETE: 1
+        }
+    else:
+        raise ValueError('Unknown keyboard type: {}'.format(tv_type.name.lower()))
+
+    for move in move_seq:
+        features.append(move.num_moves)
+        features.append(sound_translation[move.end_sound])
+
+    return tuple(features)
 
 
 def get_bit(val: int, bit_idx: int) -> int:

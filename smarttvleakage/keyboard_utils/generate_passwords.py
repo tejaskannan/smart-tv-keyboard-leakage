@@ -15,6 +15,7 @@ all_chars = chars+special
 
 
 def generate_password(number, length):
+<<<<<<< HEAD
 	passwords = [[] for i in range(number)]
 	for i in range(number):
 		for j in range(length):
@@ -34,15 +35,24 @@ def generate_password(number, length):
 	# for i, _ in enumerate(passwords):
 	# 	passwords[i] = ''.join(passwords[i])
 	# random.shuffle(passwords)
+=======
+        passwords = [[] for i in range(number)]
+        for i in range(number):
+            for j in range(length):
+                passwords[i].append(random.choice(all_chars))
+                ''.join(passwords[i])
+                return passwords
+>>>>>>> 2a62c06243859012a03c938d8ded65a65b888187
 
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser()
-	parser.add_argument('-o', type=str, required=True, help='output text file for the passwords')
-	parser.add_argument('-n', type=int, required=True, help='number of passwords to be generated')
-	parser.add_argument('-l', type=int, required=True, help='length of each password')
-	passwords = generate_password(args.n, args.l)
-	args = parser.parse_args()
-	with open(args.o, 'w+') as f:
-		f.writelines('\n'.join(passwords))
-	print(passwords)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-o', type=str, required=True, help='output text file for the passwords')
+    parser.add_argument('-n', type=int, required=True, help='number of passwords to be generated')
+    parser.add_argument('-l', type=int, required=True, help='length of each password')
+    passwords = generate_password(args.n, args.l)
+    args = parser.parse_args()
+    with open(args.o, 'w+') as f:
+        f.writelines('\n'.join(passwords))
+        print(passwords)
+

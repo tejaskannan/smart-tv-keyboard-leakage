@@ -4,13 +4,14 @@ from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set
 import csv
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
-from smarttvleakage.utils.constants import KeyboardType
+from smarttvleakage.utils.constants import KeyboardType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
 from .keyboard_linker import KeyboardLinker, KeyboardPosition
 from smarttvleakage.audio.constants import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
 
 SAMSUNG_STANDARD = 'samsung_standard'
 SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
+SAMSUNG_CAPS = 'samsung_standard_caps'
 APPLETV_SEARCH_ALPHABET = 'appletv_search_alphabet'
 APPLETV_SEARCH_NUMBERS = 'appletv_search_numbers'
 APPLETV_SEARCH_SPECIAL = 'appletv_search_special'
@@ -22,6 +23,7 @@ APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
 START_KEYS = {
     SAMSUNG_STANDARD: 'q',
     SAMSUNG_SPECIAL_ONE: CHANGE,
+    SAMSUNG_CAPS: 'Q',
     APPLETV_SEARCH_ALPHABET: 't',
     APPLETV_SEARCH_NUMBERS: CHANGE,
     APPLETV_SEARCH_SPECIAL: CHANGE,
@@ -74,11 +76,13 @@ class MultiKeyboardGraph:
         if keyboard_type == KeyboardType.SAMSUNG:
             standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json')
             special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json')
+            caps_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_caps.json')
             self._start_mode = SAMSUNG_STANDARD
 
             self._keyboards = {
                 SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
-                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE])
+                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE]),
+                SAMSUNG_CAPS: SingleKeyboardGraph(path=caps_path, start_key=START_KEYS[SAMSUNG_CAPS])
             }
 
             linker_path = os.path.join(dir_name, 'samsung', 'link.json')
@@ -151,16 +155,15 @@ class MultiKeyboardGraph:
         return self._keyboards.values()
 
     def get_nearest_link(self, current_key: str, mode: str, use_shortcuts: bool, use_wraparound: bool) -> str:
-        nearest_dist = 100
+        nearest_dist = BIG_NUMBER
         nearest_key = ''
+
         for i in self._keyboards[mode].get_characters():
             if self._linker.get_linked_states(i, mode) != []:
-                if self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)<nearest_dist:
+                if self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode) < nearest_dist:
                     nearest_dist = self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)
                     nearest_key = i
-            # print(i)
-            # print(mode)
-            # print(self._linker.get_linked_states(i, mode))
+
         return nearest_key
 
     def get_modes(self):

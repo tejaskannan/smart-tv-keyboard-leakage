@@ -3,6 +3,7 @@ import csv
 import numpy as np
 import json
 import random
+import time
 from typing import List
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
@@ -102,6 +103,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, mistake_rate:
         prev = character
     
     return path
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 from typing import List
 
 
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, required=True)
@@ -17,7 +18,7 @@ if __name__ == '__main__':
 
         for idx, line in enumerate(io_wrapper):
             line = line.strip()
-            if len(line) > 0:
+            if len(line) >= 8:
                 strings.append(line)
 
     # Get random strings
