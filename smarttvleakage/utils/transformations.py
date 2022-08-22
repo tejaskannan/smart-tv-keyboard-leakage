@@ -80,7 +80,7 @@ def get_string_from_keys(keys: List[str]) -> str:
     return ''.join(characters)
 
 
-def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> Tuple[int, ...]:
+def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> str:
     features: List[int] = []
 
     if tv_type == SmartTVType.SAMSUNG:
@@ -101,7 +101,7 @@ def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> Tuple[int,
         features.append(move.num_moves)
         features.append(sound_translation[move.end_sound])
 
-    return tuple(features)
+    return ','.join(map(str, features))
 
 
 def get_bit(val: int, bit_idx: int) -> int:

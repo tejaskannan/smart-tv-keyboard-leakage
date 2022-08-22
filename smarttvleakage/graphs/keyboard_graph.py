@@ -163,8 +163,10 @@ class MultiKeyboardGraph:
 
         for i in self._keyboards[mode].get_characters():
             if self._linker.get_linked_states(i, mode) != []:
-                if self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode) < nearest_dist:
-                    nearest_dist = self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)
+                num_moves = self.get_moves_from_key(current_key, i, use_shortcuts, use_wraparound, mode)
+
+                if (num_moves is not None) and (num_moves < nearest_dist):
+                    nearest_dist = num_moves
                     nearest_key = i
 
         return nearest_key

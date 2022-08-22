@@ -11,7 +11,7 @@ from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS,
 from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.dictionary import NumericDictionary
 from smarttvleakage.dictionary.rainbow import PasswordRainbow
-from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction, SMALL_NUMBER
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.mistake_model import DecayingMistakeModel
 from smarttvleakage.keyboard_utils.word_to_move import findPath
@@ -40,7 +40,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
     # If provided, use the precomputed index to look up this move sequence. We start with these guesses
     if precomputed is not None:
-        rainbow_results = precomputed.get_strings_for_seq(move_sequence, tv_type=tv_type)
+        rainbow_results = precomputed.get_strings_for_seq(move_sequence, tv_type=tv_type, max_num_results=max_num_results)
 
         for idx, result in enumerate(rainbow_results):
             if (max_num_results is not None) and (result_count > max_num_results):
@@ -104,10 +104,11 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         candidate_count += 1
 
         if len(current_state.keys) == target_length and dictionary.is_valid(current_string):
-            end_score = dictionary.get_letter_counts(current_string, length=target_length).get(END_CHAR, 0.0)
+            end_score = dictionary.get_letter_counts(current_string, length=target_length).get(END_CHAR, SMALL_NUMBER)
+            next_score = current_state.score - np.log(end_score)
 
             end_state = SearchState(keys=current_state.keys + [END_CHAR],
-                                    score=current_state.score - np.log(end_score),
+                                    score=next_score,
                                     keyboard_mode=current_state.keyboard_mode,
                                     current_key=current_state.current_key,
                                     move_idx=next_move_idx)
@@ -231,7 +232,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
                     # Project the remaining score (as a heuristic for A* search)
                     estimated_remaining = dictionary.projected_remaining_log_prob(candidate_word, length=target_length)
                     priority = next_state_score + estimated_remaining
-                    #priority = next_state_score
 
                     next_state = SearchState(keys=candidate_keys,
                                              score=next_state_score,

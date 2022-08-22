@@ -293,12 +293,17 @@ class NgramDictionary(EnglishDictionary):
         super().__init__(max_depth=0)
         self._is_built = False
 
-        self._counts_per_length: Dict[int, Dict[str, Counter]] = dict()
-        self._ngram_size = 5
+        self._counts_per_length: Dict[int, Dict[str, Counter]] = {
+            0: defaultdict(Counter),
+            1: defaultdict(Counter),
+            2: defaultdict(Counter)
+        }
 
-        self._max_length = 12
-        for length in range(1, self._max_length + 1):
-            self._counts_per_length[length] = defaultdict(Counter)
+        self._ngram_size = 5
+        
+        #self._max_length = 12
+        #for length in range(1, self._max_length + 1):
+        #    self._counts_per_length[length] = defaultdict(Counter)
 
         self._total_count = 0
 
@@ -340,10 +345,22 @@ class NgramDictionary(EnglishDictionary):
                 print('Completed {} Strings...'.format(self._total_count), end='\r')
 
         print()
+
+        print(len(self._counts_per_length[0]))
+        print(len(self._counts_per_length[1]))
+        print(len(self._counts_per_length[2]))
+
         self._is_built = True
 
     def get_length_bucket(self, length: int) -> int:
-        return min(length, self._max_length)
+        if length < 6:
+            return 0
+        elif length < 10:
+            return 1
+        else:
+            return 2
+
+        #return min(length, self._max_length)
 
     def get_score_for_string(self, string: str) -> float:
         length = len(string)
@@ -359,7 +376,8 @@ class NgramDictionary(EnglishDictionary):
 
             letter_freqs = self.get_letter_counts(string[0:idx+1], length=length)
 
-        return score
+        end_score = self.get_letter_counts(string, length=length).get(END_CHAR, SMALL_NUMBER)
+        return score - np.log(prob)
 
     def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
         neg_log_prob = BIG_NUMBER
@@ -372,10 +390,6 @@ class NgramDictionary(EnglishDictionary):
 
         while len(frontier) > 0:
             state = frontier.pop()
-
-            #if (state.depth <= 0) or len(state.string) >= length:
-            #    end_freq = self.get_letter_counts(state.string, length=length).get(END_CHAR, SMALL_NUMBER)
-            #    neg_log_prob = min(neg_log_prob, state.score - np.log(end_freq))
 
             if state.depth <= 0 or len(state.string) >= length:
                 neg_log_prob = min(neg_log_prob, state.score)
