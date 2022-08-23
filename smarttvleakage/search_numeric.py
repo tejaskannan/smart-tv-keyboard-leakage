@@ -195,7 +195,6 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
-    parser.add_argument('--max-num-results', type=int, required=True, help='The maximum number of search results.')
     parser.add_argument('--precomputed-path', type=str, help='Optional path to precomputed sequences.')
     parser.add_argument('--keyboard-type', type=str, choices=[t.name.lower() for t in KeyboardType], help='The type of keyboard TV.')
     args = parser.parse_args()

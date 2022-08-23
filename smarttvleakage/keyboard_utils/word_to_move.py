@@ -7,7 +7,7 @@ import time
 from typing import List
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
-from smarttvleakage.utils.constants import KeyboardType
+from smarttvleakage.utils.constants import KeyboardType, Direction
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 from smarttvleakage.utils.transformations import get_keyboard_mode
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, CHANGE_KEYS, SELECT_KEYS, SingleKeyboardGraph
@@ -77,7 +77,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
                     counter = 0
 
                 if mode in CHANGE_KEYS.keys():
-                    path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, use_shortcuts, use_wraparound, mode)), end_sound=CHANGE_KEYS[mode])))
+                    path.append((Move(num_moves=int(keyboard.get_moves_from_key(prev, changer, use_shortcuts, use_wraparound, mode)), end_sound=CHANGE_KEYS[mode], directions=Direction.ANY)))
                 prev = changer
                 linked_state = keyboard.get_linked_states(on_key, original_mode)
                 # print(on_key)
@@ -99,11 +99,11 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
         if character == '<SPACE>' or character == '<DONE>':
         	if distance != -1 and distance != None:
 	            if mode in CHANGE_KEYS.keys():
-	                path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode])))
+	                path.append((Move(num_moves=distance, end_sound=CHANGE_KEYS[mode], directions=Direction.ANY)))
 	            else:
-	                path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+	                path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode], directions=Direction.ANY)))
         else:
-            path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode])))
+            path.append((Move(num_moves=distance, end_sound=SELECT_KEYS[mode], directions=Direction.ANY)))
 
         #determine how many errors there will be by generating a random number and comparing it against the probability of each number of errors
         rand = random.random()
@@ -115,7 +115,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
                 break
 
         if path != -1 and path != None:
-            path[-1] = Move(num_moves=path[-1][0] + num_errors, end_sound=path[-1][1])
+            path[-1] = Move(num_moves=path[-1][0] + num_errors, end_sound=path[-1][1], directions=Direction.ANY)
 
         prev = character
     

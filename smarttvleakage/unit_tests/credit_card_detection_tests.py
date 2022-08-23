@@ -13,13 +13,13 @@ graph = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
 class CreditCardDetectionTests(unittest.TestCase):
 
     def test_detection_16(self):
-        credit_card_seq = findPath('4044123456781934', True, True, 0.0, 1.0, 0, graph)
-        zip_code_seq = findPath('60615', True, True, 0.0, 1.0, 0, graph)
-        expiration_month = findPath('10', True, True, 0.0, 1.0, 0, graph)
-        expiration_year = findPath('22', True, True, 0.0, 1.0, 0, graph)
-        security_code = findPath('814', True, True, 0.0, 1.0, 0, graph)
+        credit_card_seq = findPath('4044123456781934', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        zip_code_seq = findPath('60615', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        expiration_month = findPath('10', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        expiration_year = findPath('22', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        security_code = findPath('814', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
 
-        move_sequence = credit_card_seq + [Move(num_moves=10, end_sound=SAMSUNG_SELECT)] + zip_code_seq + [Move(num_moves=9, end_sound=SAMSUNG_SELECT)] + expiration_month + [Move(num_moves=5, end_sound=SAMSUNG_SELECT)] + expiration_year + [Move(num_moves=12, end_sound=SAMSUNG_SELECT)] + security_code + [Move(num_moves=10, end_sound=SAMSUNG_SELECT)]
+        move_sequence = credit_card_seq + zip_code_seq + expiration_month + expiration_year + security_code
 
         credit_card_fields = extract_credit_card_sequence(move_sequence)
         self.assertTrue(credit_card_fields is not None)
@@ -31,13 +31,13 @@ class CreditCardDetectionTests(unittest.TestCase):
         self.assertEqual(credit_card_fields.security_code, security_code)
 
     def test_detection_15(self):
-        credit_card_seq = findPath('370090174847295', True, True, 0.0, 1.0, 0, graph)
-        zip_code_seq = findPath('10254', True, True, 0.0, 1.0, 0, graph)
-        expiration_month = findPath('11', True, True, 0.0, 1.0, 0, graph)
-        expiration_year = findPath('25', True, True, 0.0, 1.0, 0, graph)
-        security_code = findPath('7491', True, True, 0.0, 1.0, 0, graph)
+        credit_card_seq = findPath('370090174847295', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        zip_code_seq = findPath('10254', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        expiration_month = findPath('11', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        expiration_year = findPath('25', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        security_code = findPath('7491', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
 
-        move_sequence = credit_card_seq + [Move(num_moves=10, end_sound=SAMSUNG_SELECT)] + zip_code_seq + [Move(num_moves=9, end_sound=SAMSUNG_SELECT)] + expiration_month + [Move(num_moves=5, end_sound=SAMSUNG_SELECT)] + expiration_year + [Move(num_moves=12, end_sound=SAMSUNG_SELECT)] + security_code + [Move(num_moves=10, end_sound=SAMSUNG_SELECT)]
+        move_sequence = credit_card_seq + zip_code_seq + expiration_month + expiration_year + security_code
 
         credit_card_fields = extract_credit_card_sequence(move_sequence)
         self.assertTrue(credit_card_fields is not None)
@@ -49,13 +49,13 @@ class CreditCardDetectionTests(unittest.TestCase):
         self.assertEqual(credit_card_fields.security_code, security_code)
 
     def test_detection_15_year_4(self):
-        credit_card_seq = findPath('370090174847295', True, True, 0.0, 1.0, 0, graph)
-        zip_code_seq = findPath('10254', True, True, 0.0, 1.0, 0, graph)
-        expiration_month = findPath('11', True, True, 0.0, 1.0, 0, graph)
-        expiration_year = findPath('2025', True, True, 0.0, 1.0, 0, graph)
-        security_code = findPath('7491', True, True, 0.0, 1.0, 0, graph)
+        credit_card_seq = findPath('370090174847295', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        zip_code_seq = findPath('10254', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        expiration_month = findPath('11', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        expiration_year = findPath('2025', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+        security_code = findPath('7491', use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
 
-        move_sequence = credit_card_seq + [Move(num_moves=10, end_sound=SAMSUNG_SELECT)] + zip_code_seq + [Move(num_moves=9, end_sound=SAMSUNG_SELECT)] + expiration_month + [Move(num_moves=5, end_sound=SAMSUNG_SELECT)] + expiration_year + [Move(num_moves=12, end_sound=SAMSUNG_SELECT)] + security_code + [Move(num_moves=10, end_sound=SAMSUNG_SELECT)]
+        move_sequence = credit_card_seq + zip_code_seq + expiration_month + expiration_year + security_code
 
         credit_card_fields = extract_credit_card_sequence(move_sequence)
         self.assertTrue(credit_card_fields is not None)

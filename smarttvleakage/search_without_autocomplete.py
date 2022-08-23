@@ -6,7 +6,6 @@ from collections import namedtuple
 from typing import Set, List, Dict, Optional, Iterable, Tuple
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_DELETE
-from smarttvleakage.audio.move_extractor import extract_move_directions
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, APPLETV_SEARCH_ALPHABET, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, restore_dictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SPACE, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.dictionary import NumericDictionary
@@ -51,9 +50,6 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
             yield result.word, result.score, candidate_count
 
             guessed_strings.add(result.word)
-
-    # Extract the move directions
-    directions_list = list(map(extract_move_directions, move_sequence))
 
     target_length = len(move_sequence)
     candidate_queue = PriorityQueue()
@@ -175,7 +171,7 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
 
         for candidate_move in move_candidates:
             # Get the neighboring keys for this number of moves
-            directions = directions_list[move_idx] if candidate_move.num_moves == num_moves else Direction.ANY
+            directions = move_sequence[move_idx].directions if candidate_move.num_moves == num_moves else Direction.ANY
             neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                       num_moves=candidate_move.num_moves,
                                                       mode=current_state.keyboard_mode,

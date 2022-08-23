@@ -81,8 +81,7 @@ class NumericDictionary(CharacterDictionary):
     def is_valid(self, string: str) -> bool:
         try:
             int_val = int(string)
-            if len(string) == 4:
-                return True
+            return True
         except ValueError:
             return False
 
@@ -194,7 +193,7 @@ class ZipCodeDictionary(NumericDictionary):
                 population = int(tokens[1])
 
                 if population >= min_count:
-                    self._trie.add_string(zip_code, count=population)
+                    self._trie.add_string(zip_code, count=population, should_index_prefixes=False)
 
         self._is_build = True
 

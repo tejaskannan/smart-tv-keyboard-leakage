@@ -54,19 +54,20 @@ def extract_credit_card_sequence(move_sequence: List[Move]) -> Optional[CreditCa
     current_length = 0
 
     for move in move_sequence:
+        current_sequence.append(move)
+
         if move.end_sound == SAMSUNG_SELECT:
             split_move_sequence.append(current_sequence)
-            split_sequence_lengths.append(current_length)
+            split_sequence_lengths.append(current_length)  # Don't count the final select sound
 
             current_sequence = []
             current_length = 0
+        elif move.end_sound == SAMSUNG_DELETE:
+            current_length -= 1
         else:
-            current_sequence.append(move)
+            current_length += 1
 
-            if move.end_sound == SAMSUNG_DELETE:
-                current_length -= 1
-            else:
-                current_length += 1
+    print(split_sequence_lengths)
 
     # Get the credit card number
     credit_card_idx = get_field_with_bounds(split_sequence_lengths, bounds=CREDIT_CARD_LENGTH)
