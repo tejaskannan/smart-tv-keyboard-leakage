@@ -15,6 +15,8 @@ from smarttvleakage.utils.file_utils import read_pickle_gz, iterate_dir, read_js
 
 
 def get_correct_rank(move_seq: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_guesses: int, target: str) -> Optional[int]:
+    assert isinstance(target, str), 'Must provide the target as a string.'
+
     # Get the list of candidates
     ranked_candidates = get_digits_from_moves(move_sequence=move_seq,
                                               graph=graph,
