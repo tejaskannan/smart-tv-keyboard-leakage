@@ -5,6 +5,8 @@ from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 import itertools
 
 def get_possible(move, thing, pos):
+	if move[0] == SAMSUNG_SELECT:
+		return []
 	output = []
 	pos_temp = []
 	for i in pos:
@@ -68,7 +70,7 @@ def find_regex(moves1, spaces, average):
 		    ['$', '+', '3', ':'],
 		    ['/', '4', ';'],
 		    [',', '5', '^'],
-		    ['&', '6', '=', '?'],
+		    ['&', '6', '=', '\\?'],
 		    ['%', '*', '7', '<'],
 		    ['(', '8', '>', '\\\\'],
 		    [')', '9', '{'],
@@ -82,11 +84,11 @@ def find_regex(moves1, spaces, average):
 	pos = [[0] for i in moves]
 	words = []
 	regex = [[] for i in moves]
-	pos = [[0] for i in moves]
 	for idx, move_list in enumerate(moves):
 		page2 = False
 		thing = []
 		for move_idx, move in enumerate(move_list):
+			thing = []
 			if move[1] == SAMSUNG_SELECT:
 				if move_idx in spaces:
 					if page2:
@@ -111,43 +113,42 @@ def find_regex(moves1, spaces, average):
 				regex[idx].append(thing[0])
 				pos[idx] = thing[1]
 
-	# print(regex)
 	totals = []
 	averages = []
 	original = []
 
-	for word in regex:
-		totals.append([])
-		original.append([])
-		for character in word:
-			totals[-1].append(0)
-			prev = ''
-			for letter in list(character):
-				if letter != '\\':
-					#print(totals[-1][-1])
-					totals[-1][-1]+=1
-				elif prev == '\\':
-					totals[-1][-1]+=1
-				prev = letter
-			original[-1].append(71)
-	#print(totals)
-	for idx, word in enumerate(totals):
-		thing = 1
-		og_thing = 1
-		for character in word:
-			thing *= character
-			og_thing *= 71
-		totals[idx] = thing
-		original[idx] = og_thing
-	# print('\n')
-	# print(totals)
-	# print(original)
-	output = [totals, original]
-	for idx, num in enumerate(totals):
-		# print(original[idx]/num)
-		output.append(original[idx]/num)
-	if average:
-		return output
+	# for word in regex:
+	# 	totals.append([])
+	# 	original.append([])
+	# 	for character in word:
+	# 		totals[-1].append(0)
+	# 		prev = ''
+	# 		for letter in list(character):
+	# 			if letter != '\\':
+	# 				#print(totals[-1][-1])
+	# 				totals[-1][-1]+=1
+	# 			elif prev == '\\':
+	# 				totals[-1][-1]+=1
+	# 			prev = letter
+	# 		original[-1].append(71)
+	# #print(totals)
+	# for idx, word in enumerate(totals):
+	# 	thing = 1
+	# 	og_thing = 1
+	# 	for character in word:
+	# 		thing *= character
+	# 		og_thing *= 71
+	# 	totals[idx] = thing
+	# 	original[idx] = og_thing
+	# # print('\n')
+	# # print(totals)
+	# # print(original)
+	# output = [totals, original]
+	# for idx, num in enumerate(totals):
+	# 	# print(original[idx]/num)
+	# 	output.append(original[idx]/num)
+	# if average:
+	# 	return output
 
 
 	# for idx_exp, expression in enumerate(regex):
@@ -178,7 +179,7 @@ def find_regex(moves1, spaces, average):
 			if regex_temp[pos_idx][idx] != '':
 				if len(regex_temp[pos_idx][idx])<len(expression):
 					regex[pos_idx][idx] = regex_temp[pos_idx][idx]
-		return regex
+	return regex
 
 
 def get_selects(moves):
@@ -193,7 +194,7 @@ def get_selects(moves):
 			#print('1')
 	for L in range(0, len(with_select)+1):
 	    for subset in itertools.combinations(with_select, L):
-	        # print(subset)
+	        print(subset)
 	        output.append(subset)
 	return output
 
@@ -205,7 +206,7 @@ def get_regex(moves):
 		regexes.append([])
 		combinations = get_selects(move_sequence)
 		for combination in combinations:
-			regexes[-1].append(find_regex(move_sequence, combination))
+			regexes[-1].append(find_regex(move_sequence, combination, False))
 	return regexes
 
 
