@@ -20,8 +20,8 @@ def adjust_for_len(raw : float, word : str, strategy : int) -> float:
 
     return raw
 
-def get_score_from_ms(ms : list[int], strategy : int,
-                    msfd : Dict[List[int], Tuple[str, float]]) -> list[tuple[str, float]]:
+def get_score_from_ms(ms : List[int], strategy : int,
+                    msfd : Dict[List[int], Tuple[str, float]]) -> List[Tuple[str, float]]:
     """Returns the highest scoring word (and it's score) for a given ms"""
     word, raw_score = get_word_from_ms(ms, msfd)
     score = adjust_for_len(raw_score, word, strategy)
@@ -29,7 +29,7 @@ def get_score_from_ms(ms : list[int], strategy : int,
 
 # used for finding best parameters
 # return the best partitioning for a list of scores
-def get_best_cutoff(scores : list[tuple[float, str]]) -> tuple[int, float, int]:
+def get_best_cutoff(scores : List[Tuple[float, str]]) -> Tuple[int, float, int]:
     """Used for finding best parameters, returns the best cutoff score"""
     scores.sort(key=lambda x: x[0])
     best = (0, 0)
