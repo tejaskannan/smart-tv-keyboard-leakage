@@ -4,7 +4,7 @@ from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, SAMSU
 from smarttvleakage.graphs.keyboard_graph import START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
 from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS
-from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION
+from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, CHANGE_KEYS
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
 from .constants import KeyboardType, SmartTVType, END_CHAR
 
@@ -26,7 +26,7 @@ def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
     """
     Fetches the keyboard mode based on the current key (change or not)
     """
-    if key != CHANGE:
+    if key not in CHANGE_KEYS:
         return mode
 
     if keyboard_type == KeyboardType.SAMSUNG:
@@ -38,7 +38,14 @@ def get_keyboard_mode(key: str, mode: str, keyboard_type: KeyboardType) -> str:
     elif keyboard_type == KeyboardType.APPLE_TV_SEARCH:
         keyboards = [APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL]
     elif keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
-        keyboards = [APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL]
+        if key == '<ABC>':
+            return APPLETV_PASSWORD_CAPS
+        elif key == '<abc>':
+            return APPLETV_PASSWORD_STANDARD
+        elif key == '<SPECIAL>':
+            return APPLETV_PASSWORD_SPECIAL
+        else:
+            raise ValueError('Unknown change key for apple tv password: {}'.format(key))
     else:
         raise ValueError('Unknown keyboard type: {}'.format(keyboard_type))
 

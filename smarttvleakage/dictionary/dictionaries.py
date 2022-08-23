@@ -14,6 +14,7 @@ from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pick
 from smarttvleakage.dictionary.trie import Trie
 
 
+CHANGE_KEYS = frozenset({ '<CHANGE>', '<ABC>', '<abc>', '<SPECIAL>' })
 UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
 SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>', '<DONE>', '<CANCEL>'})
 DELETE_SOUND_KEYS = frozenset({ '<BACK>', '<DELETEALL>' })
@@ -80,13 +81,61 @@ class NumericDictionary(CharacterDictionary):
     def is_valid(self, string: str) -> bool:
         try:
             int_val = int(string)
-            return True
+            if len(string) == 4:
+                return True
         except ValueError:
             return False
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         counts = {c: 1 for c in string.digits}
         counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
+
+class ExpDateDictionary(CharacterDictionary):
+
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            return True
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        months = list(map(lambda x : "0" + str(x), range(1, 10))) + ["10", "11", "12"]
+        years = list(map(str, range(22, 40)))
+        dates = [m + y for m in months for y in years]
+
+        counts = {}
+        for c in string.digits:
+            count = 0
+            for date in dates:
+                if date.startswith(prefix + c):
+                    count += 1
+            counts[c] = count
+
+        counts[END_CHAR] = 1
+        total_count = sum(counts.values())
+        return {c: (count / total_count) for c, count in counts.items()}
+
+class CVVDictionary(CharacterDictionary):
+
+    def is_valid(self, string: str) -> bool:
+        try:
+            int_val = int(string)
+            if len(string) in [3, 4]:
+                return True
+            return False
+        except ValueError:
+            return False
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        counts = {}
+        if len(prefix) < 4:
+            for c in string.digits:
+                counts[c] = 10
+        if len(prefix) > 2:
+            counts[END_CHAR] = 10
         total_count = sum(counts.values())
         return {c: (count / total_count) for c, count in counts.items()}
 
@@ -458,6 +507,10 @@ def restore_dictionary(path: str) -> CharacterDictionary:
         return CreditCardDictionary()
     elif path == 'numeric':
         return NumericDictionary()
+    elif path == 'exp_date':
+        return ExpDateDictionary()
+    elif path == 'cvv':
+        return CVVDictionary()
     else:
         data_dict = read_pickle_gz(path)
         dict_type = data_dict['dict_type']

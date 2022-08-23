@@ -327,8 +327,9 @@ def build_rockyou_ms_dict(path, count, passover : int = 0):
 
             path = []
             kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
-            line = line.replace("\n", "").replace(" ", "")
-            for m in findPath(line, 0, False, False, 0, 0, kb):
+            line = line.replace("\n", "").replace(" ", "").replace(";", "")
+            print(line)
+            for m in findPath(line, False, False, 0, 0, 0, kb):
                 path.append(m.num_moves)
             rockyou_ms_dict[line] = path
             i += 1

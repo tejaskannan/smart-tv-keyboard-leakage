@@ -58,10 +58,13 @@
         "<DOWN>": { "samsung_standard_caps": "<DOWN>" },
         "<RIGHT>": { "samsung_standard_caps": "<RIGHT>" },
         "<CAPS>": { "samsung_standard_caps": "<CAPS>" },
-        "<CHANGE>": { "samsung_standard_caps": "<CHANGE>" },
+        "<CHANGE>": { "samsung_special_1": "<CHANGE>", "samsung_standard_caps": "<CHANGE>" },
         "<SPACE>": { "samsung_standard_caps": "<SPACE>" },
         "<LANGUAGE>": { "samsung_standard_caps": "<LANGUAGE>" },
         "<SETTINGS>": { "samsung_standard_caps": "<SETTINGS>" }
+    },
+        "samsung_special_1": {
+        "<CHANGE>": { "samsung_standard": "<CHANGE>", "samsung_standard_caps": "<CHANGE>"}
     },
     "samsung_standard_caps": {
         "1": { "samsung_standard": "1" },
@@ -122,7 +125,7 @@
         "<DOWN>": { "samsung_standard": "<DOWN>" },
         "<RIGHT>": { "samsung_standard": "<RIGHT>" },
         "<CAPS>": { "samsung_standard": "<CAPS>" },
-        "<CHANGE>": { "samsung_standard": "<CHANGE>" },
+        "<CHANGE>": { "samsung_special_1": "<CHANGE>", "samsung_standard": "<CHANGE>" },
         "<SPACE>": { "samsung_standard": "<SPACE>" },
         "<LANGUAGE>": { "samsung_standard": "<LANGUAGE>" },
         "<SETTINGS>": { "samsung_standard": "<SETTINGS>" }

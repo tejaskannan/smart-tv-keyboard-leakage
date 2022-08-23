@@ -10,16 +10,30 @@ special = list(special)
 special.remove('`')
 special.remove('_')
 special.remove('|')
+special.append(' ')
 all_chars = chars+special
 
 
 def generate_password(number, length):
-        passwords = [[] for i in range(number)]
-        for i in range(number):
-            for j in range(length):
-                passwords[i].append(random.choice(all_chars))
-                ''.join(passwords[i])
-                return passwords
+	passwords = [[] for i in range(number)]
+	for i in range(number):
+		for j in range(length):
+			passwords[i].append(random.choice(all_chars))
+		passwords[i] = ''.join(passwords[i])
+	return passwords
+	# n = int(number / 2)
+	# passwords = [[] for i in range(number)]
+	# for i in range(number):
+	# 	for j in range(length):
+	# 		passwords[i].append(random.choice(chars))
+	# for i in range(n):
+	# 	passwords[i+n].append(random.choice(special))
+	# 	for j in range(length-1):
+	# 		passwords[i+n].append(random.choice(all_chars))
+	# 	random.shuffle(passwords[i+n])
+	# for i, _ in enumerate(passwords):
+	# 	passwords[i] = ''.join(passwords[i])
+	# random.shuffle(passwords)
 
 
 if __name__ == '__main__':
