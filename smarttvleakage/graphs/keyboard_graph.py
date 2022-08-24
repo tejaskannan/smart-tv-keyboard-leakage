@@ -3,6 +3,7 @@ from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set, Union
 import csv
+import json
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
 from smarttvleakage.keyboard_utils.graph_search import breadth_first_search
 from smarttvleakage.utils.constants import KeyboardType, BIG_NUMBER
@@ -168,12 +169,16 @@ class MultiKeyboardGraph:
 
         return nearest_key
 
+    def get_adjacency_list(self, mode, use_shortcuts, use_wraparound):
+        return self._keyboards[mode].get_adjacency_list(use_shortcuts, use_wraparound)
+
 
 class SingleKeyboardGraph:
 
     def __init__(self, path: str, start_key: str):
         # Set the start key
         self._start_key = start_key
+        self._path = path
 
         # Read in the graph config to get the unclickable keys
         graph_config = read_json(path)
@@ -281,3 +286,19 @@ class SingleKeyboardGraph:
                 for i in self._no_wraparound_distances[start_key]:
                     if end_key in self._no_wraparound_distances[start_key][i]:
                         return i
+
+    def get_adjacency_list(self, use_shortcuts, use_wraparound):
+        if use_shortcuts:
+            if use_wraparound:
+                with open(self._path.replace('.json', '_all.json.gz'), 'r') as f:
+                    return json.load(f)['adjacency_list']
+            else:
+                with open(self._path.replace('.json', '_shortcuts.json.gz'), 'r') as f:
+                    return json.load(f)['adjacency_list']
+        else:
+            if use_wraparound:
+                with open(self._path.replace('.json', '_wraparound.json.gz'), 'r') as f:
+                    return json.load(f)['adjacency_list']
+            else:
+                with open(self._path, 'r') as f:
+                    return json.load(f)['adjacency_list']

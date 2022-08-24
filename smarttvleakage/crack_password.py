@@ -9,59 +9,71 @@ from smarttvleakage.utils.constants import KeyboardType
 from time import perf_counter
 import os
 from smarttvleakage.keyboard_utils.generate_passwords import generate_password
+import csv
 
 # kb = MultiKeyboardGraph(KeyboardType.APPLE_TV_SEARCH)
 kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
 error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 passwords = generate_password(10, 5)
 times = [[] for i in error_rates]
+# passwords = ['=xh{4h']
+
+with open('times_passwords.txt', 'w') as f:
+        for i in passwords:
+                f.write(i)
+                f.write('\n')
 
 for password in passwords:
-	for error in error_rates:
-		if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
-			os.remove('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot')
+        for error in error_rates:
+                print('\n')
+                print(password)
+                print('\n')
+                if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
+                        os.remove('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot')
 
-		hashed = subprocess.run(['openssl', 'passwd', '-5', '-salt', 'agldf', password], capture_output=True, text=True)
+                hashed = subprocess.run(['openssl', 'passwd', '-5', '-salt', 'agldf', password], capture_output=True, text=True)
 
-		with open('hashed_password.txt', 'w') as f:
-		    f.write(hashed.stdout)
-		# print(password)
-		path = findPath(password, False, False, False, error, 0.9, 10, kb)
-		# print(len(path))
-		# print(path)
-		path_no_select = 0
-		for i in path:
-			if i[1] != 'select':
-				path_no_select+=1
-		# print(path_no_select)
-		beginning_perf = perf_counter()
+                with open('hashed_password.txt', 'w') as f:
+                    f.write(hashed.stdout)
+                # print(password)
+                path = findPath(password, False, False, False, error, 0.9, 10, kb)
+                # print(len(path))
+                # print(path)
+                path_no_select = 0
+                for i in path:
+                        if i[1] != 'select':
+                                path_no_select+=1
+                # print(path_no_select)
+                beginning_perf = perf_counter()
 
-		masks = get_regex([path])
-		# print(masks)
-		# print('\n')
-		for mask in masks:
-			for mask1 in mask:
-				#print(mask1)
-				for mask2 in mask1:
-					#print(mask2)
-					# print(len(mask2))
+                masks = get_regex([path])
+                # print(masks)
+                # # print('\n')
+                # for mask in masks:
+                #         for mask1 in mask:
+                #                 #print(mask1)
+                #                 for mask2 in mask1:
+                #                         #print(mask2)
+                #                         # print(len(mask2))
 
-		for mask in masks:
-			mask_line = "-mask='"+''.join(mask[0][0])+"'"
-			# print('\n')
-			# print(password)
-			# print(mask_line)
-			passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
-			
-			if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
-				break
+                for mask in masks:
+                        mask_line = "-mask='"+''.join(mask[0][0])+"'"
+                        # print('\n')
+                        # print(password)
+                        # print(mask_line)
+                        passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+                        
+                        if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
+                                if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
+                                        break
 
-		after_perf = perf_counter()
-		times[error_rates.index(error)].append(after_perf-beginning_perf)
+                after_perf = perf_counter()
+                times[error_rates.index(error)].append(after_perf-beginning_perf)
 
 print('\n')
 print(times)
 
-with open('times_normals.csv', 'w') as f:
-	csvwriter = csv.writer(f)
-	csvwriter.writerows(times)
+
+with open('times_random.csv', 'w') as f:
+        csvwriter = csv.writer(f)
+        csvwriter.writerows(times)
