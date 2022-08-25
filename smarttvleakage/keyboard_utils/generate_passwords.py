@@ -17,8 +17,10 @@ all_chars = chars+special
 def generate_password(number, length):
 	passwords = [[] for i in range(number)]
 	for i in range(number):
-		for j in range(length):
+		for j in range(length-1):
 			passwords[i].append(random.choice(all_chars))
+		passwords[i].append(' ')
+		random.shuffle(passwords[i])
 		passwords[i] = ''.join(passwords[i])
 	return passwords
 	# n = int(number / 2)

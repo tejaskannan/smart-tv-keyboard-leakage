@@ -36,7 +36,7 @@ for password in passwords:
                 with open('hashed_password.txt', 'w') as f:
                     f.write(hashed.stdout)
                 # print(password)
-                path = findPath(password, False, False, False, error, 0.9, 10, kb)
+                path = findPath(password, False, False, False, True, error, 0.9, 10, kb)
                 # print(len(path))
                 # print(path)
                 path_no_select = 0
@@ -61,7 +61,7 @@ for password in passwords:
                         # print('\n')
                         # print(password)
                         # print(mask_line)
-                        passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+                        passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
                         
                         if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
                                 if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:

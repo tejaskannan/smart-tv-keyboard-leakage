@@ -95,7 +95,7 @@ def find_regex(moves1, spaces, average):
 						thing = ['[ ]', [5]]
 					else:
 						thing = ['[ ]', [4]]
-					move_list[move_idx+1] = Move(num_moves = move_list[move_idx+1][0]-1, end_sound = move_list[move_idx+1][1])
+					move_list[move_idx+1] = Move(num_moves = move_list[move_idx+1][0]-1, end_sound = move_list[move_idx+1][1], directions = move_list[move_idx+1][2])
 				else:
 					if page2:
 						page2 = False

@@ -52,7 +52,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
         direction = []
         if use_direction:
         	direction = bfs_path(prev, character, keyboard.get_adjacency_list(mode, use_shortcuts, use_wraparound))
-        	print('direction: ', direction)
+        	# print('direction: ', direction)
         	if direction == Direction.ANY:
         		if prev == character:
         			distance = 0
@@ -175,6 +175,8 @@ def bfs_path(start_key, target_key, adj_list: Dict[str, Dict[str, str]],):
 			break
 
 		neighbors = adj_list[key]
+		# print(adj_list)
+		# print(neighbors)
 		directions = neighbors.keys()
 		# print(frontier)
 
@@ -234,9 +236,9 @@ def bfs_path(start_key, target_key, adj_list: Dict[str, Dict[str, str]],):
 			prev = direction
 
 		# print(final_path)
-		print('\n')
-		print(returner_path)
-		print('\n')
+		# print('\n')
+		# print(returner_path)
+		# print('\n')
 		return returner_path
 
 
