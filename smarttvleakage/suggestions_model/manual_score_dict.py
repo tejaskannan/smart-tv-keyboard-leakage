@@ -1,3 +1,4 @@
+from distutils.command.build import build
 import string
 from argparse import ArgumentParser
 from typing import List, Dict, Tuple
@@ -329,7 +330,8 @@ def build_rockyou_ms_dict(path, count, passover : int = 0):
             kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
             line = line.replace("\n", "").replace(" ", "").replace(";", "")
             print(line)
-            for m in findPath(line, False, False, 0, 0, 0, kb):
+            for m in findPath(line, False, False, False, False,
+                            0, 0, 0, kb):
                 path.append(m.num_moves)
             rockyou_ms_dict[line] = path
             i += 1
@@ -342,26 +344,31 @@ if __name__ == "__main__":
     parser.add_argument("--msfd-path", type=str, required=False)
     args = parser.parse_args()
 
-
-    #save_msfd()
-    #save_ms_dict("suggestions_model/local/ms_dict")
-
-    i = 0
-    msfd = build_msfd(args.msfd_path)
-    for key in msfd:
-        print(key)
-        i += 1
-        if i > 10:
-            break
-
-    print(get_word_from_ms([3, 5, 4], msfd)[0])
-    print(float(get_word_from_ms([3, 5, 4], msfd)[1]))
-    print(get_word_from_ms([6, 5, 1], msfd))
-    print(get_word_from_ms([3, 5, 4, 1, 3], msfd))
-    print(get_word_from_ms([1, 1, 1, 1], msfd))
-
-    print("\n")
-    print(get_word_from_ms([2, 1, 0, 0], msfd))
-    print(get_word_from_ms([2, 8, 4, 6], msfd))
-    print(get_word_from_ms([2, 3, 4, 6, 1, 5, 3], msfd))
+    save = 1
+    if save == 1:
+        print("saving")
+        #save_msfd()
+        #save_ms_dict("suggestions_model/local/ms_dict")
+        #ms_dict_rockyou = build_rockyou_ms_dict("suggestions_model/local/rockyou.txt", 3000, 500)
+        #save_pickle_gz(ms_dict_rockyou, "suggestions_model/local/ms_dict_rockyou.pkl.gz")
     
+    else:
+        i = 0
+        msfd = build_msfd(args.msfd_path)
+        for key in msfd:
+            print(key)
+            i += 1
+            if i > 10:
+                break
+
+        print(get_word_from_ms([3, 5, 4], msfd)[0])
+        print(float(get_word_from_ms([3, 5, 4], msfd)[1]))
+        print(get_word_from_ms([6, 5, 1], msfd))
+        print(get_word_from_ms([3, 5, 4, 1, 3], msfd))
+        print(get_word_from_ms([1, 1, 1, 1], msfd))
+
+        print("\n")
+        print(get_word_from_ms([2, 1, 0, 0], msfd))
+        print(get_word_from_ms([2, 8, 4, 6], msfd))
+        print(get_word_from_ms([2, 3, 4, 6, 1, 5, 3], msfd))
+        

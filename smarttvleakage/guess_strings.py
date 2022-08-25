@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--dictionary-path', type=str, required=True)
     parser.add_argument('--max-num-results', type=int)
     parser.add_argument('--max-num-videos', type=int)
+    parser.add_argument('--suggestions', type=str)
     args = parser.parse_args()
 
     if os.path.isdir(args.video_path):
@@ -41,7 +42,7 @@ if __name__ == '__main__':
     tv_type_clf = SmartTVTypeClassifier()
 
     # Load the suggestions model
-    suggestions_model = read_pickle_gz('suggestions_model/model.pkl.gz')
+    suggestions_model = read_pickle_gz('suggestions_model/model_sim.pkl.gz')
 
     rank_list: List[int] = []
     num_candidates_list: List[int] = []
@@ -87,7 +88,14 @@ if __name__ == '__main__':
         # Detect whether this sequence came from a keyboard with inline suggestions
         move_sequence_vals = list(map(lambda m: m.num_moves, move_sequence))
         #use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
-        use_suggestions = False
+        if args.suggestions is None:
+            use_suggestions = False
+        elif args.suggestions == "use":
+            use_suggestions = True
+        elif args.suggestions == "predict":
+            use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
+        else:
+            use_suggestions = False
 
         if is_numeric:
             ranked_candidates = get_digits_from_moves(move_sequence=move_sequence,
