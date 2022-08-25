@@ -63,18 +63,15 @@ def find_regex(moves1, spaces, average):
 				['!'],
 				['\\-']]
 
-	standard_space = [[' '],
+	standard_space = [[],
 					['c'],
-					['x', 'd', 'v'],
-					['z', 's', 'e', 'f', 'b'],
-					['a', 'w', '3', 'r', 'g', 'n'],
-					['q', '2', '4', 't', 'h', 'm'],
-					['1', '5', 'y', 'j', ','],
-					['6', 'u', 'k', '.'],
-					['7', 'i', 'l', '\\?'],
-					['8', 'o', '~'],
-					['9', 'p', '@', '\\-'],
-					['0', '6', '!'],
+					['d', 'm', 'v', 'x', 'z'],
+					[',', '/', 'a', 'b', 'e', 'f', 'j', 'n', 's'],
+					['.', '3', 'g', 'h', 'k', 'q', 'r', 'u', 'w'],
+					['1', '2', '4', '7', '\\?', 'i', 'l', 't', 'y'],
+					['5', '6', '8', 'o', '~'],
+					['\\-', '9', '@', 'p'],
+					['!', '0', '^'],
 					['*']]
 
 	special = [[],
@@ -92,17 +89,16 @@ def find_regex(moves1, spaces, average):
 		    ['\\]']]
 
 	special_space = [[],
-					['+', ':'],
-					['\\-', '"', '#', ';', '='],
-					["'", '@', '3', '$', ',', '%'],
-					['!', '2', '4', '/', '\\?', '\\\\'],
-					['5', '1', '^', '<'],
-					['6', '&', '>'],
-					['7', '*', '{'],
-					['8', '(', '}'],
-					['9', ')'],
+					[],
+					['+', '\\-', ':', '\\\\'],
+					['"', '#', '%', "'", ';', '<', '='],
+					['!', '$', '&', ',', '3', '>', '\\?', '@'],
+					['*', '/', '1', '2', '4', '7', '^', '{'],
+					['(', '5', '6', '8', '}'],
+					[')', '9'],
 					['0', '\\['],
 					['\\]']]
+
 
 	# escape = '.+*?^$()[]{}|\\'
 	moves = [moves1]
@@ -119,10 +115,13 @@ def find_regex(moves1, spaces, average):
 			thing = []
 			if move[1] == SAMSUNG_SELECT:
 				if move_idx in spaces:
+					print('\n')
+					print(move)
+					print('\n')
 					if page2:
-						thing = ['[ ]', [5]]
+						thing = ['[ ]', [0]]
 					else:
-						thing = ['[ ]', [4]]
+						thing = ['[ ]', [0]]
 					space_used = True
 					#move_list[move_idx+1] = Move(num_moves = move_list[move_idx+1][0]-1, end_sound = move_list[move_idx+1][1], directions = move_list[move_idx+1][2])
 				else:
@@ -145,7 +144,7 @@ def find_regex(moves1, spaces, average):
 						thing = get_possible(move, standard_space, pos[idx])
 					else:
 						thing = get_possible(move, standard, pos[idx])
-						
+
 			if thing != []:
 				regex[idx].append(thing[0])
 				pos[idx] = thing[1]
