@@ -25,6 +25,7 @@ CHANGE = '<CHANGE>'
 BACKSPACE = '<BACK>'
 NEXT = '<NEXT>'
 SPACE = '<SPACE>'
+DONE = '<DONE>'
 SMOOTH_DELTA = 0.5
 
 
@@ -91,6 +92,7 @@ class NumericDictionary(CharacterDictionary):
         total_count = sum(counts.values())
         return {c: (count / total_count) for c, count in counts.items()}
 
+
 class ExpDateDictionary(CharacterDictionary):
 
     def is_valid(self, string: str) -> bool:
@@ -101,7 +103,7 @@ class ExpDateDictionary(CharacterDictionary):
             return False
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
-        months = list(map(lambda x : "0" + str(x), range(1, 10))) + ["10", "11", "12"]
+        months = list(map(lambda x : '0' + str(x), range(1, 10))) + ['10', '11', '12']
         years = list(map(str, range(22, 40)))
         dates = [m + y for m in months for y in years]
 
@@ -116,6 +118,18 @@ class ExpDateDictionary(CharacterDictionary):
         counts[END_CHAR] = 1
         total_count = sum(counts.values())
         return {c: (count / total_count) for c, count in counts.items()}
+
+
+class ExpYearDictionary(NumericDictionary):
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        if len(prefix) == 0:
+            return { '2': 0.5 }
+        elif (len(prefix) == 1) and prefix.startswith('2'):
+            return {str(digit): (1.0 / 8.0) for digit in range(2, 10)}
+        else:
+            return super().get_letter_counts(prefix, length)
+
 
 class CVVDictionary(CharacterDictionary):
 
@@ -349,10 +363,6 @@ class NgramDictionary(EnglishDictionary):
 
         self._ngram_size = 5
         
-        #self._max_length = 12
-        #for length in range(1, self._max_length + 1):
-        #    self._counts_per_length[length] = defaultdict(Counter)
-
         self._total_count = 0
 
     def build(self, path: str, min_count: int, has_counts: bool):
@@ -408,10 +418,7 @@ class NgramDictionary(EnglishDictionary):
         else:
             return 2
 
-        #return min(length, self._max_length)
-
-    def get_score_for_string(self, string: str) -> float:
-        length = len(string)
+    def get_score_for_string(self, string: str, length: int) -> float:
         letter_freqs = self.get_letter_counts('', length=length)
 
         score = 0.0
@@ -424,8 +431,8 @@ class NgramDictionary(EnglishDictionary):
 
             letter_freqs = self.get_letter_counts(string[0:idx+1], length=length)
 
-        end_score = self.get_letter_counts(string, length=length).get(END_CHAR, SMALL_NUMBER)
-        return score - np.log(prob)
+        end_prob = self.get_letter_counts(string, length=length).get(END_CHAR, SMALL_NUMBER)
+        return score - np.log(end_prob)
 
     def projected_remaining_log_prob(self, prefix: str, length: int) -> float:
         neg_log_prob = BIG_NUMBER
@@ -459,8 +466,8 @@ class NgramDictionary(EnglishDictionary):
 
         # Look up the string in the counts dictionary
         if len(prefix) <= (self._ngram_size - 1):
-            prefix = prepend_start_characters(prefix, self._ngram_size - 1)
-            character_counts = self._counts_per_length[length_bucket].get(prefix, dict())
+            adjusted_prefix = prepend_start_characters(prefix, self._ngram_size - 1)
+            character_counts = self._counts_per_length[length_bucket].get(adjusted_prefix, dict())
         else:
             character_counts = self._counts_per_length[length_bucket].get(prefix[-self._ngram_size + 1:], dict())
 
@@ -476,7 +483,6 @@ class NgramDictionary(EnglishDictionary):
         # Normalize the result
         total_count = sum(character_counts.values())
         character_counts = {char: (count / total_count) for char, count in character_counts.items()}
-
         return character_counts
 
     def does_contain_prefix(prefix: str) -> bool:
@@ -508,6 +514,8 @@ def restore_dictionary(path: str) -> CharacterDictionary:
         return NumericDictionary()
     elif path == 'exp_date':
         return ExpDateDictionary()
+    elif path == 'exp_year':
+        return ExpYearDictionary()
     elif path == 'cvv':
         return CVVDictionary()
     else:

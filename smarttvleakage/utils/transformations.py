@@ -1,9 +1,9 @@
 from typing import Set, Dict, List, Iterable, Tuple
 
-from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_SELECT, APPLETV_KEYBOARD_DELETE
+from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_SELECT, APPLETV_KEYBOARD_DELETE, APPLETV_TOOLBAR_MOVE
 from smarttvleakage.graphs.keyboard_graph import START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
-from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS
+from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS, APPLETV_PASSWORD_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, CHANGE_KEYS
 from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
 from .constants import KeyboardType, SmartTVType, END_CHAR
@@ -99,7 +99,8 @@ def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> str:
     elif tv_type == SmartTVType.APPLE_TV:
         sound_translation = {
             APPLETV_KEYBOARD_SELECT: 0,
-            APPLETV_KEYBOARD_DELETE: 1
+            APPLETV_KEYBOARD_DELETE: 1,
+            APPLETV_TOOLBAR_MOVE: 2
         }
     else:
         raise ValueError('Unknown keyboard type: {}'.format(tv_type.name.lower()))

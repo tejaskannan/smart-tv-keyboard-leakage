@@ -24,7 +24,7 @@ Move = namedtuple('Move', ['num_moves', 'end_sound', 'directions'])
 APPLETV_PASSWORD_THRESHOLD = 800
 APPLETV_MOVE_DISTANCE = 5
 MIN_DISTANCE = 12
-KEY_SELECT_DISTANCE = 30
+KEY_SELECT_DISTANCE = 25
 MIN_DOUBLE_MOVE_DISTANCE = 30
 MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
@@ -251,8 +251,17 @@ class MoveExtractor:
         else:
             distance = MIN_DISTANCE
 
+
         peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
+
+       # avg = np.average(peak_heights)
+       # std = np.std(peak_heights)
+
+        #if (self._tv_type == SmartTVType.SAMSUNG) and (sound == SAMSUNG_SELECT):
+        #    median = np.median(peak_heights)
+        #    iqr = np.percentile(peak_heights, 75) - np.percentile(peak_heights, 25)
+        #    print('Threshold: {}, Med: {}, IQR: {}'.format(median + 3 * iqr, median, iqr))
 
         # Filter out duplicate double moves
         if (sound == SAMSUNG_DOUBLE_MOVE) and (len(peaks) > 0):
@@ -419,7 +428,6 @@ class SamsungMoveExtractor(MoveExtractor):
         if did_use_autocomplete and len(result) > 0:
             return result[0:-1], did_use_autocomplete, KeyboardType.SAMSUNG
 
-
         # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
         # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
         if include_moves_to_done:
@@ -548,11 +556,11 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/samsung/credit_cards/amex0.MOV')
+    video_clip = mp.VideoFileClip('/local/samsung/credit_cards/mastercard1.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_SELECT
+    sound = SAMSUNG_MOVE
 
     extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)

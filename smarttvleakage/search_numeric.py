@@ -71,14 +71,22 @@ def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, 
 
         if len(current_state.keys) == target_length:
             moves_to_done = move_sequence[move_idx].num_moves
-            candidate_keys = graph.get_keys_for_moves_from(start_key=current_state.current_key,
-                                                           num_moves=moves_to_done,
-                                                           use_shortcuts=True,
-                                                           use_wraparound=True,
-                                                           directions=Direction.ANY,
-                                                           mode=current_state.keyboard_mode)
 
-            if (current_string not in guessed_strings) and ('<DONE>' in candidate_keys) and dictionary.is_valid(current_string):
+            is_valid = False
+            offset = 0
+
+            while (not is_valid) and offset <= 0:
+                candidate_keys = graph.get_keys_for_moves_from(start_key=current_state.current_key,
+                                                               num_moves=(moves_to_done - offset),
+                                                               use_shortcuts=True,
+                                                               use_wraparound=True,
+                                                               directions=Direction.ANY,
+                                                               mode=current_state.keyboard_mode)
+
+                is_valid = ('<DONE>' in candidate_keys)
+                offset += 1
+
+            if is_valid and (current_string not in guessed_strings) and dictionary.is_valid(current_string):
                 yield current_string.replace(END_CHAR, ''), current_state.score, candidate_count
 
                 result_count += 1

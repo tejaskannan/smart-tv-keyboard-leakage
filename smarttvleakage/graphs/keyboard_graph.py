@@ -122,6 +122,10 @@ class MultiKeyboardGraph:
         # Make the keyboard linker
         self._linker = KeyboardLinker(linker_path)
 
+    @property
+    def keyboard_type(self) -> KeyboardType:
+        return self._keyboard_type
+
     def get_start_keyboard_mode(self) -> str:
         return self._start_mode
 
@@ -259,25 +263,25 @@ class SingleKeyboardGraph:
                 return list(sorted(no_wraparound_neighbors))
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool) -> int:
-        if end_key not in list(self._no_wraparound_distances.keys()):
+        if end_key not in self.get_characters():
             return -1
-        if end_key == start_key:
+        elif end_key == start_key:
             return 0
-        if use_shortcuts:
+        elif use_shortcuts:
             if use_wraparound:
-                for i in self._wraparound_distances_shortcuts[start_key]:
-                    if end_key in self._wraparound_distances_shortcuts[start_key][i]:
-                        return i
+                for dist in self._wraparound_distances_shortcuts[start_key].keys():
+                    if end_key in self._wraparound_distances_shortcuts[start_key][dist]:
+                        return dist
             else:
-                for i in self._no_wraparound_distances_shortcuts[start_key]:
-                    if end_key in self._no_wraparound_distances_shortcuts[start_key][i]:
-                        return i
+                for dist in self._no_wraparound_distances_shortcuts[start_key].keys():
+                    if end_key in self._no_wraparound_distances_shortcuts[start_key][dist]:
+                        return dist
         else:
             if use_wraparound:
-                for i in self._wraparound_distances[start_key]:
-                    if end_key in self._wraparound_distances[start_key][i]:
-                        return i
+                for dist in self._wraparound_distances[start_key].keys():
+                    if end_key in self._wraparound_distances[start_key][dist]:
+                        return dist
             else:
-                for i in self._no_wraparound_distances[start_key]:
-                    if end_key in self._no_wraparound_distances[start_key][i]:
-                        return i
+                for dist in self._no_wraparound_distances[start_key].keys():
+                    if end_key in self._no_wraparound_distances[start_key][dist]:
+                        return dist

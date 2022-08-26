@@ -30,7 +30,7 @@ class SamsungAudioExtraction(unittest.TestCase):
         audio_signal = read_pickle_gz('sounds/samsung/dog.pkl.gz')
 
         extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
-        moves, _, _ = extractor.extract_move_sequence(audio=audio_signal)
+        moves, _, _ = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=False)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
         self.assertEqual(move_seq, [3, 7, 5])
@@ -66,7 +66,7 @@ class SamsungAudioExtraction(unittest.TestCase):
         audio_signal = read_pickle_gz('sounds/samsung/full-interaction.pkl.gz')
 
         extractor = make_move_extractor(tv_type=SmartTVType.SAMSUNG)
-        moves, _, _ = extractor.extract_move_sequence(audio=audio_signal)
+        moves, _, _ = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=False)
 
         move_seq = list(map(lambda t: t.num_moves, moves))
         self.assertEqual(move_seq, [4, 2, 2, 4])

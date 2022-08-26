@@ -67,8 +67,6 @@ def extract_credit_card_sequence(move_sequence: List[Move]) -> Optional[CreditCa
         else:
             current_length += 1
 
-    print(split_sequence_lengths)
-
     # Get the credit card number
     credit_card_idx = get_field_with_bounds(split_sequence_lengths, bounds=CREDIT_CARD_LENGTH)
     if credit_card_idx == -1:

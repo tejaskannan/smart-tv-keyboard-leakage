@@ -37,7 +37,7 @@ def create_records(input_path: str, max_num_records: int, keyboard_type: Keyboar
             break
 
         try:
-            moves = findPath(word, True, True, 0.0, 1.0, 0, keyboard)
+            moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
             move_seq = [{'moves': m.num_moves, 'end_sound': m.end_sound} for m in moves]
             yield { 'target': word, 'move_seq': move_seq }
 

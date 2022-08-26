@@ -54,6 +54,7 @@ if __name__ == '__main__':
     # Create the dictionaries
     ccn_dictionary = restore_dictionary('credit_card')
     numeric_dictionary = restore_dictionary('numeric')
+    exp_year_dictionary = restore_dictionary('exp_year')
     zip_code_dictionary = restore_dictionary(args.zip_code_dict_path)
 
     rank_list: List[int] = []
@@ -115,7 +116,7 @@ if __name__ == '__main__':
 
         year_rank = get_correct_rank(move_seq=credit_card_seq.expiration_year,
                                      graph=graph,
-                                     dictionary=numeric_dictionary,
+                                     dictionary=exp_year_dictionary,
                                      tv_type=tv_type,
                                      max_num_guesses=args.max_num_results,
                                      target=labels[file_name]['year'])
@@ -135,7 +136,7 @@ if __name__ == '__main__':
                                          target=labels[file_name]['zip_code'])
 
         ranks = [ccn_rank, month_rank, year_rank, cvv_rank, zip_code_rank]
-        print(ranks)
+        print('{}: {}'.format(file_name, ranks))
         
         if any([r is None for r in ranks]):
             rank = -1

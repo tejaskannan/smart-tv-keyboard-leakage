@@ -9,7 +9,7 @@ from smarttvleakage.dictionary.rainbow import PasswordRainbow
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.utils.file_utils import read_jsonl_gz, save_jsonl_gz
 from smarttvleakage.utils.edit_distance import compute_edit_distance
-from smarttvleakage.utils.constants import SmartTVType, KeyboardType, BIG_NUMBER
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType, BIG_NUMBER, Direction
 
 
 if __name__ == '__main__':
@@ -40,7 +40,6 @@ if __name__ == '__main__':
     num_found = 0
     total_count = 0
     ranks: List[int] = []
-    distances: List[float] = []
     lengths: List[int] = []
     output_records: List[Dict[str, Any]] = []
 
@@ -48,17 +47,14 @@ if __name__ == '__main__':
 
     for record in read_jsonl_gz(args.benchmark_path):
         target = record['target']
-        move_seq = [Move(num_moves=r['moves'], end_sound=r['end_sound'], move_times=[]) for r in record['move_seq']]
+        move_seq = [Move(num_moves=r['moves'], end_sound=r['end_sound'], directions=Direction.ANY) for r in record['move_seq']]
 
         did_find = False
         rank = BIG_NUMBER
         edit_dist = BIG_NUMBER
         guess_list: List[str] = []
 
-        for idx, (guess, _, _) in enumerate(get_words_from_moves(move_seq, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, precomputed=precomputed)):
-            if idx == 0:
-                edit_dist = compute_edit_distance(guess, target)
-
+        for idx, (guess, _, _) in enumerate(get_words_from_moves(move_seq, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, precomputed=precomputed, includes_done=True)):
             guess_list.append(guess)
 
             if guess == target:
@@ -70,7 +66,6 @@ if __name__ == '__main__':
         top10_found += int(rank <= 10)
         num_found += int(did_find)
         total_count += 1
-        distances.append(edit_dist)
         lengths.append(len(target))
 
         output_record = {
@@ -92,5 +87,4 @@ if __name__ == '__main__':
     print('Top 10 accuracy: {:.4f}'.format(top10_found / total_count))
     print('Top {} accuracy: {:.4f}'.format(args.max_num_results, num_found / total_count))
     print('Avg Rank: {:.4f}, Med Rank: {:.4f}'.format(np.average(ranks), np.median(ranks)))
-    print('Avg Edit Dist: {:.4f}, Med Edit Dist: {:.4f}'.format(np.average(distances), np.median(distances)))
     print('Avg Length: {:.4f}, Med Length: {:.4f}'.format(np.average(lengths), np.median(lengths)))

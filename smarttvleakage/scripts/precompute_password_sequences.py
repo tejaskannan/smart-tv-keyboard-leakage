@@ -47,30 +47,40 @@ def create_records(input_path: str, max_num_records: Optional[int], dictionary: 
         if ((idx + 1) % 10000) == 0:
             print('Completed {} records.'.format(idx + 1), end='\r')
 
-        word_score = dictionary.get_score_for_string(word)
+        word_score = dictionary.get_score_for_string(word, length=len(word))
         if word_score > SCORE_THRESHOLD:
             continue
 
-        try:
-            moves = findPath(word, False, False, 0.0, 1.0, 0, keyboard)
-            move_vector = move_seq_to_vector(moves, tv_type=tv_type)
+        if keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
+            try:
+                moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
+                move_vector = move_seq_to_vector(moves, tv_type=tv_type)
 
-            if all(m.num_moves is not None for m in moves):
-                yield { 'target': word, 'move_seq': move_vector, 'score': word_score}
+                if all(m.num_moves is not None for m in moves):
+                    yield { 'target': word, 'move_seq': move_vector, 'score': word_score}
+            except AssertionError as ex:
+                print('\nWARNING: Caught {} for {}'.format(ex, word))
+        else:
+            try:
+                moves = findPath(word, use_shortcuts=False, use_wraparound=False, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
+                move_vector = move_seq_to_vector(moves, tv_type=tv_type)
 
-            wraparound_moves = findPath(word, False, True, 0.0, 1.0, 0, keyboard)
-            wraparound_vector = move_seq_to_vector(wraparound_moves, tv_type=tv_type)
+                if all(m.num_moves is not None for m in moves):
+                    yield { 'target': word, 'move_seq': move_vector, 'score': word_score}
 
-            if wraparound_vector != move_vector and all(m.num_moves is not None for m in wraparound_moves):
-                yield { 'target': word, 'move_seq': wraparound_vector, 'score': word_score }
+                wraparound_moves = findPath(word, use_shortcuts=False, use_wraparound=True, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
+                wraparound_vector = move_seq_to_vector(wraparound_moves, tv_type=tv_type)
 
-            shortcut_moves = findPath(word, True, True, 0.0, 1.0, 0, keyboard)
-            shortcut_vector = move_seq_to_vector(shortcut_moves, tv_type=tv_type)
+                if wraparound_vector != move_vector and all(m.num_moves is not None for m in wraparound_moves):
+                    yield { 'target': word, 'move_seq': wraparound_vector, 'score': word_score }
 
-            if (shortcut_vector != wraparound_vector) and (shortcut_vector != move_vector) and all(m.num_moves is not None for m in shortcut_moves):
-                yield { 'target': word, 'move_seq': shortcut_vector, 'score': word_score }
-        except AssertionError as ex:
-            print('\nWARNING: Caught {} for {}'.format(ex, word))
+                shortcut_moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
+                shortcut_vector = move_seq_to_vector(shortcut_moves, tv_type=tv_type)
+
+                if (shortcut_vector != wraparound_vector) and (shortcut_vector != move_vector) and all(m.num_moves is not None for m in shortcut_moves):
+                    yield { 'target': word, 'move_seq': shortcut_vector, 'score': word_score }
+            except AssertionError as ex:
+                print('\nWARNING: Caught {} for {}'.format(ex, word))
 
     print()
 
