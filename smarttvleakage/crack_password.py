@@ -16,7 +16,7 @@ kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
 # error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
 error_rates = [0]
 # passwords = generate_password(10, 5)
-passwords = ['a l s']
+passwords = ['&," a']
 times = [[] for i in error_rates]
 # passwords = ['=xh{4h']
 
@@ -41,7 +41,6 @@ for password in passwords:
                 path = findPath(password, True, False, False, False, error, 0.9, 10, kb)
                 # print(len(path))
                 print('\n')
-                print('\n')
                 print(path)
                 print('\n')
                 path_no_select = 0
@@ -60,9 +59,9 @@ for password in passwords:
                 #                 for mask2 in mask1:
                 #                         #print(mask2)
                 #                         # print(len(mask2))
-
+               	# print(masks)
                 for mask in masks[0]:
-                        mask_line = "-mask='"+''.join(mask[0])+"'"
+                        mask_line = '-mask="'+''.join(mask[0])+"\""
                         print('\n')
                         # print(password)
                         print(mask_line)
