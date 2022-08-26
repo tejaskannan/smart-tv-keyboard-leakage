@@ -1,0 +1,19 @@
+max_num_results: 50
+words tested: 100
+
+suggestions: assume standard
+100 found, Accuracy: (1.0)
+99 top 10, Accuracy: (0.99)
+Avg Rank Found: (1.28,), Median Rank Found: 1.0
+Avg Rank Adjusted: 1.28, Median Rank Adjusted: 1.0
+Avg # Candidates Found: 216.37, Median # Candidates Found: 152.0
+Words not found: []
+
+suggestions: predict
+95 found, Accuracy: (0.95)
+94 top 10, Accuracy: (0.94)
+Avg Rank Found: (1.2947368421052632,), Median Rank Found: 1.0
+Avg Rank Adjusted: 6.23, Median Rank Adjusted: 1.0
+Avg # Candidates Found: 219.53684210526316, Median # Candidates Found: 151.0
+Words not found: ['trustno1 (non)', '14344 (non)', 'salvador (non)', '1234 (non)', 'lorraine (non)']
+
