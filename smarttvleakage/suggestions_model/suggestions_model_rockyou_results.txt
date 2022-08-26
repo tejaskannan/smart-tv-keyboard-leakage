@@ -15,5 +15,5 @@ suggestions: predict
 Avg Rank Found: (1.2947368421052632,), Median Rank Found: 1.0
 Avg Rank Adjusted: 6.23, Median Rank Adjusted: 1.0
 Avg # Candidates Found: 219.53684210526316, Median # Candidates Found: 151.0
-Words not found: ['trustno1 (auto)', '14344 (auto)', 'salvador (auto)', '1234 (auto)', 'lorraine (auto)']
+Words not found: ['trustno1 (non)', '14344 (non)', 'salvador (non)', '1234 (non)', 'lorraine (non)']
 
