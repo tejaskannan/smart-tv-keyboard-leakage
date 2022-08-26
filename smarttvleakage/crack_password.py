@@ -4,6 +4,7 @@ import sys
 from datetime import datetime, timedelta
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.password_cracker.classifier import get_regex
+from smarttvleakage.password_cracker.generatee_mask import get_masks
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.utils.constants import KeyboardType
 from time import perf_counter
@@ -13,10 +14,11 @@ import csv
 
 # kb = MultiKeyboardGraph(KeyboardType.APPLE_TV_SEARCH)
 kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
-# error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-error_rates = [0]
-# passwords = generate_password(10, 5)
-passwords = ['&," a']
+error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+# error_rates = [0]
+passwords = generate_password(10, 5)
+# passwords = ['xy4[w']
+# passwords = ['!h[#y']
 times = [[] for i in error_rates]
 # passwords = ['=xh{4h']
 
@@ -50,7 +52,8 @@ for password in passwords:
                 # print(path_no_select)
                 beginning_perf = perf_counter()
 
-                masks = get_regex([path])
+                # masks = get_regex([path])
+                masks = get_masks(path, kb)
                 # print(masks)
                 # # print('\n')
                 # for mask in masks:
@@ -60,17 +63,23 @@ for password in passwords:
                 #                         #print(mask2)
                 #                         # print(len(mask2))
                	# print(masks)
-                for mask in masks[0]:
-                        mask_line = '-mask="'+''.join(mask[0])+"\""
-                        print('\n')
-                        # print(password)
-                        print(mask_line)
-                        print('\n')
-                        passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john {} /home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'.format(mask_line)], shell=True)
-                        
-                        if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
-                                if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
-                                        break
+                # for mask in masks[0]:
+                #         mask_line = '-mask="'+''.join(mask[0])+"\""
+                #         print('\n')
+                #         # print(password)
+                #         print(mask_line)
+                #         print('\n')
+                for mask in masks:
+                	mask_line = '-mask="'+''.join(mask)+'"'
+                	print(mask_line)
+                	print('\n')
+                	passwrd = subprocess.run(['~/john-1.9.0-jumbo-1/run/john {} hashed_password.txt'.format(mask_line)], shell=True)
+                	if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
+                		if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
+                			break
+                if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
+                		if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size == 0:
+                			break
 
                 after_perf = perf_counter()
                 times[error_rates.index(error)].append(after_perf-beginning_perf)
