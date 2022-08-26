@@ -13,8 +13,10 @@ import csv
 
 # kb = MultiKeyboardGraph(KeyboardType.APPLE_TV_SEARCH)
 kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
-error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
-passwords = generate_password(10, 5)
+# error_rates = [0, 0.1, 0.2, 0.3, 0.4, 0.5]
+error_rates = [0]
+# passwords = generate_password(10, 5)
+passwords = ['a l s']
 times = [[] for i in error_rates]
 # passwords = ['=xh{4h']
 
@@ -36,9 +38,12 @@ for password in passwords:
                 with open('hashed_password.txt', 'w') as f:
                     f.write(hashed.stdout)
                 # print(password)
-                path = findPath(password, False, False, False, True, error, 0.9, 10, kb)
+                path = findPath(password, True, False, False, False, error, 0.9, 10, kb)
                 # print(len(path))
-                # print(path)
+                print('\n')
+                print('\n')
+                print(path)
+                print('\n')
                 path_no_select = 0
                 for i in path:
                         if i[1] != 'select':
@@ -56,12 +61,13 @@ for password in passwords:
                 #                         #print(mask2)
                 #                         # print(len(mask2))
 
-                for mask in masks:
-                        mask_line = "-mask='"+''.join(mask[0][0])+"'"
-                        # print('\n')
+                for mask in masks[0]:
+                        mask_line = "-mask='"+''.join(mask[0])+"'"
+                        print('\n')
                         # print(password)
-                        # print(mask_line)
-                        passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john', mask_line, '/home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'])
+                        print(mask_line)
+                        print('\n')
+                        passwrd = subprocess.run(['/home/abebdm/john-1.9.0-jumbo-1/run/john {} /home/abebdm/Desktop/Thing/smart-tv-keyboard-leakage/smarttvleakage/hashed_password.txt'.format(mask_line)], shell=True)
                         
                         if os.path.exists('/home/abebdm/john-1.9.0-jumbo-1/run/john.pot'):
                                 if os.stat("/home/abebdm/john-1.9.0-jumbo-1/run/john.pot").st_size > 0:
