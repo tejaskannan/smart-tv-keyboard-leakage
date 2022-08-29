@@ -3,6 +3,7 @@ import io
 from argparse import ArgumentParser
 from typing import Set
 
+from smarttvleakage.utils.constants import BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_jsonl_gz
 from smarttvleakage.utils.edit_distance import compute_edit_distance
 
@@ -39,10 +40,14 @@ if __name__ == '__main__':
 
     prior_words = load_prior_words(args.prior_path)
 
+    seen_top1 = 0
+    seen_top25 = 0
     seen_found = 0
     seen_edit_dist = 0
     seen_total = 0
 
+    unseen_top1 = 0
+    unseen_top25 = 0
     unseen_found = 0
     unseen_edit_dist = 0
     unseen_total = 0
@@ -51,8 +56,10 @@ if __name__ == '__main__':
         target = record['target']
 
         is_found = False
-        for guess in record['guesses']:
+        rank = BIG_NUMBER
+        for idx, guess in enumerate(record['guesses']):
             if target == guess:
+                rank = idx + 1
                 is_found = True
                 break
 
@@ -62,18 +69,30 @@ if __name__ == '__main__':
         has_seen = (target in prior_words)
 
         if has_seen:
+            seen_top1 += int(rank == 1)
+            seen_top25 += int(rank <= 25)
             seen_found += int(is_found)
             seen_edit_dist += edit_dist
             seen_total += 1
         else:
+            unseen_top1 += int(rank == 1)
+            unseen_top25 += int(rank <= 25)
             unseen_found += int(is_found)
             unseen_edit_dist += edit_dist
             unseen_total += 1
 
-    seen_accuracy = seen_found / max(seen_total, 1e-7)
-    seen_edit_dist = seen_edit_dist / max(seen_total, 1e-7)
-    unseen_accuracy = unseen_found / max(unseen_total, 1e-7)
-    unseen_edit_dist = unseen_edit_dist / max(unseen_total, 1e-7)
+    seen_total = max(seen_total, 1e-7)
+    seen_top1_acc = seen_top1 / seen_total
+    seen_top25_acc = seen_top25 / seen_total
+    seen_accuracy = seen_found / seen_total
+    seen_avg_edit_dist = seen_edit_dist / seen_total
 
-    print('Accuracy on words in prior: {:.4f} ({} / {}), Avg Edit Dist: {:.4f}'.format(seen_accuracy, seen_found, seen_total, seen_edit_dist))
-    print('Accuracy on words not in prior: {:.4f} ({} / {}), Avg Edit Dist: {:.4f}'.format(unseen_accuracy, unseen_found, unseen_total, unseen_edit_dist))
+    unseen_total = max(unseen_total, 1e-7)
+    unseen_top1_acc = unseen_top1 / unseen_total
+    unseen_top25_acc = unseen_top25 / unseen_total
+    unseen_accuracy = unseen_found / unseen_total
+    unseen_avg_edit_dist = unseen_edit_dist / unseen_total
+
+    print('Accuracy on words in prior: {:.4f} ({} / {}), Top1: {:.4f}, Top25: {:.4f}, Avg Edit Dist: {:.4f}'.format(seen_accuracy, seen_found, seen_total, seen_top1_acc, seen_top25_acc, seen_avg_edit_dist))
+    print('Accuracy on words not in prior: {:.4f} ({} / {}), Top1: {:.4f}, Top25: {:.4f},  Avg Edit Dist: {:.4f}'.format(unseen_accuracy, unseen_found, unseen_total, unseen_top1_acc, unseen_top25_acc, unseen_avg_edit_dist))
+    print('Total Avg Edit Dist: {:.4f}'.format((seen_edit_dist + unseen_edit_dist) / (seen_total + unseen_total)))
