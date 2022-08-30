@@ -5,8 +5,8 @@ from smarttvleakage.graphs.keyboard_graph import START_KEYS, SAMSUNG_STANDARD, S
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
 from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS, APPLETV_PASSWORD_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, CHANGE_KEYS
-from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, CharacterDictionary
-from .constants import KeyboardType, SmartTVType, END_CHAR
+from smarttvleakage.dictionary import CHANGE, CAPS, BACKSPACE, DELETE_ALL, CharacterDictionary
+from .constants import KeyboardType, SmartTVType, END_CHAR, Direction
 
 
 def filter_and_normalize_scores(key_counts: Dict[str, int], candidate_keys: List[str], should_renormalize: bool) -> Dict[str, float]:
@@ -73,6 +73,8 @@ def get_string_from_keys(keys: List[str]) -> str:
         elif key == BACKSPACE:
             if len(characters) > 0:
                 characters.pop()
+        elif key == DELETE_ALL:
+            characters: List[str] = []
         elif key == END_CHAR:
             characters.append(key)
         elif key not in UNPRINTED_CHARACTERS:
@@ -112,25 +114,19 @@ def move_seq_to_vector(move_seq: List[Move], tv_type: SmartTVType) -> str:
     return ','.join(map(str, features))
 
 
-def get_bit(val: int, bit_idx: int) -> int:
-    return (val >> bit_idx) & 1
+def reverse_move_seq(move_seq: List[Move]) -> List[Move]:
+    """
+    Reverses the given move sequence and pops off the final move. We use
+    this function on reverse searches where the start key is unknown.
+    """
+    if len(move_seq) == 0:
+        return move_seq
 
-
-def capitalization_combinations(string: str) -> Set[str]:
-    result: Set[str] = set()
-
-    for mask in range(pow(2, len(string))):
-        characters: List[str] = []
-
-        for idx, character in enumerate(string):
-            if get_bit(mask, bit_idx=idx) == 1:
-                character = character.upper()
-            else:
-                character = character.lower()
-
-            characters.append(character)
-
-        transformed = ''.join(characters)
-        result.add(transformed)
+    result: List[Move] = []
+    for idx in reversed(range(1, len(move_seq))):
+        prev = move_seq[idx - 1]
+        curr = move_seq[idx]
+        updated = Move(num_moves=curr.num_moves, end_sound=prev.end_sound, directions=Direction.ANY)
+        result.append(updated)
 
     return result

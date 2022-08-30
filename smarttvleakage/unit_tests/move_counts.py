@@ -154,6 +154,96 @@ class SamsungGraphMoveCounts(unittest.TestCase):
         expected = ['?', '@', '*', '<DOWN>', '<DONE>', '<RETURN>', '<CANCEL>']
         self.list_equal(neighbors, expected)
 
+    def test_done_one(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=1,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['<CANCEL>', '!', '<RETURN>', '<LANGUAGE>']
+        self.list_equal(neighbors, expected)
+
+    def test_done_two(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=2,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['<DELETEALL>', '*', '@', '-', 'a', '<CHANGE>', '<RIGHT>']
+        self.list_equal(neighbors, expected)
+
+    def test_done_three(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=3,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['<BACK>', '<CAPS>', '^', '~', '<UP>', '<DOWN>', 'q', 'z', 's']
+        self.list_equal(neighbors, expected)
+
+    def test_done_four(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=4,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['0', 'p', 'l', '?', '<LEFT>', '1', 'w', 'd', 'x', '<SETTINGS>']
+        self.list_equal(neighbors, expected)
+
+    def test_done_five(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=5,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['9', 'o', 'k', '.', '/', '2', 'e', 'f', 'c', '<SPACE>']
+        self.list_equal(neighbors, expected)
+
+    def test_done_six(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=6,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['8', 'i', 'j', ',', '<COM>', '3', 'r', 'g', 'v', '<SPACE>', '<WWW>']
+        self.list_equal(neighbors, expected)
+
+    def test_done_six(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=6,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['8', 'i', 'j', ',', '<COM>', '3', 'r', 'g', 'v', '<SPACE>', '<WWW>']
+        self.list_equal(neighbors, expected)
+
+    def test_done_seven(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
+                                                          num_moves=7,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['7', 'u', 'h', 'm', '4', 't', 'b', '<WWW>']
+        self.list_equal(neighbors, expected)
+
+    def test_6_seven(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='6',
+                                                          num_moves=7,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['<RETURN>', '*', '@', '?', '/', '<CHANGE>', 'a', 'x', '<SPACE>', '<DONE>']
+        self.list_equal(neighbors, expected)
+
     def test_change_special_four(self):
         neighbors = samsung_graph.get_keys_for_moves_from(start_key='<CHANGE>',
                                                           num_moves=4,
@@ -428,7 +518,6 @@ class AppleTVPasswordGraphMoveCounts(unittest.TestCase):
                                                                    use_shortcuts=True,
                                                                    use_wraparound=False,
                                                                    directions=Direction.ANY)
-                                                                   use_wraparound=False)
         expected = [';', '?', '0', '5', '<DONE>', '<abc>']
         self.list_equal(neighbors, expected)
 

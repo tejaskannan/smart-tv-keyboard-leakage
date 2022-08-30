@@ -24,13 +24,13 @@ MAX_NUM_CANDIDATES = 5000000
 MISTAKE_LIMIT = 3
 
 
-def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: NumericDictionary, tv_type: SmartTVType, max_num_results: Optional[int]) -> Iterable[Tuple[str, float, int]]:
+def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: NumericDictionary, tv_type: SmartTVType, max_num_results: Optional[int], start_key: str, includes_done: bool) -> Iterable[Tuple[str, float, int]]:
     # Variables to track progress
     guessed_strings: Set[str] = set()
     result_count = 0
     candidate_count = 0
 
-    target_length = len(move_sequence) - 1  # Account for the move to the `Done` key at the end
+    target_length = len(move_sequence) - int(includes_done)  # Account for the move to the `Done` key at the end if needed
     candidate_queue = PriorityQueue()
 
     # Set the default keyboard mode
@@ -49,7 +49,7 @@ def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, 
     init_state = NumericSearchState(keys=[],
                                     score=0.0,
                                     keyboard_mode=keyboard_mode,
-                                    current_key=START_KEYS[keyboard_mode],
+                                    current_key=start_key,
                                     move_idx=0)
     candidate_queue.put((init_state.score, init_state))
 
@@ -70,21 +70,22 @@ def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, 
         candidate_count += 1
 
         if len(current_state.keys) == target_length:
-            moves_to_done = move_sequence[move_idx].num_moves
+            is_valid = (not includes_done)
 
-            is_valid = False
-            offset = 0
+            if includes_done:
+                moves_to_done = move_sequence[move_idx].num_moves
+                offset = 0
 
-            while (not is_valid) and offset <= 0:
-                candidate_keys = graph.get_keys_for_moves_from(start_key=current_state.current_key,
-                                                               num_moves=(moves_to_done - offset),
-                                                               use_shortcuts=True,
-                                                               use_wraparound=True,
-                                                               directions=Direction.ANY,
-                                                               mode=current_state.keyboard_mode)
+                while (not is_valid) and offset <= 0:
+                    candidate_keys = graph.get_keys_for_moves_from(start_key=current_state.current_key,
+                                                                   num_moves=(moves_to_done - offset),
+                                                                   use_shortcuts=True,
+                                                                   use_wraparound=True,
+                                                                   directions=Direction.ANY,
+                                                                   mode=current_state.keyboard_mode)
 
-                is_valid = ('<DONE>' in candidate_keys)
-                offset += 1
+                    is_valid = ('<DONE>' in candidate_keys)
+                    offset += 1
 
             if is_valid and (current_string not in guessed_strings) and dictionary.is_valid(current_string):
                 yield current_string.replace(END_CHAR, ''), current_state.score, candidate_count
@@ -151,6 +152,9 @@ def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, 
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
 
+            if candidate_move.num_moves == num_moves:
+                print('Num Moves: {}, Candidate Keys: {}'.format(num_moves, neighbors))
+
             if (end_sound == delete_sound_name):
                 neighbors = list(filter(lambda n: (n in DELETE_SOUND_KEYS), neighbors))
                 filtered_probs = {n: (1.0 / len(neighbors)) for n in neighbors}
@@ -204,36 +208,46 @@ if __name__ == '__main__':
     parser.add_argument('--dictionary-path', type=str, required=True, help='Path to the dictionary pkl.gz file.')
     parser.add_argument('--target', type=str, required=True, help='The target string.')
     parser.add_argument('--precomputed-path', type=str, help='Optional path to precomputed sequences.')
-    parser.add_argument('--keyboard-type', type=str, choices=[t.name.lower() for t in KeyboardType], help='The type of keyboard TV.')
+    parser.add_argument('--keyboard-type', type=str, required=True, choices=[t.name.lower() for t in KeyboardType], help='The type of keyboard TV.')
+    parser.add_argument('--max-num-results', type=int, help='The maximum number of results to return.')
+    parser.add_argument('--should-randomize-start', action='store_true', help='Whether to randomize the start position or use the default.')
     args = parser.parse_args()
 
     keyboard_type = KeyboardType[args.keyboard_type.upper()]
     graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
     characters = graph.get_characters()
+    keyboard_mode = graph.get_start_keyboard_mode()
 
     print('Restoring dictionary...')
     dictionary = restore_dictionary(args.dictionary_path)
     dictionary.set_characters(characters)
-
-    precomputed = None
-    if args.precomputed_path is not None:
-        precomputed = PasswordRainbow(args.precomputed_path)
 
     if keyboard_type == KeyboardType.SAMSUNG:
         tv_type = SmartTVType.SAMSUNG
     else:
         tv_type = SmartTVType.APPLE_TV
 
+    if args.should_randomize_start:
+        charset = graph.get_keyboard_characters(keyboard_mode)
+        char_idx = np.random.randint(low=0, high=len(charset))
+        start_key = charset[char_idx]
+    else:
+        start_key = START_KEYS[keyboard_mode]
+
+    print(start_key)
+
     print('Target String: {}'.format(args.target))
-    moves = findPath(args.target, True, True, 0.0, 1.0, 0, graph)
+    moves = findPath(args.target,
+                     use_shortcuts=True,
+                     use_wraparound=True,
+                     use_done=True,
+                     mistake_rate=0.0,
+                     decay_rate=1.0,
+                     max_errors=0,
+                     keyboard=graph,
+                     start_key=start_key)
 
-    #if (args.sounds_list is None) or (len(args.sounds_list) == 0):
-    #    moves = [Move(num_moves=num_moves, end_sound=default_sound) for num_moves in args.moves_list]
-    #else:
-    #    assert len(args.moves_list) == len(args.sounds_list), 'Must provide the same number of moves ({}) and sounds ({})'.format(len(args.moves_list), len(args.sounds_list))
-    #    moves = [Move(num_moves=num_moves, end_sound=end_sound) for num_moves, end_sound in zip(args.moves_list, args.sounds_list)]
-
-    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, precomputed=precomputed)):
+    for idx, (guess, score, candidates_count) in enumerate(get_digits_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, start_key=START_KEYS[keyboard_mode], includes_done=True)):
         print('Guess: {}, Score: {}'.format(guess, score))
 
         if args.target == guess:

@@ -18,7 +18,7 @@ from datetime import datetime, timedelta
 
 
 
-def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: bool, mistake_rate: float, decay_rate: float, max_errors: int, keyboard: MultiKeyboardGraph):
+def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: bool, mistake_rate: float, decay_rate: float, max_errors: int, keyboard: MultiKeyboardGraph, start_key: str):
     """
     Get the path taken to input the word.
 
@@ -29,6 +29,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
     :param decay_rate: the decay rate of the mistake rate
     :param max_errors: the maximum number of errors for one letter to the next
     :param keyboard: the keyboard that will be used
+    :param start_key: the key to start the move sequence on
     :return: a list of Move named tuple
     """
     mistakes = []
@@ -40,7 +41,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
     path = []
     mode = keyboard.get_start_keyboard_mode()
     keyboard_type = keyboard.keyboard_type
-    prev = START_KEYS[mode]
+    prev = start_key
     word = list(word.lower())
 
     if use_done:

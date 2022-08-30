@@ -26,6 +26,7 @@ BACKSPACE = '<BACK>'
 NEXT = '<NEXT>'
 SPACE = '<SPACE>'
 DONE = '<DONE>'
+DELETE_ALL = '<DELETEALL>'
 SMOOTH_DELTA = 0.5
 
 
@@ -40,9 +41,11 @@ CHARACTER_TRANSLATION = {
 }
 
 REVERSE_CHARACTER_TRANSLATION = { value: key for key, value in CHARACTER_TRANSLATION.items() }
-
-
 ProjectedState = namedtuple('ProjectedState', ['string', 'score', 'depth'])
+
+
+def reverse_string(string: str) -> str:
+    return ''.join(list(reversed(string)))
 
 
 class CharacterDictionary:
@@ -199,7 +202,7 @@ class ZipCodeDictionary(NumericDictionary):
         self._trie = Trie(max_depth=6)
         self._is_built = False
 
-    def build(self, path: str, min_count: int, has_counts: bool):
+    def build(self, path: str, min_count: int, has_counts: bool, should_reverse: bool):
         with open(path, 'r') as fin:
             for line in fin:
                 tokens = line.strip().split()
@@ -207,6 +210,9 @@ class ZipCodeDictionary(NumericDictionary):
                 population = int(tokens[1])
 
                 if population >= min_count:
+                    if should_reverse:
+                        zip_code = reverse_string(zip_code)
+
                     self._trie.add_string(zip_code, count=population, should_index_prefixes=False)
 
         self._is_build = True
@@ -277,7 +283,7 @@ class EnglishDictionary(CharacterDictionary):
 
         return string_dictionary
 
-    def build(self, path: str, min_count: int, has_counts: bool):
+    def build(self, path: str, min_count: int, has_counts: bool, should_reverse: bool):
         if self._is_built:
             return
 
@@ -292,6 +298,9 @@ class EnglishDictionary(CharacterDictionary):
         elapsed = 0.0
         for idx, (word, count) in enumerate(string_dictionary.items()):
             count = max(count, 1)
+
+            if should_reverse:
+                word = reverse_string(word)
 
             start = time.time()
             self._trie.add_string(word, count=count, should_index_prefixes=False)
@@ -314,9 +323,6 @@ class EnglishDictionary(CharacterDictionary):
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         assert self._is_built, 'Must call build() first'
         
-        #if length is not None:
-        #    length = min(length, self._max_depth)
-
         # Get the prior counts of the next characters using the given prefix
         character_counts = self._trie.get_next_characters(prefix, length=length)
 
@@ -365,7 +371,7 @@ class NgramDictionary(EnglishDictionary):
         
         self._total_count = 0
 
-    def build(self, path: str, min_count: int, has_counts: bool):
+    def build(self, path: str, min_count: int, has_counts: bool, should_reverse: bool):
         if self._is_built:
             return
 
@@ -381,6 +387,9 @@ class NgramDictionary(EnglishDictionary):
 
             count = max(count, 1)
             length_bucket = self.get_length_bucket(len(word))
+
+            if should_reverse:
+                word = reverse_string(word)
 
             for ngram in create_ngrams(word, self._ngram_size):
                 ngram_prefix, ngram_suffix = split_ngram(ngram)

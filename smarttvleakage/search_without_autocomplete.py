@@ -31,7 +31,7 @@ SUGGESTION_FACTOR = 2.0
 CUTOFF = 0.05
 
 
-def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int], precomputed: PasswordRainbow, includes_done: bool) -> Iterable[Tuple[str, float, int]]:
+def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int], precomputed: PasswordRainbow, includes_done: bool, start_key: str) -> Iterable[Tuple[str, float, int]]:
     # Variables to track progress
     guessed_strings: Set[str] = set()
     result_count = 0
@@ -73,13 +73,13 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
     init_state = SearchState(keys=[],
                              score=0.0,
                              keyboard_mode=keyboard_mode,
-                             current_key=START_KEYS[keyboard_mode],
+                             current_key=start_key,
                              move_idx=0)
     candidate_queue.put((init_state.score, init_state))
 
     # Link the initial state (we can start in any one of the these spots)
     if not isinstance(dictionary, NumericDictionary):
-        for linked_state in graph.get_linked_states(START_KEYS[keyboard_mode], keyboard_mode=keyboard_mode):
+        for linked_state in graph.get_linked_states(start_key, keyboard_mode=keyboard_mode):
             init_state = SearchState(keys=[],
                                      score=0.0,
                                      keyboard_mode=linked_state.mode,

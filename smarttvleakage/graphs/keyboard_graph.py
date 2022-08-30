@@ -83,9 +83,9 @@ class MultiKeyboardGraph:
             self._start_mode = SAMSUNG_STANDARD
 
             self._keyboards = {
-                SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[SAMSUNG_STANDARD]),
-                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path, start_key=START_KEYS[SAMSUNG_SPECIAL_ONE]),
-                SAMSUNG_CAPS: SingleKeyboardGraph(path=caps_path, start_key=START_KEYS[SAMSUNG_CAPS])
+                SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path),
+                SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path),
+                SAMSUNG_CAPS: SingleKeyboardGraph(path=caps_path)
             }
 
             linker_path = os.path.join(dir_name, 'samsung', 'link.json')
@@ -96,9 +96,9 @@ class MultiKeyboardGraph:
             self._start_mode = APPLETV_SEARCH_ALPHABET
 
             self._keyboards = {
-                APPLETV_SEARCH_ALPHABET: SingleKeyboardGraph(path=alphabet_path, start_key=START_KEYS[APPLETV_SEARCH_ALPHABET]),
-                APPLETV_SEARCH_NUMBERS: SingleKeyboardGraph(path=numbers_path, start_key=START_KEYS[APPLETV_SEARCH_NUMBERS]),
-                APPLETV_SEARCH_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_SEARCH_SPECIAL])
+                APPLETV_SEARCH_ALPHABET: SingleKeyboardGraph(path=alphabet_path),
+                APPLETV_SEARCH_NUMBERS: SingleKeyboardGraph(path=numbers_path),
+                APPLETV_SEARCH_SPECIAL: SingleKeyboardGraph(path=special_path)
             }
 
             linker_path = os.path.join(dir_name, 'apple_tv', 'link.json')
@@ -110,9 +110,9 @@ class MultiKeyboardGraph:
             self._start_mode = APPLETV_PASSWORD_STANDARD
 
             self._keyboards = {
-                APPLETV_PASSWORD_STANDARD: SingleKeyboardGraph(path=standard_path, start_key=START_KEYS[APPLETV_PASSWORD_STANDARD]),
-                APPLETV_PASSWORD_CAPS: SingleKeyboardGraph(path=caps_path, start_key=START_KEYS[APPLETV_PASSWORD_CAPS]),
-                APPLETV_PASSWORD_SPECIAL: SingleKeyboardGraph(path=special_path, start_key=START_KEYS[APPLETV_PASSWORD_SPECIAL])
+                APPLETV_PASSWORD_STANDARD: SingleKeyboardGraph(path=standard_path),
+                APPLETV_PASSWORD_CAPS: SingleKeyboardGraph(path=caps_path),
+                APPLETV_PASSWORD_SPECIAL: SingleKeyboardGraph(path=special_path)
             }
 
             linker_path = os.path.join(dir_name, 'apple_tv_password', 'link.json')
@@ -146,6 +146,9 @@ class MultiKeyboardGraph:
 
         return list(merged)
 
+    def get_keyboard_characters(self, keyboard_mode: str) -> List[str]:
+        return self._keyboards[keyboard_mode].get_characters()
+
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool, directions: Union[Direction, List[Direction]]) -> List[str]:
         if num_moves < 0:
             return []
@@ -175,10 +178,7 @@ class MultiKeyboardGraph:
 
 class SingleKeyboardGraph:
 
-    def __init__(self, path: str, start_key: str):
-        # Set the start key
-        self._start_key = start_key
-
+    def __init__(self, path: str):
         # Read in the graph config to get the unclickable keys
         graph_config = read_json(path)
         self._adj_list = graph_config['adjacency_list']
@@ -213,10 +213,10 @@ class SingleKeyboardGraph:
         if num_moves == 0:
             return [start_key]
 
+        result_set: Set[str] = set()
+
         if isinstance(directions, list) and isinstance(self._adj_list[start_key], dict):
             assert len(directions) == num_moves, 'Must provide the same number of directionsi ({}) as moves ({})'.format(len(directions), num_moves)
-
-            result_set: Set[str] = set()
 
             standard = breadth_first_search(start_key=start_key,
                                             distance=num_moves,
@@ -243,24 +243,21 @@ class SingleKeyboardGraph:
                                                  shortcuts=self._shortcuts_list,
                                                  directions=directions)
                 result_set.update(shortcuts)
-
-            return list(sorted(result_set))
         else:
             no_wraparound_neighbors = self._no_wraparound_distances.get(start_key, dict()).get(num_moves, set())
-            wraparound_neighbors = self._wraparound_distances.get(start_key, dict()).get(num_moves, set())
-
-            if use_shortcuts:
-                no_wraparound_neighbors.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
-                wraparound_neighbors.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
-
-            if (len(no_wraparound_neighbors) == 0) and (len(wraparound_neighbors) == 0):
-                return []
+            result_set.update(no_wraparound_neighbors)
 
             if use_wraparound:
-                combined = no_wraparound_neighbors.union(wraparound_neighbors)
-                return list(sorted(combined))
-            else:
-                return list(sorted(no_wraparound_neighbors))
+                wraparound_neighbors = self._wraparound_distances.get(start_key, dict()).get(num_moves, set())
+                result_set.update(wraparound_neighbors)
+
+            if use_shortcuts:
+                result_set.update(self._no_wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+
+                if use_wraparound:
+                    result_set.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
+
+        return list(sorted(result_set))
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool) -> int:
         if end_key not in self.get_characters():

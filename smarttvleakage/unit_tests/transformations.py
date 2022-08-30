@@ -1,17 +1,10 @@
 import unittest
 
-from smarttvleakage.utils.transformations import capitalization_combinations, get_string_from_keys
+from smarttvleakage.utils.transformations import get_string_from_keys
 from smarttvleakage.utils.ngrams import create_ngrams, split_ngram, prepend_start_characters
 
 
 class Transformations(unittest.TestCase):
-
-    def test_capitalizations(self):
-        string = '5fGE'
-        expected = { '5fGE', '5FGE', '5FgE', '5FGe', '5Fge', '5fGe', '5fgE', '5fge' }
-        result = capitalization_combinations(string)
-
-        self.assertEqual(expected, result)
 
     def test_get_string_from_keys_simple(self):
         keys = ['h', 'e', 'l', 'l', 'o']
@@ -60,6 +53,18 @@ class Transformations(unittest.TestCase):
         result = get_string_from_keys(keys)
 
         self.assertEqual(result, '49ers')
+
+    def test_get_string_deleteall_front(self):
+        keys = ['<DELETEALL>', 'c', 'a', 'l']
+        result = get_string_from_keys(keys)
+
+        self.assertEqual(result, 'cal')
+
+    def test_get_string_deleteall_middle(self):
+        keys = ['4', '9', 'e', 'r', 's', '<DELETEALL>', 'c', 'a', 'l']
+        result = get_string_from_keys(keys)
+
+        self.assertEqual(result, 'cal')
 
 
 class TestNgrams(unittest.TestCase):

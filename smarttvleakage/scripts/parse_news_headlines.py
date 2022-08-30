@@ -7,7 +7,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--input-file', type=str, required=True)
     parser.add_argument('--output-file', type=str, required=True)
-    parser.add_argument('--num-words', type=int, required=True)
+    parser.add_argument('--min-length', type=int, required=True)
     args = parser.parse_args()
 
     word_counts: Counter = Counter()
@@ -21,11 +21,11 @@ if __name__ == '__main__':
 
             tokens = line[1].split()
 
-            for token_idx in range(len(tokens) - args.num_words):
-                string = ' '.join(tokens[token_idx:(token_idx + args.num_words)])
-                word_counts[string] += 1
+            for token in tokens:
+                if len(token) >= args.min_length:
+                    word_counts[token] += 1
 
     with open(args.output_file, 'w') as fout:
-        for string, count in word_counts.items():
+        for string, count in reversed(sorted(word_counts.items(), key=lambda t: t[1])):
             fout.write('{} {}'.format(string, count))
             fout.write('\n')

@@ -7,6 +7,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--input-path', type=str, required=True)
     parser.add_argument('--output-path', type=str, required=True)
+    parser.add_argument('--should-reverse', action='store_true')
     args = parser.parse_args()
 
     zip_codes: List[Tuple[str, int]] = []
