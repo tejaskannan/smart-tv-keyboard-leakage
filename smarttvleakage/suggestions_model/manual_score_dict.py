@@ -274,7 +274,7 @@ def save_ms_dict(save_path_start : str):
     save_pickle_gz(ms_dict_non, save_path_start + "_non.pkl.gz")
     save_pickle_gz(ms_dict_auto, save_path_start + "_auto.pkl.gz")
 
-def build_ms_dict(path : str, take : int = 0) -> Dict[str, List[int]]:
+def build_ms_dict(path : str, take : int = 0, passover : int = 0) -> Dict[str, List[int]]:
     """Builds ms dict from path, takes either positive number or passes over negative"""
     base = read_pickle_gz(path)
     if take == 0:
@@ -282,6 +282,10 @@ def build_ms_dict(path : str, take : int = 0) -> Dict[str, List[int]]:
     if take > 0: # take the first x
         ms_dict = {}
         for key in base:
+            if passover > 0:
+                passover -= 1
+                continue
+            
             ms_dict[key] = base[key]
             take -= 1
             if take == 0:
