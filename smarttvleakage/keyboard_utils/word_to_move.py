@@ -15,7 +15,6 @@ from smarttvleakage.utils.transformations import get_keyboard_mode
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, CHANGE_KEYS, SELECT_KEYS, SingleKeyboardGraph
 from smarttvleakage.graphs.keyboard_graph import SAMSUNG_STANDARD, APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL, APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
 from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
-from smarttvleakage.utils.constants import Direction
 from datetime import datetime, timedelta
 
 

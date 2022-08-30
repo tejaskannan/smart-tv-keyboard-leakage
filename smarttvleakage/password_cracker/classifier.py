@@ -2,6 +2,7 @@ import re
 import argparse
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
 from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 import itertools
 import random
 
@@ -47,7 +48,10 @@ def get_possible(move, thing, pos):
 	return [''.join(output), pos_temp]
 
 
-def find_regex(moves1, spaces, average):
+def find_regex(moves1, spaces, average, keyboard):
+
+	
+
 	standard = [['q'],
 				['1', 'a', 'w'],
 				['2', 'e', 's', 'z'],
@@ -63,7 +67,7 @@ def find_regex(moves1, spaces, average):
 				['!'],
 				['\\-']]
 
-	standard_space = [[],
+	standard_space = [[' '],
 					['c'],
 					['d', 'm', 'v', 'x', 'z'],
 					[',', '/', 'a', 'b', 'e', 'f', 'j', 'n', 's'],
