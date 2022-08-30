@@ -48,7 +48,7 @@ if __name__ == '__main__':
     print(list(map(lambda m: m.num_moves, moves)))
     print(list(map(lambda m: m.num_moves, reversed_seq)))
 
-    for idx, (guess, score, candidates_count) in enumerate(get_digits_from_moves(reversed_seq, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, start_key='<DONE>', includes_done=False)):
+    for idx, (guess, score, candidates_count) in enumerate(get_digits_from_moves(reversed_seq, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, start_key='<DONE>', includes_done=False, is_searching_reverse=True)):
         guess = ''.join(list(reversed(guess)))
         print('{}. {}'.format(idx + 1, guess))
 

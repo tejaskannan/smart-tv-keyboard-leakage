@@ -24,7 +24,7 @@ MAX_NUM_CANDIDATES = 5000000
 MISTAKE_LIMIT = 3
 
 
-def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: NumericDictionary, tv_type: SmartTVType, max_num_results: Optional[int], start_key: str, includes_done: bool) -> Iterable[Tuple[str, float, int]]:
+def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: NumericDictionary, tv_type: SmartTVType, max_num_results: Optional[int], start_key: str, includes_done: bool, is_searching_reverse: bool) -> Iterable[Tuple[str, float, int]]:
     # Variables to track progress
     guessed_strings: Set[str] = set()
     result_count = 0
@@ -142,18 +142,22 @@ def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, 
 
         for candidate_move in move_candidates:
             # Get the neighboring keys for this number of moves
-            neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
-                                                      num_moves=candidate_move.num_moves,
-                                                      mode=current_state.keyboard_mode,
-                                                      use_shortcuts=True,
-                                                      use_wraparound=True,
-                                                      directions=Direction.ANY)
+            if is_searching_reverse:
+                neighbors = graph.get_keys_for_moves_to(end_key=prev_key,
+                                                        num_moves=candidate_move.num_moves,
+                                                        mode=current_state.keyboard_mode,
+                                                        use_shortcuts=True,
+                                                        use_wraparound=True)
+            else:
+                neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
+                                                          num_moves=candidate_move.num_moves,
+                                                          mode=current_state.keyboard_mode,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
 
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
-
-            if candidate_move.num_moves == num_moves:
-                print('Num Moves: {}, Candidate Keys: {}'.format(num_moves, neighbors))
 
             if (end_sound == delete_sound_name):
                 neighbors = list(filter(lambda n: (n in DELETE_SOUND_KEYS), neighbors))
@@ -247,7 +251,16 @@ if __name__ == '__main__':
                      keyboard=graph,
                      start_key=start_key)
 
-    for idx, (guess, score, candidates_count) in enumerate(get_digits_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, start_key=START_KEYS[keyboard_mode], includes_done=True)):
+    candidates = get_digits_from_moves(moves,
+                                       graph=graph,
+                                       dictionary=dictionary,
+                                       tv_type=tv_type,
+                                       max_num_results=args.max_num_results,
+                                       start_key=START_KEYS[keyboard_mode],
+                                       includes_done=True,
+                                       is_searching_reverse=False)
+
+    for idx, (guess, score, candidates_count) in enumerate(candidates):
         print('Guess: {}, Score: {}'.format(guess, score))
 
         if args.target == guess:

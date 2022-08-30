@@ -155,6 +155,12 @@ class MultiKeyboardGraph:
 
         return self._keyboards[mode].get_keys_for_moves_from(start_key=start_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound, directions=directions)
 
+    def get_keys_for_moves_to(self, end_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+        if num_moves < 0:
+            return []
+
+        return self._keyboards[mode].get_keys_for_moves_to(end_key=end_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
+
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
 
@@ -258,6 +264,20 @@ class SingleKeyboardGraph:
                     result_set.update(self._wraparound_distances_shortcuts.get(start_key, dict()).get(num_moves, set()))
 
         return list(sorted(result_set))
+
+    def get_keys_for_moves_to(self, end_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool) -> List[str]:
+        result: List[str] = []
+        for key in self.get_characters():
+            if end_key in self._no_wraparound_distances.get(key, dict()).get(num_moves, set()):
+                result.append(key)
+            elif use_shortcuts and (end_key in self._no_wraparound_distances_shortcuts.get(key, dict()).get(num_moves, set())):
+                result.append(key)
+            elif use_wraparound and (end_key in self._wraparound_distances.get(key, dict()).get(num_moves, set())):
+                result.append(key)
+            elif (use_wraparound and use_shortcuts) and (end_key in self._wraparound_distances_shortcuts.get(key, dict()).get(num_moves, set())):
+                result.append(key)
+
+        return result
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool) -> int:
         if end_key not in self.get_characters():

@@ -234,6 +234,15 @@ class SamsungGraphMoveCounts(unittest.TestCase):
         expected = ['7', 'u', 'h', 'm', '4', 't', 'b', '<WWW>']
         self.list_equal(neighbors, expected)
 
+    def test_done_seven_to(self):
+        neighbors = samsung_graph.get_keys_for_moves_to(end_key='<DONE>',
+                                                        num_moves=7,
+                                                        mode=SAMSUNG_STANDARD,
+                                                        use_shortcuts=True,
+                                                        use_wraparound=True)
+        expected = ['7', 'u', 'h', 'n', 'm', '4', 't', '<WWW>', '6', '5']  # TODO: Investigate `m` being here (I can't find a path that makes sense)
+        self.list_equal(neighbors, expected)
+
     def test_6_seven(self):
         neighbors = samsung_graph.get_keys_for_moves_from(start_key='6',
                                                           num_moves=7,
