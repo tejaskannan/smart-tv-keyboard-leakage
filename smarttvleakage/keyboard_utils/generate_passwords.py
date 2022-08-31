@@ -19,6 +19,8 @@ def generate_password(number, length):
 	for i in range(number):
 		for j in range(length):
 			passwords[i].append(random.choice(all_chars))
+		#passwords[i].append(' ')
+		random.shuffle(passwords[i])
 		passwords[i] = ''.join(passwords[i])
 	return passwords
 	# n = int(number / 2)
@@ -47,3 +49,9 @@ if __name__ == '__main__':
         f.writelines('\n'.join(passwords))
         print(passwords)
 
+
+
+
+
+
+[[[['[wa1]', '[/\\-42&;#\\?!6"=]', '[xwra1d3]']], [['[1aw]', '[ ]', '[sz6^qubke2~.mh80o]', '[!#\\-2"]']], [['[a1w]', "[,+'1^5:3$@]", '[ ]', '[=6#&\\-"\\?2]']], [['[w1a]', '[ ]', '[y3ndvl9priw,1agxj57]', '[ ]', '[gx3ryvd5]']]]]

@@ -10,7 +10,7 @@ from typing import Set, List, Dict, Optional, Iterable, Tuple, DefaultDict
 from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SPACE, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
-from smarttvleakage.utils.constants import END_CHAR
+from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction, SMALL_NUMBER
 from smarttvleakage.utils.transformations import filter_and_normalize_scores, get_keyboard_mode, get_string_from_keys
 from smarttvleakage.utils.file_utils import read_json
 
@@ -23,6 +23,7 @@ SUGGESTION_THRESHOLD = 1e-3
 MAX_COUNT_PER_PREFIX = 10
 TOP_KEYS = 2
 TOP_KEY_FACTOR = 1e-1
+MAX_NUM_CANDIDATES = 20000 # * added to test e2e
 
 
 def get_candidate_prefix(string: str) -> str:
@@ -135,6 +136,9 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
             seen_strings.add(current_string)
             continue
 
+        if candidate_count >= MAX_NUM_CANDIDATES: # * added to test e2e
+            break # * added to test e2e
+
         move_idx = len(current_state.keys)
         num_moves = move_sequence[move_idx].num_moves
         end_sound = move_sequence[move_idx].end_sound
@@ -192,11 +196,13 @@ def get_words_from_moves_suggestions(move_sequence: List[Move], graph: MultiKeyb
 
             for move_count, move_score in move_score_factors.items():
                 # Get neighboring keys and normalize the resulting scores
+                directions = Direction.ANY
                 neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
                                                           num_moves=move_count,
                                                           mode=current_state.keyboard_mode,
                                                           use_shortcuts=True,
-                                                          use_wraparound=True)
+                                                          use_wraparound=True,
+                                                          directions=directions)
 
                 if end_sound == SAMSUNG_SELECT:
                     neighbors = list(filter(lambda n: (n in SELECT_SOUND_KEYS), neighbors))

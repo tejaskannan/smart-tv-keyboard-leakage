@@ -2,11 +2,11 @@ import re
 import argparse
 from smarttvleakage.keyboard_utils.unpack_jsonl_gz import read_moves
 from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 import itertools
+import random
 
 def get_possible(move, thing, pos):
-	if move[0] == SAMSUNG_SELECT:
-		return []
 	output = []
 	pos_temp = []
 	for i in pos:
@@ -42,12 +42,16 @@ def get_possible(move, thing, pos):
 						output.append(j)
 				pos_temp.append(counter)
 				counter+=2
+	#random.shuffle(output)
 	output.insert(0, '[')
 	output.append(']')
 	return [''.join(output), pos_temp]
 
 
-def find_regex(moves1, spaces, average):
+def find_regex(moves1, spaces, average, keyboard):
+
+	
+
 	standard = [['q'],
 				['1', 'a', 'w'],
 				['2', 'e', 's', 'z'],
@@ -63,10 +67,24 @@ def find_regex(moves1, spaces, average):
 				['!'],
 				['\\-']]
 
+	standard_space = [[' '],
+					['c'],
+					['d', 'm', 'v', 'x', 'z'],
+					[',', '/', 'a', 'b', 'e', 'f', 'j', 'n', 's'],
+					['.', '3', 'g', 'h', 'k', 'q', 'r', 'u', 'w'],
+					['1', '2', '4', '7', '\\?', 'i', 'l', 't', 'y'],
+					['5', '6', '8', 'o', '~'],
+					['\\-', '9', '@', 'p'],
+					['!', '0', '^'],
+					['*']]
+
+	standard_after_change = [[], ['q'], ['1', 'a', 'w'], ['2', 'e', 's', 'z'], ['3', 'd', 'r', 'x'], ['4', 'c', 'f', 't'], ['5', 'g', 'v', 'y'], ['6', 'b', 'h', 'm', 'u'], [',', '/', '7', 'i', 'j', 'n'], ['.', '8', 'k', 'o'], ['9', '?', 'l', 'p'], ['0', '^', '~'], ['*', '-', '@'], ['!']]
+
+
 	special = [[],
 		    ['!'],
 		    ["'", '1', '@'],
-		    ['"', '#', '\\-', '2'],
+		    ['\\"', '#', '\\-', '2'],
 		    ['$', '+', '3', ':'],
 		    ['/', '4', ';'],
 		    [',', '5', '^'],
@@ -76,6 +94,18 @@ def find_regex(moves1, spaces, average):
 		    [')', '9', '{'],
 		    ['0', '\\[', '}'],
 		    ['\\]']]
+
+	special_space = [[],
+					[],
+					['+', '\\-', ':', '\\\\'],
+					['\\"', '#', '%', "'", ';', '<', '='],
+					['!', '$', '&', ',', '3', '>', '\\?', '@'],
+					['*', '/', '1', '2', '4', '7', '^', '{'],
+					['(', '5', '6', '8', '}'],
+					[')', '9'],
+					['0', '\\['],
+					['\\]']]
+
 
 	# escape = '.+*?^$()[]{}|\\'
 	moves = [moves1]
@@ -87,35 +117,67 @@ def find_regex(moves1, spaces, average):
 	for idx, move_list in enumerate(moves):
 		page2 = False
 		thing = []
+		space_used = False
+		changed = False
 		for move_idx, move in enumerate(move_list):
 			thing = []
 			if move[1] == SAMSUNG_SELECT:
 				if move_idx in spaces:
+					# print('\n')
+					# print(move)
+					# print('\n')
 					if page2:
-						thing = ['[ ]', [5]]
+						thing = ['[ ]', [0]]
 					else:
-						thing = ['[ ]', [4]]
-					move_list[move_idx+1] = Move(num_moves = move_list[move_idx+1][0]-1, end_sound = move_list[move_idx+1][1])
+						thing = ['[ ]', [0]]
+					space_used = True
+					#move_list[move_idx+1] = Move(num_moves = move_list[move_idx+1][0]-1, end_sound = move_list[move_idx+1][1], directions = move_list[move_idx+1][2])
 				else:
 					if page2:
+						# print('1')
+						# print(move)
+						# print(spaces)
 						page2 = False
 						pos[idx] = [0]
+						space_used = False
+						changed = True
 					else:
+						# print('1')
+						# print(move)
+						# print(spaces)
 						page2 = True
 						pos[idx] = [0]
+						space_used = False
+						changed = True
 			else:
 				thing = []
 				if page2:
-					thing = get_possible(move, special, pos[idx])
+					if space_used:
+						# print('1')
+						thing = get_possible(move, special_space, pos[idx])
+					else:
+						# print('2')
+						thing = get_possible(move, special, pos[idx])
+						# print(thing)
 				else:
-					thing = get_possible(move, standard, pos[idx])
+					if space_used:
+						# print('3')
+						thing = get_possible(move, standard_space, pos[idx])
+					elif changed:
+						# print('4')
+						thing = get_possible(move, standard_after_change, pos[idx])
+					else:
+						# print('5')
+						thing = get_possible(move, standard, pos[idx])
+
 			if thing != []:
 				regex[idx].append(thing[0])
 				pos[idx] = thing[1]
+			# print(regex[idx])
 
-	totals = []
-	averages = []
-	original = []
+	# totals = []
+	# averages = []
+	# original = []
 
 	# for word in regex:
 	# 	totals.append([])
@@ -166,19 +228,25 @@ def find_regex(moves1, spaces, average):
 
 	# words_combined = ' '.join(words)
 	# incorrect = 0
-	regex_temp = [['' for j in i] for i in regex]
-	pos_temp = [[1] for i in moves]
-	for pos_idx, move_seq in enumerate(moves):
-		for idx, move in enumerate(move_seq):
-			if move[1] == SAMSUNG_SELECT:
-				for i in range(idx, 0, -1):
-					thing = get_possible(move_seq[i], standard, pos_temp[pos_idx])
-					regex_temp[pos_idx][i-1] = thing[0]
-					pos_temp[pos_idx] = thing[1]
-		for idx,expression in enumerate(regex[pos_idx]):
-			if regex_temp[pos_idx][idx] != '':
-				if len(regex_temp[pos_idx][idx])<len(expression):
-					regex[pos_idx][idx] = regex_temp[pos_idx][idx]
+	# regex_temp = [['' for j in i] for i in regex]
+	# pos_temp = [[1] for i in moves]
+	# num_select = 0
+	# for pos_idx, move_seq in enumerate(moves):
+	# 	for idx, move in enumerate(move_seq):
+	# 		# print('idx: ', idx)
+	# 		if move[1] == SAMSUNG_SELECT:
+	# 			for i in range(idx, 0, -1):
+	# 				if move_seq[i][1] == SAMSUNG_SELECT:
+	# 					continue
+	# 				thing = get_possible(move_seq[i], standard, pos_temp[pos_idx])
+	# 				regex_temp[pos_idx][i-1-num_select] = thing[0]
+	# 				pos_temp[pos_idx] = thing[1]
+	# 			num_select+=1
+	# 	for idx,expression in enumerate(regex[pos_idx]):
+	# 		if regex_temp[pos_idx][idx] != '':
+	# 			if len(regex_temp[pos_idx][idx])<len(expression):
+	# 				regex[pos_idx][idx] = regex_temp[pos_idx][idx]
+	# print(regex)
 	return regex
 
 
@@ -194,7 +262,7 @@ def get_selects(moves):
 			#print('1')
 	for L in range(0, len(with_select)+1):
 	    for subset in itertools.combinations(with_select, L):
-	        print(subset)
+	        # print(subset)
 	        output.append(subset)
 	return output
 
