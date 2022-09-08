@@ -97,6 +97,7 @@ if __name__ == "__main__":
     parser.add_argument("--results-path", type=str, required=False)
     parser.add_argument("--text-path-rockyou", type=str, required=False) #rockyou.txt
     parser.add_argument("--ms-path-rockyou", type=str, required=False) #rockyou dict
+    parser.add_argument("--ms-path-phpbb", type=str, required=False) #rockyou dict
     parser.add_argument("--msfd-path", type=str, required=False) #msfd pkl.gz
 
     args = parser.parse_args()
@@ -119,11 +120,22 @@ if __name__ == "__main__":
         rockyouDictionary = NgramDictionary()
         rockyouDictionary.build(args.ms_path_rockyou, 0, False)
         save_pickle_gz(rockyouDictionary, "suggestions_model/local/rockyou_d.pkl.gz")
+    if args.ms_path_phpbb is None:
+        args.ms_path_phpbb = "suggestions_model/local/phpbb_d.pkl.gz"
+        phpbbDictionary = read_pickle_gz(args.ms_path_phpbb)
+    elif args.ms_path_phpbb == "build":
+        args.ms_path_phpbb = "suggestions_model/local/phpbb.txt"
+        phpbbDictionary = NgramDictionary()
+        phpbbDictionary.build(args.ms_path_phpbb, 0, False)
+        save_pickle_gz(phpbbDictionary, "suggestions_model/local/phpbb_d.pkl.gz")
     if args.text_path_rockyou is None:
         args.text_path_rockyou = "suggestions_model/local/ms_dict_rockyou.pkl.gz"
 
     if args.msfd_path is None:
         args.msfd_path = "suggestions_model/local/msfd.pkl.gz"
+        msfd = build_msfd(args.msfd_path)
+    elif args.msfd_path == "exp":
+        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
         msfd = build_msfd(args.msfd_path)
 
     # Tests
@@ -136,17 +148,21 @@ if __name__ == "__main__":
 
     if test == 4:
         max_num_results = 100
-        take = 0
+        take_english = 1
+        take_rockyou = 1
+        take_phpbb = 1001
         dictionary = englishDictionary
         print("building test dicts")
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take)
-        ms_dict_non_test = build_ms_dict(args.ms_path_non, take)
-        ms_dict_rockyou = build_ms_dict(args.text_path_rockyou, 100, 500)
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take_english)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non, take_english)
+        ms_dict_rockyou = build_ms_dict(args.text_path_rockyou, take_rockyou, 500)
+        ms_dict_phpbb = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", take_phpbb)
         print("test dicts built")
         ac = .26
         nc = .32
 
         # ranks, candidates
+        # "vqsablpzla"
         results = {}
         for s in [3, 2]:
             print("testing suggestions: " + suggestion_from_id(s))
@@ -174,6 +190,15 @@ if __name__ == "__main__":
                     key, val, model, sug[2], rockyouDictionary, max_num_results,
                     msfd, auto_cutoff=ac, non_cutoff=nc)
                 results[s][(key, "rockyou")] = (rank, candidates)
+            print("testing phpbbs")
+            for key, val in ms_dict_phpbb.items():
+                if key.lower() in ["vqsablpzla", "gznybxyj"]:
+                    continue
+                print(key)
+                rank, candidates = recover_string(
+                    key, val, model, sug[2], phpbbDictionary, max_num_results,
+                    msfd, auto_cutoff=ac, non_cutoff=nc)
+                results[s][(key, "phpbb")] = (rank, candidates)
 
         lines = {}
         for s, rd in results.items():
@@ -204,17 +229,17 @@ if __name__ == "__main__":
                 all_lines = []
                 all_lines.append("ac: " + str(ac) + ", nc: " + str(nc) + "\n")
                 all_lines.append("max_num_results: " + str(max_num_results) + "\n")
-                all_lines.append("words tested: " + str(310) + "\n\n")
+                all_lines.append("words tested: " + str(take_english*2 + take_rockyou + take_phpbb) + "\n\n")
                 all_lines += [l for ls in lines.values() for l in ls]
                 f.writelines(all_lines)
                 f.close()
 
 
     if test == 3:
-        max_num_results = 50
+        max_num_results = 100
         dictionary = rockyouDictionary
         print("building test dicts")
-        ms_dict_rockyou = build_ms_dict(args.text_path_rockyou, 100, 500)
+        ms_dict_rockyou = build_ms_dict(args.text_path_rockyou, 2000, 500)
         print("test dicts built")
         print(len(ms_dict_rockyou.keys()))
         ac = .26

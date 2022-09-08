@@ -21,6 +21,22 @@ def make_msfd(path : str) -> Dict[str, Tuple[str, float]]:
 
     return d
 
+def save_msfd_exp(msfd, rockyou_dict : Dict[str, List[int]]) -> Dict[str, Tuple[str, float]]:
+    """constructs expanded msfd"""
+    d = {}
+
+    for key, val in rockyou_dict.items():
+        ms_string = ""
+        for i in val:
+            ms_string += str(i) + ","
+        d[ms_string] = (key, .01)
+    for key, val in msfd.items():
+        d[key] = val
+
+    print(len(d.items()))
+    save_pickle_gz(d, "suggestions_model/msfd_exp.pkl.gz")
+    return d
+
 def save_msfd(input_path : str, save_path : str):
     """todo"""
     msfd = make_msfd(input_path)
@@ -285,7 +301,7 @@ def build_ms_dict(path : str, take : int = 0, passover : int = 0) -> Dict[str, L
             if passover > 0:
                 passover -= 1
                 continue
-            
+
             ms_dict[key] = base[key]
             take -= 1
             if take == 0:
@@ -332,7 +348,7 @@ def build_rockyou_ms_dict(path, count, passover : int = 0):
 
             path = []
             kb = MultiKeyboardGraph(KeyboardType.SAMSUNG)
-            line = line.replace("\n", "").replace(" ", "").replace(";", "")
+            line = line.replace("\n", "").replace(" ", "").replace(";", "").replace("_", "").replace("`", "")
             print(line)
             for m in findPath(line, False, False, False, False,
                             0, 0, 0, kb):
@@ -341,6 +357,9 @@ def build_rockyou_ms_dict(path, count, passover : int = 0):
             i += 1
             if i >= count:
                 break
+            if i % 1000 == 0:
+                print("i: " + str(i))
+                print("\n\n\n")
     return rockyou_ms_dict
 
 if __name__ == "__main__":
@@ -348,31 +367,68 @@ if __name__ == "__main__":
     parser.add_argument("--msfd-path", type=str, required=False)
     args = parser.parse_args()
 
-    save = 1
-    if save == 1:
-        print("saving")
-        #save_msfd()
-        #save_ms_dict("suggestions_model/local/ms_dict")
-        #ms_dict_rockyou = build_rockyou_ms_dict("suggestions_model/local/rockyou.txt", 3000, 500)
-        #save_pickle_gz(ms_dict_rockyou, "suggestions_model/local/ms_dict_rockyou.pkl.gz")
-    
-    else:
-        i = 0
-        msfd = build_msfd(args.msfd_path)
-        for key in msfd:
-            print(key)
-            i += 1
-            if i > 10:
+    test = 3
+
+    if test == 3:
+
+        print("building phpbb ms dict")
+        ms_dict_pphpbb = build_rockyou_ms_dict("suggestions_model/local/phpbb.txt", 10000)
+        print("built")
+        save_pickle_gz(ms_dict_pphpbb, "suggestions_model/local/ms_dict_phpbb.pkl.gz")
+        print(len(ms_dict_pphpbb.items()))
+
+
+    if test == 2:
+        msfd = build_msfd("suggestions_model/msfd_exp.pkl.gz")
+        print(len(msfd.items()))
+        i = 10
+        for key, val in msfd.items():
+            if i < 0:
                 break
+            i -= 1
+            print(key)
+            print(val)
 
-        print(get_word_from_ms([3, 5, 4], msfd)[0])
-        print(float(get_word_from_ms([3, 5, 4], msfd)[1]))
-        print(get_word_from_ms([6, 5, 1], msfd))
-        print(get_word_from_ms([3, 5, 4, 1, 3], msfd))
-        print(get_word_from_ms([1, 1, 1, 1], msfd))
 
-        print("\n")
-        print(get_word_from_ms([2, 1, 0, 0], msfd))
-        print(get_word_from_ms([2, 8, 4, 6], msfd))
-        print(get_word_from_ms([2, 3, 4, 6, 1, 5, 3], msfd))
+
+    if test == 1:
+        msfd = build_msfd("suggestions_model/local/msfd.pkl.gz")
+        print(len(msfd.items()))
+        print("building ry dict")
+        ms_dict_rockyou = build_rockyou_ms_dict("suggestions_model/local/rockyou.txt", 75000)
+        print("build")
+        print(len(ms_dict_rockyou.items()))
+        d = save_msfd_exp(msfd, ms_dict_rockyou)
+        print(len(d.items()))
+
+
+    if test == 0:
+
+        save = 0
+        if save == 1:
+            print("saving")
+            #save_msfd()
+            #save_ms_dict("suggestions_model/local/ms_dict")
+            #ms_dict_rockyou = build_rockyou_ms_dict("suggestions_model/local/rockyou.txt", 3000, 500)
+            #save_pickle_gz(ms_dict_rockyou, "suggestions_model/local/ms_dict_rockyou.pkl.gz")
         
+        else:
+            i = 0
+            msfd = build_msfd(args.msfd_path)
+            for key in msfd:
+                print(key)
+                i += 1
+                if i > 10:
+                    break
+
+            print(get_word_from_ms([3, 5, 4], msfd)[0])
+            print(float(get_word_from_ms([3, 5, 4], msfd)[1]))
+            print(get_word_from_ms([6, 5, 1], msfd))
+            print(get_word_from_ms([3, 5, 4, 1, 3], msfd))
+            print(get_word_from_ms([1, 1, 1, 1], msfd))
+
+            print("\n")
+            print(get_word_from_ms([2, 1, 0, 0], msfd))
+            print(get_word_from_ms([2, 8, 4, 6], msfd))
+            print(get_word_from_ms([2, 3, 4, 6, 1, 5, 3], msfd))
+            
