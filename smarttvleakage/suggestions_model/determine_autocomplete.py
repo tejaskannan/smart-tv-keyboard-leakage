@@ -54,15 +54,10 @@ def moves_to_hist_dist(moves : List[int], bins : List[int], weighted : int) -> D
         else:
             hist[bins[len(bins) - 1]] += weight
 
-    if weighted == 0:
-        for bin in bins:
-            hist[bin] = hist[bin] / len(moves)
-    elif weighted == 1:
-        for bin in bins:
-            hist[bin] = hist[bin] / max(1, sum(bins))
-    elif weighted == 4:
-        for bin in bins:
-            hist[bin] = hist[bin] / max(1, sum(bins))
+    if weighted in [0, 1, 4]:
+        norm = sum([hist[b] for b in bins])
+        for b in bins:
+            hist[b] = hist[b] / max(1, norm)
     return hist
 
 def hist_to_list(hist : Dict[int, int], bins : int) -> List[int]:
@@ -210,16 +205,16 @@ def classify_ms_with_msfd(model, msfd,
 
     pred_probas = model.predict_proba(df)[0]
     if pred_probas[0] >= 1-non_cutoff:
-        return (0, pred_probas[0], -1, -1)
+        return (0, pred_probas[0], -1, pred_probas[0])
     if pred_probas[1] > 1-auto_cutoff:
-        return (1, pred_probas[1], -1, -1)
+        return (1, pred_probas[1], -1, pred_probas[1])
 
     # go into manual scoring, use strategy = 2!
     manual_score = get_score_from_ms(ms, 2, msfd)[0][1]
     combined_score = combine_confidences(pred_probas[0], manual_score, manual_cutoff)
     if combined_score > .5:
         return (0, pred_probas[0], normalize_manual_score(manual_score), combined_score)
-    return (1, pred_probas[1], normalize_manual_score(manual_score), combined_score)
+    return (1, pred_probas[1], normalize_manual_score(manual_score), 1-combined_score)
 
 
 if __name__ == "__main__":
@@ -245,7 +240,7 @@ if __name__ == "__main__":
 
     if args.ms_path_non is None:
         args.ms_path_non = "suggestions_model/local/ms_dict_non.pkl.gz"
-        ms_dict_non = build_ms_dict(args.ms_path_auto)
+        ms_dict_non = build_ms_dict(args.ms_path_non)
 
     if args.ms_path_rockyou is None:
         args.ms_path_rockyou = "suggestions_model/local/ms_dict_rockyou.pkl.gz"
@@ -254,8 +249,16 @@ if __name__ == "__main__":
         ms_dict_rockyou = build_ms_dict("suggestions_model/local/ms_dict_rockyou.pkl.gz")
 
     if args.msfd_path is None:
-        args.msfd_path = "suggestions_model/local/msfd.pkl.gz"
+        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
         msfd = build_msfd(args.msfd_path)
+    elif args.msfd_path == "base":
+        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
+        msfd = build_msfd(args.msfd_path)
+    elif args.msfd_path == "both":
+        args.msfd_path = "suggestions_model/local/msfd.pkl.gz"
+        msfd_base = build_msfd(args.msfd_path)
+        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
+        msfd_exp = build_msfd(args.msfd_path)
 
     if args.ed_path is None:
         englishDictionary = EnglishDictionary.restore(
@@ -285,7 +288,71 @@ if __name__ == "__main__":
     # 7 - test loaded model with 3 class breakdown
     # 8 - test a move sequence with a model
     # 9 - find best cutoffs
-    test = 9
+    # 10 - test msfd vs exp
+    test = 10
+
+    #msfd: all: 353, phpbb: 344
+    #exp: all: 266, phpbb: 258
+    if test == 10:
+        print("test 10")
+        model = read_pickle_gz(args.model_path)
+        print("building test dicts")
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 500)
+        print("test dicts built")
+
+        ac = .26
+        nc = .32
+        results = {}
+        ds = ["msfd", "exp"]
+        for d in ds:
+            results[d] = []
+            if d == "msfd":
+                msfd = msfd_base
+            else:
+                msfd = msfd_exp
+
+            print("classifying autos")
+            for key, val in ms_dict_auto_test.items():
+                pred = classify_ms_with_msfd(
+                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 0:
+                    results[d].append((key, "auto"))
+            print("classifying nons")
+            for key, val in ms_dict_non_test.items():
+                pred = classify_ms_with_msfd(
+                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[d].append((key, "non"))
+            print("classifying rockyous")
+            for key, val in ms_dict_rockyou_test.items():
+                pred = classify_ms_with_msfd(
+                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[d].append((key, "rockyou"))
+            print("classifying phpbbs")
+            for key, val in ms_dict_phpbb_test.items():
+                pred = classify_ms_with_msfd(
+                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[d].append((key, "phpbb"))
+            print("classified")
+
+        for d in ds:
+            print(d)
+            for word, ty in results[d]:
+                print(word + ", " + ty)
+        for d in ds:
+            print(d)
+            print("all: ", end="")
+            print(len(results[d]))
+            phpbb_list = list(filter(lambda x : x[1] == "phpbb", results[d]))
+            print("phpbb: ", end="")
+            print(len(phpbb_list))
+
+
 
     if test == 9:
         print("test 9")
@@ -361,7 +428,7 @@ if __name__ == "__main__":
             print(proba)
         elif args.classify == "msfd":
             clas, conf, manual, combined = classify_ms_with_msfd(
-                model, msfd, ms, auto_cutoff=.3, non_cutoff=.3)
+                model, msfd, ms, auto_cutoff=.32, non_cutoff=.26, weight=1)
             print(clas)
             print(conf)
             print(manual)
