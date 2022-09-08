@@ -2,6 +2,7 @@ import os.path
 import numpy as np
 import matplotlib.pyplot as plt
 import moviepy.editor as mp
+from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
 from enum import Enum, auto
 from scipy.signal import spectrogram, find_peaks, convolve
@@ -17,7 +18,7 @@ from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLE
 
 
 MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
-SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold'])
+SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold', 'match_buffer'])
 Move = namedtuple('Move', ['num_moves', 'end_sound', 'directions'])
 
 
@@ -60,7 +61,7 @@ def extract_move_directions(move_times: List[int]) -> Union[List[Direction], Dir
 
     if (time_diffs[-1] < cutoff) and (time_diffs[-2] >= cutoff and time_diffs[-2] < CHANGE_DIR_MAX_THRESHOLD):
         directions = [Direction.HORIZONTAL for _ in range(len(move_times) - 2)]
-        directions.extend([Direction.VERTICAL, Direction.VERTICAL])
+        directions.extend([Direction.VERTICAL, Direction.ANY])
         return directions
 
     return Direction.ANY
@@ -183,7 +184,8 @@ class MoveExtractor:
                 profile = SoundProfile(channel0=channel0_clipped,
                                        channel1=channel1_clipped,
                                        match_params=match_params,
-                                       match_threshold=config[sound]['match_threshold'])
+                                       match_threshold=config[sound]['match_threshold'],
+                                       match_buffer=config[sound]['match_buffer'])
                 self._known_sounds[sound].append(profile)
 
     def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
@@ -251,17 +253,18 @@ class MoveExtractor:
         else:
             distance = MIN_DISTANCE
 
-
         peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
+        avg_height = np.average(peak_heights)
+        std_height = np.std(peak_heights)
+        max_height = np.max(peak_heights) if len(peak_heights) > 0 else 0.0
 
-       # avg = np.average(peak_heights)
-       # std = np.std(peak_heights)
+        adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, 0.5 * (max_height - threshold) + threshold)
 
-        #if (self._tv_type == SmartTVType.SAMSUNG) and (sound == SAMSUNG_SELECT):
-        #    median = np.median(peak_heights)
-        #    iqr = np.percentile(peak_heights, 75) - np.percentile(peak_heights, 25)
-        #    print('Threshold: {}, Med: {}, IQR: {}'.format(median + 3 * iqr, median, iqr))
+        #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Max Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
+
+        peaks, peak_properties = find_peaks(x=similarity, height=adaptive_threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
+        peak_heights = peak_properties['peak_heights']
 
         # Filter out duplicate double moves
         if (sound == SAMSUNG_DOUBLE_MOVE) and (len(peaks) > 0):
@@ -400,6 +403,9 @@ class SamsungMoveExtractor(MoveExtractor):
             window_move_times.append(clipped_move_times[move_idx])
 
             if (double_move_idx < len(clipped_double_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
+                last_move_time = window_move_times[-1] if len(window_move_times) > 0 else 0
+                window_move_times.append(last_move_time)  # Account for the double move
+
                 move_idx += 1
                 while (move_idx < len(clipped_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= MIN_DOUBLE_MOVE_DISTANCE):
                     move_idx += 1
@@ -459,7 +465,7 @@ class AppleTVMoveExtractor(MoveExtractor):
 
         # Signals without any key selections do not interact with the keyboard
         if len(keyboard_select_times) == 0:
-            return [], False
+            return [], False, KeyboardType.APPLE_TV_SEARCH
 
         # Get occurances of the other sounds
         raw_keyboard_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_MOVE)
@@ -525,6 +531,9 @@ class AppleTVMoveExtractor(MoveExtractor):
             window_move_times.append(keyboard_move_times[move_idx])
 
             if (double_move_idx < len(keyboard_double_move_times)) and (move_idx < (len(keyboard_move_times) - 1)) and (keyboard_double_move_times[double_move_idx] > keyboard_move_times[move_idx]) and (keyboard_double_move_times[double_move_idx] < keyboard_move_times[move_idx + 1]):
+                last_move_time = window_move_times[-1] if len(window_move_times) > 0 else 0
+                window_move_times.append(last_move_time)
+
                 double_move_idx += 1
                 num_moves += 2
 
@@ -556,23 +565,27 @@ class AppleTVMoveExtractor(MoveExtractor):
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/samsung/credit_cards/mastercard1.MOV')
+    parser = ArgumentParser()
+    parser.add_argument('--video-file', type=str, required=True)
+    args = parser.parse_args()
+
+    video_clip = mp.VideoFileClip(args.video_file)
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_MOVE
+    sound = APPLETV_KEYBOARD_SELECT
 
-    extractor = SamsungMoveExtractor()
+    extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
     move_seq, did_use_autocomplete, keyboard_type = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=True)
-    print('Move Sequence: {}'.format(move_seq))
+    print('Move Sequence: {}'.format(list(map(lambda m: m.num_moves, move_seq))))
     print('Did use autocomplete: {}'.format(did_use_autocomplete))
     print('Keyboard type: {}'.format(keyboard_type.name))
 
     for idx, move in enumerate(move_seq):
-        print('Move {}: {}'.format(idx, move.directions))
+        print('Move {}: {} ({})'.format(idx, move.directions, move.end_sound))
 
     fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 

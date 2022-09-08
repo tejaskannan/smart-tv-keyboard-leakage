@@ -114,27 +114,27 @@ def get_digits_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, 
 
         move_candidates: List[CandidateMove] = [CandidateMove(num_moves=num_moves, adjustment=1.0, increment=1)]
 
-        if num_moves > 2:
-            candidate_num_moves = num_moves - 1
+        #if num_moves > 2:
+        #    candidate_num_moves = num_moves - 1
 
-            for num_mistakes in range(1, MISTAKE_LIMIT + 1):
-                adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                            num_moves=num_moves,
-                                                            num_mistakes=num_mistakes)
+        #    for num_mistakes in range(1, MISTAKE_LIMIT + 1):
+        #        adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
+        #                                                    num_moves=num_moves,
+        #                                                    num_mistakes=num_mistakes)
 
-                candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
-                move_candidates.append(candidate_move)
+        #        candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
+        #        move_candidates.append(candidate_move)
 
-                candidate_num_moves -= 1
+        #        candidate_num_moves -= 1
 
-            # Include one more in case we messed up the audio extraction (e.g., on double moves)
-            candidate_num_moves = num_moves + 1
-            adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
-                                                        num_moves=candidate_num_moves,
-                                                        num_mistakes=1)
+        #    # Include one more in case we messed up the audio extraction (e.g., on double moves)
+        #    candidate_num_moves = num_moves + 1
+        #    adjustment = mistake_model.get_mistake_prob(move_num=move_idx,
+        #                                                num_moves=candidate_num_moves,
+        #                                                num_mistakes=1)
 
-            candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
-            move_candidates.append(candidate_move)
+        #    candidate_move = CandidateMove(num_moves=candidate_num_moves, adjustment=adjustment, increment=1)
+        #    move_candidates.append(candidate_move)
 
         # Get the counts for the next keys
         next_key_counts = dictionary.get_letter_counts(prefix=current_string,
