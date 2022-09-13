@@ -37,6 +37,7 @@ def save_msfd_exp(msfd, rockyou_dict : Dict[str, List[int]]) -> Dict[str, Tuple[
     save_pickle_gz(d, "suggestions_model/msfd_exp.pkl.gz")
     return d
 
+
 def save_msfd(input_path : str, save_path : str):
     """todo"""
     msfd = make_msfd(input_path)

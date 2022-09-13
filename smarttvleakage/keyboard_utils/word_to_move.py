@@ -104,7 +104,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
                 prev = changer
                 linked_state = keyboard.get_linked_states(on_key, original_mode)
 
-                if len(linked_state) < counter:
+                if len(linked_state) <= counter:
                     break
 
                 mode = linked_state[counter][1]

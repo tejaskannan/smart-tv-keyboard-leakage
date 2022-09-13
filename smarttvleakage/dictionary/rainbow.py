@@ -12,6 +12,7 @@ RainbowEntry = namedtuple('RainbowEntry', ['word', 'score'])
 QUERY_WITHOUT_LIMIT = 'SELECT password, score FROM passwords WHERE seq=:seq'
 QUERY_WITH_LIMIT = 'SELECT password, score FROM passwords WHERE seq=:seq ORDER BY score ASC LIMIT :limit'
 
+QUERY_REVERSE = 'SELECT seq, score FROM passwords WHERE password=:password'
 
 class PasswordRainbow:
 
@@ -28,4 +29,13 @@ class PasswordRainbow:
             query = self._cursor.execute(QUERY_WITH_LIMIT, {'seq': move_vector, 'limit': max_num_results})
 
         query_result = query.fetchall()
-        return list(sorted(map(lambda t: RainbowEntry(word=t[0], score=t[1]), query_result), key=lambda t: t.score))
+        return list(sorted(map(lambda t: RainbowEntry(word=t[0], score=t[1]), query_result), key=lambda t: t.score, reverse=True))
+
+    def get_seq_for_string(self, password: str, tv_type: SmartTVType) -> List[RainbowEntry]:
+
+        query = self._cursor.execute(QUERY_REVERSE, {'password': password})
+        query_results = query.fetchall()
+        #out = []
+        #for seq, score in query_results:
+        #    moves = 
+        return query_results

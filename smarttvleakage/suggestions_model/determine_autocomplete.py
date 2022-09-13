@@ -16,10 +16,15 @@ from smarttvleakage.utils.file_utils import read_pickle_gz, save_pickle_gz
 
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.utils.constants import KeyboardType
+from smarttvleakage.utils.constants import KeyboardType, SmartTVType, Direction
 
-from smarttvleakage.suggestions_model.msfd_math import combine_confidences, normalize_manual_score
+from smarttvleakage.suggestions_model.msfd_math import combine_confidences, normalize_msfd_score
 
+from smarttvleakage.dictionary.rainbow import PasswordRainbow
+from smarttvleakage.audio.move_extractor import Move
+from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+
+from smarttvleakage.dictionary.dictionaries import NgramDictionary
 
 
 
@@ -191,8 +196,6 @@ def classify_ms_with_msfd(model, msfd,
     """Classifies a move sequence using ML and algorithmic method,
     returns class, ML confidence, manual score, combined score"""
 
-    manual_cutoff = 0.00067
-
     data = np.empty((0, bins), dtype=float)
     list_dist = make_row_dist(ms, range(bins), weight)
     new_row = np.array(list_dist, dtype=float)
@@ -211,10 +214,49 @@ def classify_ms_with_msfd(model, msfd,
 
     # go into manual scoring, use strategy = 2!
     manual_score = get_score_from_ms(ms, 2, msfd)[0][1]
-    combined_score = combine_confidences(pred_probas[0], manual_score, manual_cutoff)
+    combined_score, normalized_manual_score = combine_confidences(pred_probas[0], manual_score, 0)
     if combined_score > .5:
-        return (0, pred_probas[0], normalize_manual_score(manual_score), combined_score)
-    return (1, pred_probas[1], normalize_manual_score(manual_score), 1-combined_score)
+        return (0, pred_probas[0], normalized_manual_score, combined_score)
+    return (1, pred_probas[1], normalized_manual_score, 1-combined_score)
+
+def classify_ms_with_msfd_full(model, msfd, db,
+                ms : List[int],
+                bins : int = 3, weight : int = 3, peak : float = 30,
+                auto_cutoff : float = .5, non_cutoff : float = .5) -> Tuple[int, float, float, float]:
+    """Classifies a move sequence using ML and algorithmic method,
+    returns class, ML confidence, manual score, combined score"""
+
+    data = np.empty((0, bins), dtype=float)
+    list_dist = make_row_dist(ms, range(bins), weight)
+    new_row = np.array(list_dist, dtype=float)
+    data = np.append(data, [new_row], axis=0)
+
+    column_titles = make_column_titles_dist(range(bins))
+    df = pd.DataFrame(data = data, columns = column_titles)
+
+    # now predict from the dataframe, and then add manual
+
+    pred_probas = model.predict_proba(df)[0]
+    if pred_probas[0] >= 1-non_cutoff:
+        return (0, pred_probas[0], -1, pred_probas[0])
+    if pred_probas[1] > 1-auto_cutoff:
+        return (1, pred_probas[1], -1, pred_probas[1])
+
+    # go into manual scoring, use strategy = 2!
+    manual_score_msfd = get_score_from_ms(ms, 2, msfd)[0][1]
+
+    moves = [Move(num_moves=num_moves, directions=Direction.ANY,
+                    end_sound=SAMSUNG_KEY_SELECT) for num_moves in ms]
+    db_strings = db.get_strings_for_seq(moves, SmartTVType.SAMSUNG, max_num_results=None)
+    if db_strings == []:
+        manual_score_db = 0
+    else:
+        manual_score_db = db_strings[0][1]
+
+    combined_score, normalized_manual_score = combine_confidences(pred_probas[0], manual_score_msfd, manual_score_db, peak=peak)
+    if combined_score > .5:
+        return (0, pred_probas[0], normalized_manual_score, combined_score)
+    return (1, pred_probas[1], normalized_manual_score, 1-combined_score)
 
 
 if __name__ == "__main__":
@@ -268,6 +310,8 @@ if __name__ == "__main__":
         englishDictionary.build(
             "suggestions_model/local/dictionaries/enwiki-20210820-words-frequency.txt", 50, True)
         englishDictionary.save("suggestions_model/local/dictionaries/ed.pkl.gz")
+    elif args.ed_path == "ry":
+        rockyouDictionary = NgramDictionary.restore("suggestions_model/local/rockyou_d.pkl.gz")
     elif args.ed_path != "skip":
         englishDictionary = EnglishDictionary.restore(args.ed_path)
 
@@ -289,7 +333,212 @@ if __name__ == "__main__":
     # 8 - test a move sequence with a model
     # 9 - find best cutoffs
     # 10 - test msfd vs exp
-    test = 10
+    # 11 - sql test
+    # 12 - test msfd vs exp vs sql
+    test = 13
+
+    if test == 13:
+        print("test 13")
+        
+        model = read_pickle_gz(args.model_path)
+        print("building test dicts")
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 500, 500)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 500)
+        print("test dicts built")
+        db_path = "rockyou-samsung.db"
+        db = PasswordRainbow(db_path)
+
+        ac = .26
+        nc = .32
+        results = {}
+        peaks = [15, 20, 25, 30, 35, 40, 45]
+        total = len(
+            ms_dict_auto_test.items()) + len(
+            ms_dict_non_test.items()) + len(
+            ms_dict_rockyou_test.items()) + len(
+            ms_dict_phpbb_test.items())
+        for peak in peaks:
+            results[peak] = []
+            msfd = msfd_base
+
+            print("classifying autos")
+            for key, val in ms_dict_auto_test.items():
+                pred = classify_ms_with_msfd_full(model, msfd, db,
+                    val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 0:
+                    results[peak].append((key, "auto"))
+            print("classifying nons")
+            for key, val in ms_dict_non_test.items():
+                pred = classify_ms_with_msfd_full(model, msfd, db,
+                    val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[peak].append((key, "non"))
+            print("classifying rockyous")
+            for key, val in ms_dict_rockyou_test.items():
+                pred = classify_ms_with_msfd_full(model, msfd, db,
+                    val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[peak].append((key, "rockyou"))
+            print("classifying phpbbs")
+            for key, val in ms_dict_phpbb_test.items():
+                pred = classify_ms_with_msfd_full(model, msfd, db,
+                    val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[peak].append((key, "phpbb"))
+            #print("classified")
+
+
+        for peak in peaks:
+            non_list = list(filter(lambda x : x[1] == "non", results[peak]))
+            non_acc = 1-len(non_list)/len(ms_dict_non_test.items())
+            auto_list = list(filter(lambda x : x[1] == "auto", results[peak]))
+            auto_acc = 1-len(auto_list)/len(ms_dict_auto_test.items())
+            rockyou_list = list(filter(lambda x : x[1] == "rockyou", results[peak]))
+            rockyou_acc = 1-len(rockyou_list)/len(ms_dict_rockyou_test.items())
+            phpbb_list = list(filter(lambda x : x[1] == "phpbb", results[peak]))
+            phpbb_acc = 1-len(phpbb_list)/len(ms_dict_phpbb_test.items())
+
+            print("(peak = " + str(peak) + ") ", end="")
+            print("weighted all: ", end="")
+            acc = 0
+            acc += non_acc * (len(ms_dict_non_test.items())/total)
+            acc += auto_acc * (len(ms_dict_auto_test.items())/total)
+            acc += rockyou_acc * (len(ms_dict_rockyou_test.items())/total)
+            acc += phpbb_acc * (len(ms_dict_phpbb_test.items())/total)
+            print(acc, end="| ")
+
+            print("non: ", end="")
+            print(non_acc, end="; ")
+            print("auto: ", end="")
+            print(auto_acc, end="; ")
+            print("rockyou: ", end="")
+            print(rockyou_acc, end="; ")
+            print("phpbb: ", end="")
+            print(phpbb_acc)
+
+
+
+    if test == 12:
+        print("test 12")
+        
+        model = read_pickle_gz(args.model_path)
+        print("building test dicts")
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 1000, 500)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 1000)
+        print("test dicts built")
+        db_path = "rockyou-samsung.db"
+        db = PasswordRainbow(db_path)
+
+        ac = .26
+        nc = .32
+        results = {}
+        ds = ["base", "exp", "sql"]
+        for d in ds:
+            results[d] = []
+            if d == "exp":
+                msfd = msfd_exp
+            else:
+                msfd = msfd_base
+
+            print("classifying autos")
+            for key, val in ms_dict_auto_test.items():
+                if d == "sql":
+                    pred = classify_ms_with_msfd_full(model, msfd, db,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                else:
+                    pred = classify_ms_with_msfd(model, msfd,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 0:
+                    results[d].append((key, "auto"))
+            print("classifying nons")
+            for key, val in ms_dict_non_test.items():
+                if d == "sql":
+                    pred = classify_ms_with_msfd_full(model, msfd, db,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                else:
+                    pred = classify_ms_with_msfd(model, msfd,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[d].append((key, "non"))
+            print("classifying rockyous")
+            for key, val in ms_dict_rockyou_test.items():
+                if d == "sql":
+                    pred = classify_ms_with_msfd_full(model, msfd, db,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                else:
+                    pred = classify_ms_with_msfd(model, msfd,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[d].append((key, "rockyou"))
+            print("classifying phpbbs")
+            for key, val in ms_dict_phpbb_test.items():
+                if d == "sql":
+                    pred = classify_ms_with_msfd_full(model, msfd, db,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                else:
+                    pred = classify_ms_with_msfd(model, msfd,
+                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
+                if pred == 1:
+                    results[d].append((key, "phpbb"))
+            #print("classified")
+
+
+        for d in ds:
+            print(d)
+            print("all: ", end="")
+            print(len(results[d]), end="| ")
+            non_list = list(filter(lambda x : x[1] == "non", results[d]))
+            auto_list = list(filter(lambda x : x[1] == "auto", results[d]))
+            rockyou_list = list(filter(lambda x : x[1] == "rockyou", results[d]))
+            phpbb_list = list(filter(lambda x : x[1] == "phpbb", results[d]))
+            print("non: ", end="")
+            print(len(non_list), end="; ")
+            print("auto: ", end="")
+            print(len(auto_list), end="; ")
+            print("rockyou: ", end="")
+            print(len(rockyou_list), end="; ")
+            print("phpbb: ", end="")
+            print(len(phpbb_list))
+
+
+
+
+    if test == 11:
+        print("test 11")
+        #model = read_pickle_gz(args.model_path)
+        db_path = "rockyou-samsung.db"
+        db = PasswordRainbow(db_path)
+        ms = args.move_sequence
+        print(ms)
+
+        moves = [Move(num_moves=num_moves, directions=Direction.ANY,
+                    end_sound=SAMSUNG_KEY_SELECT) for num_moves in ms]
+        print(moves)
+
+        print("test without")
+        db_strings = db.get_strings_for_seq(moves, tv_type=SmartTVType.SAMSUNG, max_num_results=None)
+        print(db_strings)
+
+
+        print("\n\ntest reverse")
+        db_output = db.get_seq_for_string("12345", tv_type=SmartTVType.SAMSUNG)
+        print(db_output)
+
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 1000)
+        scores = []
+        for ms in ms_dict_rockyou_test.values():
+            moves = [Move(num_moves=num_moves, directions=Direction.ANY,
+                    end_sound=SAMSUNG_KEY_SELECT) for num_moves in ms]
+            scores.append(db.get_strings_for_seq(moves, tv_type=SmartTVType.SAMSUNG, max_num_results=None)[0][1])
+        scores.sort(key=lambda x : x, reverse=True)
+        print(scores[0]) # top score from 1000 - 29.5
+        scores.sort(key=lambda x : x, reverse=False)
+        print(scores[0]) # 13.47
+        # For now, just divide by 30?
 
     #msfd: all: 353, phpbb: 344
     #exp: all: 266, phpbb: 258
