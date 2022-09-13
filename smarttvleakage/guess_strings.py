@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Tuple, List, Dict
 
 from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVTypeClassifier
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.dictionary import restore_dictionary, NumericDictionary
 from smarttvleakage.search_without_autocomplete import get_words_from_moves
 from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions, apply_autocomplete
@@ -77,22 +77,24 @@ if __name__ == '__main__':
 
         # Extract the move sequence
         move_extractor = make_move_extractor(tv_type=tv_type)
-        move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal, include_moves_to_done=is_numeric)
+        move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=signal, include_moves_to_done=True)
 
         # Make the graph based on the keyboard type
         graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
+        start_key = START_KEYS[graph.get_start_keyboard_mode()]
 
         # Set the dictionary characters
         dictionary.set_characters(graph.get_characters())
 
         # Detect whether this sequence came from a keyboard with inline suggestions
         move_sequence_vals = list(map(lambda m: m.num_moves, move_sequence))
+        print(move_sequence_vals)
         #use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
         if args.suggestions is None:
             use_suggestions = False
-        elif args.suggestions == "use":
+        elif args.suggestions == 'use':
             use_suggestions = True
-        elif args.suggestions == "predict":
+        elif args.suggestions == 'predict':
             use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_sequence_vals) == 1)
         else:
             use_suggestions = False
@@ -102,7 +104,10 @@ if __name__ == '__main__':
                                                       graph=graph,
                                                       dictionary=dictionary,
                                                       tv_type=tv_type,
-                                                      max_num_results=args.max_num_results)
+                                                      max_num_results=args.max_num_results,
+                                                      is_searching_reverse=False,
+                                                      start_key=start_key,
+                                                      includes_done=True)
         elif use_suggestions:
             max_num_results = args.max_num_results if (not did_use_autocomplete) else AUTOCOMPLETE_PREFIX_COUNT
             ranked_candidates = get_words_from_moves_suggestions(move_sequence=move_sequence,
@@ -136,7 +141,10 @@ if __name__ == '__main__':
                                                      dictionary=dictionary,
                                                      tv_type=tv_type,
                                                      max_num_results=args.max_num_results,
-                                                     precomputed=None)
+                                                     precomputed=None,
+                                                     is_searching_reverse=False,
+                                                     start_key=start_key,
+                                                     includes_done=True)
 
         did_find_word = False
 

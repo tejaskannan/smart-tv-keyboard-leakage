@@ -147,6 +147,9 @@ class MultiKeyboardGraph:
 
         return list(merged)
 
+    def get_start_character_set(self) -> List[str]:
+        return self.get_keyboard_characters(keyboard_mode=self.get_start_keyboard_mode())
+
     def get_keyboard_characters(self, keyboard_mode: str) -> List[str]:
         return self._keyboards[keyboard_mode].get_characters()
 
@@ -226,7 +229,7 @@ class SingleKeyboardGraph:
         result_set: Set[str] = set()
 
         if isinstance(directions, list) and isinstance(self._adj_list[start_key], dict):
-            assert len(directions) == num_moves, 'Must provide the same number of directionsi ({}) as moves ({})'.format(len(directions), num_moves)
+            assert len(directions) == num_moves, 'Must provide the same number of directions ({}) as moves ({})'.format(len(directions), num_moves)
 
             standard = breadth_first_search(start_key=start_key,
                                             distance=num_moves,

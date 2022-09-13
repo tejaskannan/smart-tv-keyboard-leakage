@@ -31,7 +31,7 @@ SUGGESTION_FACTOR = 2.0
 CUTOFF = 0.05
 
 
-def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int], precomputed: PasswordRainbow, includes_done: bool, start_key: str) -> Iterable[Tuple[str, float, int]]:
+def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, dictionary: CharacterDictionary, tv_type: SmartTVType, max_num_results: Optional[int], precomputed: PasswordRainbow, includes_done: bool, start_key: str, is_searching_reverse: bool) -> Iterable[Tuple[str, float, int]]:
     # Variables to track progress
     guessed_strings: Set[str] = set()
     result_count = 0
@@ -189,12 +189,20 @@ def get_words_from_moves(move_sequence: List[Move], graph: MultiKeyboardGraph, d
         for candidate_move in move_candidates:
             # Get the neighboring keys for this number of moves
             directions = move_sequence[move_idx].directions if candidate_move.num_moves == num_moves else Direction.ANY
-            neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
-                                                      num_moves=candidate_move.num_moves,
-                                                      mode=current_state.keyboard_mode,
-                                                      use_shortcuts=True,
-                                                      use_wraparound=True,
-                                                      directions=directions)
+
+            if is_searching_reverse:
+                neighbors = graph.get_keys_for_moves_to(end_key=prev_key,
+                                                        num_moves=candidate_move.num_moves,
+                                                        mode=current_state.keyboard_mode,
+                                                        use_shortcuts=True,
+                                                        use_wraparound=True)
+            else:
+                neighbors = graph.get_keys_for_moves_from(start_key=prev_key,
+                                                          num_moves=candidate_move.num_moves,
+                                                          mode=current_state.keyboard_mode,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=directions)
 
             # Filter out any unclickable keys (could not have selected those)
             neighbors = list(filter(lambda n: (not graph.is_unclickable(n, current_state.keyboard_mode)), neighbors))
@@ -294,8 +302,10 @@ if __name__ == '__main__':
 
     print('Target String: {}'.format(args.target))
 
-    use_done = (keyboard_type == KeyboardType.APPLE_TV_PASSWORD)
-    moves = findPath(args.target, use_shortcuts=True, use_wraparound=True, use_done=use_done, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph)
+    #use_done = (keyboard_type == KeyboardType.APPLE_TV_PASSWORD)
+    use_done = True
+    start_key = START_KEYS[graph.get_start_keyboard_mode()]
+    moves = findPath(args.target, use_shortcuts=True, use_wraparound=True, use_done=use_done, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=graph, start_key=start_key)
 
     #if (args.sounds_list is None) or (len(args.sounds_list) == 0):
     #    moves = [Move(num_moves=num_moves, end_sound=default_sound) for num_moves in args.moves_list]
@@ -305,7 +315,7 @@ if __name__ == '__main__':
 
     print(moves)
 
-    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, precomputed=precomputed, includes_done=use_done)):
+    for idx, (guess, score, candidates_count) in enumerate(get_words_from_moves(moves, graph=graph, dictionary=dictionary, tv_type=tv_type, max_num_results=args.max_num_results, precomputed=precomputed, includes_done=use_done, is_searching_reverse=False, start_key=start_key)):
         print('Guess: {}, Score: {}'.format(guess, score))
 
         if args.target == guess:

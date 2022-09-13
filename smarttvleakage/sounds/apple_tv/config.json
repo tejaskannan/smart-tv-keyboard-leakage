@@ -4,39 +4,45 @@
             { "min_freq": 0, "max_freq": 15, "min_threshold": -55, "max_threshold": -38 },
             { "min_freq": 15, "max_freq": 40, "min_threshold": -60, "max_threshold": -50 }
         ],
-        "match_threshold": 0.65
+        "match_threshold": 0.6,
+        "match_buffer": -3.0
     },
     "keyboard_double_move": {
         "match_params": [
             { "min_freq": 0, "max_freq": 15, "min_threshold": -55, "max_threshold": -38 },
             { "min_freq": 15, "max_freq": 40, "min_threshold": -60, "max_threshold": -50 }
         ],
-        "match_threshold": 1.0
+        "match_threshold": 1.0,
+        "match_buffer": -2.0
     },
     "keyboard_select": {
         "match_params": [
             { "min_freq": 0, "max_freq": 30, "min_threshold": -60, "max_threshold": -40 }
         ],
-        "match_threshold": 0.5
+        "match_threshold": 0.1,
+        "match_buffer": 2.0
     },
     "keyboard_delete": {
         "match_params": [
             { "min_freq": 0, "max_freq": 20, "min_threshold": -55, "max_threshold": -35 },
             { "min_freq": 20, "max_freq": 40, "min_threshold": -65, "max_threshold": -55 }
         ],
-        "match_threshold": 1.1
+        "match_threshold": 1.1,
+        "match_buffer": -1.0
     },
     "system_move": {
         "match_params": [
             { "min_freq": 0, "max_freq": 12, "min_threshold": -65, "max_threshold": -55 },
             { "min_freq": 12, "max_freq": 40, "min_threshold": -60, "max_threshold": -40 }
         ],
-        "match_threshold": 1.05
+        "match_threshold": 1.05,
+        "match_buffer": -1.0
     },
     "toolbar_move": {
         "match_params": [
             { "min_freq": 15, "max_freq": 25, "min_threshold": -65, "max_threshold": -55 }
         ],
-        "match_threshold": 0.5
+        "match_threshold": 0.5,
+        "match_buffer": -1.0
     }
 }

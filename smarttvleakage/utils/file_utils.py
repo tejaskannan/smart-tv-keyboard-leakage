@@ -105,3 +105,23 @@ def save_json_gz(data: Any, file_path: str):
     with gzip.GzipFile(file_path, 'wb') as f:
         writer = codecs.getwriter('utf-8')
         writer(f).write(json.dumps(data))
+
+
+def read_txt_lines(file_path: str) -> Iterable[str]:
+    assert file_path.endswith('.txt'), 'Must provide a text file.'
+
+    with open(file_path, 'r') as fin:
+        for line in fin:
+            line = line.strip()
+            if len(line) > 0:
+                yield line
+
+
+def save_txt_lines(data: Iterable[str], file_path: str):
+    assert file_path.endswith('.txt'), 'Must provide a text file.'
+    with open(file_path, 'w') as fout:
+        for line in data:
+            line = line.strip()
+            if len(line) > 0:
+                fout.write(line)
+                fout.write('\n')
