@@ -420,6 +420,8 @@ class NgramDictionary(EnglishDictionary):
         self._is_built = True
 
     def get_length_bucket(self, length: int) -> int:
+        if length is None: # added to fix error
+            return 0
         if length < 6:
             return 0
         elif length < 10:

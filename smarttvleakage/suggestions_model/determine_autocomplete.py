@@ -344,8 +344,8 @@ if __name__ == "__main__":
         print("building test dicts")
         ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
         ms_dict_non_test = build_ms_dict(args.ms_path_non)
-        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 500, 500)
-        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 500)
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 100)
         print("test dicts built")
         db_path = "rockyou-samsung.db"
         db = PasswordRainbow(db_path)
@@ -353,7 +353,7 @@ if __name__ == "__main__":
         ac = .26
         nc = .32
         results = {}
-        peaks = [15, 20, 25, 30, 35, 40, 45]
+        peaks = [25, 30, 35, 40]
         total = len(
             ms_dict_auto_test.items()) + len(
             ms_dict_non_test.items()) + len(
