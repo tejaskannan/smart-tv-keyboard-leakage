@@ -250,10 +250,12 @@ class MoveExtractor:
             distance = KEY_SELECT_DISTANCE
         elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_KEYBOARD_MOVE):
             distance = APPLETV_MOVE_DISTANCE
+        elif sound in (SAMSUNG_DOUBLE_MOVE, APPLETV_KEYBOARD_DOUBLE_MOVE):
+            distance = MIN_DOUBLE_MOVE_DISTANCE
         else:
             distance = MIN_DISTANCE
 
-        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
+        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
         avg_height = np.average(peak_heights)
         std_height = np.std(peak_heights)
@@ -261,26 +263,12 @@ class MoveExtractor:
 
         adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, 0.5 * (max_height - threshold) + threshold)
 
-        #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Max Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
+        #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Avg Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
 
         peaks, peak_properties = find_peaks(x=similarity, height=adaptive_threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
 
-        # Filter out duplicate double moves
-        if (sound == SAMSUNG_DOUBLE_MOVE) and (len(peaks) > 0):
-            filtered_peaks = [peaks[0]]
-            filtered_peak_heights = [peak_heights[0]]
-
-            for idx in range(len(peaks)):
-                if (peaks[idx] - filtered_peaks[-1]) >= MIN_DOUBLE_MOVE_DISTANCE:
-                    filtered_peaks.append(peaks[idx])
-                    filtered_peak_heights.append(peak_heights[idx])
-
-                idx += 1
-
-            return filtered_peaks, filtered_peak_heights
-        else:
-            return peaks, peak_heights
+        return peaks, peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
@@ -573,9 +561,9 @@ if __name__ == '__main__':
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = APPLETV_KEYBOARD_SELECT
+    sound = SAMSUNG_MOVE
 
-    extractor = AppleTVMoveExtractor()
+    extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 

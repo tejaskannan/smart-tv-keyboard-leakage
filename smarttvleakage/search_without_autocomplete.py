@@ -23,7 +23,7 @@ CandidateMove = namedtuple('CandidateMove', ['num_moves', 'adjustment'])
 MISTAKE_RATE = 1e-2
 DECAY_RATE = 0.9
 SCORE_THRESHOLD = 1e-4
-MAX_NUM_CANDIDATES = 250000
+MAX_NUM_CANDIDATES = 10000
 MISTAKE_LIMIT = 3
 
 SUGGESTION_THRESHOLD = 8

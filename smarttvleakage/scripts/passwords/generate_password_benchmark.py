@@ -5,7 +5,7 @@ import time
 from argparse import ArgumentParser
 from typing import Any, Dict, Iterable
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.utils.file_utils import save_jsonl_gz
@@ -20,24 +20,27 @@ def create_records(input_path: str, max_num_records: int, keyboard_type: Keyboar
         for line in io_wrapper:
             word = line.strip()
 
-            if all((c in string.printable) and (c != '_') for c in word):
+            if all((c in string.printable) for c in word):
                 words.append(word)
 
     num_words = len(words)
 
-    #word_indices = np.arange(num_words)
-    #rand = np.random.RandomState(seed=5481)
-    #word_indices = rand.choice(num_words, size=max_num_records, replace=False)
+    word_indices = np.arange(num_words)
+    rand = np.random.RandomState(seed=5481)
+    word_indices = rand.choice(num_words, size=max_num_records, replace=False)
 
     print('Read {} passwords. Generating dataset...'.format(num_words))
     keyboard = MultiKeyboardGraph(keyboard_type=keyboard_type)
+    start_key = START_KEYS[keyboard.get_start_keyboard_mode()]
 
-    for count, word in enumerate(words):
+    for count, word_idx in enumerate(word_indices):
         if count >= max_num_records:
             break
 
+        word = words[word_idx]
+
         try:
-            moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
+            moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard, start_key=start_key)
             move_seq = [{'moves': m.num_moves, 'end_sound': m.end_sound} for m in moves]
             yield { 'target': word, 'move_seq': move_seq }
 

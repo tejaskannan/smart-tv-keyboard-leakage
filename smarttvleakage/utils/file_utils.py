@@ -44,13 +44,14 @@ def read_jsonl_gz(file_path: str) -> Iterable[Any]:
             yield json.loads(line, object_pairs_hook=OrderedDict)
 
 
-def append_jsonl_gz(data: Any, file_path: str):
+def append_jsonl_gz(data: Iterable[Any], file_path: str):
     assert file_path.endswith('.jsonl.gz'), 'Must provide a json lines gzip file.'
 
     with gzip.GzipFile(file_path, 'ab') as f:
         writer = codecs.getwriter('utf-8')
-        writer(f).write(json.dumps(data))
-        writer(f).write('\n')
+        for element in data:
+            writer(f).write(json.dumps(element))
+            writer(f).write('\n')
 
 
 def save_pickle_gz(data: Any, file_path: str):

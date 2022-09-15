@@ -14,7 +14,9 @@ if __name__ == '__main__':
     parser.add_argument('--length', type=int, required=True)
     args = parser.parse_args()
 
+    print('Loading dictionary...')
     dictionary = restore_dictionary(path=args.dictionary_path)
+    print('Loaded.')
     
     graph = MultiKeyboardGraph(keyboard_type=KeyboardType.APPLE_TV_PASSWORD)
     dictionary.set_characters(graph.get_characters())
@@ -28,5 +30,9 @@ if __name__ == '__main__':
     score = dictionary.get_score_for_string(args.prefix, length=args.length)
     print('String Score: {:.5f}'.format(score))
 
+    start = time.time()
     counts = dictionary.get_letter_counts(prefix=args.prefix, length=args.length)
+    end = time.time()
+
     print(counts)
+    print('Elapsed: {:.5f}s'.format(end - start))
