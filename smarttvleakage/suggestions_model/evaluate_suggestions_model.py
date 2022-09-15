@@ -64,7 +64,7 @@ def recover_string(true_word : str, ms : List[int],
         ranked_candidates = get_words_from_moves(
             move_sequence=move_sequence, graph=graph, dictionary=dictionary,
             tv_type=tv_type,  max_num_results=max_num_results, precomputed=None,
-            includes_done=False, start_key="q")
+            includes_done=False, start_key="q", is_searching_reverse=False)
 
     for rank, (guess, _, num_candidates) in enumerate(ranked_candidates):
         #print(rank, num_candidates)
