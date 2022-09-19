@@ -128,9 +128,11 @@ class ExpYearDictionary(NumericDictionary):
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         if len(prefix) == 0:
-            return { '2': 0.5 }
+            return { '2': 0.5, '3': 0.5 }
         elif (len(prefix) == 1) and prefix.startswith('2'):
             return {str(digit): (1.0 / 8.0) for digit in range(2, 10)}
+        elif (len(prefix) == 1) and prefix.startswith('3'):
+            return {str(digit): (1.0 / 4.0) for digit in range(0, 4)}
         else:
             return super().get_letter_counts(prefix, length)
 

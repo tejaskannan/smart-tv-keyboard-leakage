@@ -148,7 +148,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
                 break
 
         if (path != -1) and (path is not None):
-            path[-1] = Move(num_moves=path[-1][0] + num_errors, end_sound=path[-1][1], directions=Direction.ANY)
+            path[-1] = Move(num_moves=path[-1].num_moves + num_errors, end_sound=path[-1].end_sound, directions=Direction.ANY)
 
         prev = character
 

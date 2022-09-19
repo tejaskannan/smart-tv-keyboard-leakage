@@ -13,6 +13,7 @@ from smarttvleakage.audio import make_move_extractor, SmartTVTypeClassifier, Mov
 from smarttvleakage.audio import SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE
 from smarttvleakage.suggestions_model.determine_autocomplete import classify_ms
 from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER
+from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence
 from smarttvleakage.utils.file_utils import save_json, iterate_dir, read_pickle_gz
 
 
@@ -74,6 +75,9 @@ if __name__ == '__main__':
 
     # Process each video
     for video_file in video_files:
+        if not (video_file.endswith('.mp4') or video_file.endswith('.MOV') or video_file.endswith('.mov')):
+            continue
+
         # Fetch the audio
         video_clip = mp.VideoFileClip(video_file)
         audio_signal = video_clip.audio.to_soundarray()
@@ -85,11 +89,17 @@ if __name__ == '__main__':
         move_extractor = make_move_extractor(tv_type=tv_type)
         move_sequence, did_use_autocomplete, keyboard_type = move_extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=True)
 
-        # Split the move sequence into distinct keyboard instances
-        if tv_type == SmartTVType.SAMSUNG:
-            move_sequence_splits = split_samsung(audio=audio_signal, move_seq=move_sequence, extractor=move_extractor)
+        # Attempt to split the sequence based on credit card detection
+        credit_card_seq = extract_credit_card_sequence(move_sequence)
+
+        if credit_card_seq is not None:
+            move_sequence_splits = [move_sequence]  # We will re-extract the sequence on the other side during recovery (it is easier to keep track of the unified result this way)
         else:
-            raise ValueError('No split routine for {}'.format(tv_type.name))
+            # Split the move sequence into distinct keyboard instances
+            if tv_type == SmartTVType.SAMSUNG:
+                move_sequence_splits = split_samsung(audio=audio_signal, move_seq=move_sequence, extractor=move_extractor)
+            else:
+                raise ValueError('No split routine for {}'.format(tv_type.name))
 
         # Make the output file name
         file_name = os.path.basename(video_file).replace('.MOV', '').replace('.mp4', '')

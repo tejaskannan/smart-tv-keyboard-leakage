@@ -8,7 +8,7 @@ from enum import Enum, auto
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict, Union
 
-from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType, Direction
+from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType, Direction, SMALL_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, SAMSUNG_KEY_SELECT
@@ -213,9 +213,11 @@ class MoveExtractor:
 
         sound_profile = self._known_sounds[sound][0]
         threshold = sound_profile.match_threshold
+        cutoff_factor = 0.5
 
         if (self._tv_type == SmartTVType.SAMSUNG) and (sound == SAMSUNG_KEY_SELECT):
             distance = KEY_SELECT_DISTANCE
+            cutoff_factor = 0.6
         elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_KEYBOARD_MOVE):
             distance = APPLETV_MOVE_DISTANCE
         elif sound in (SAMSUNG_DOUBLE_MOVE, APPLETV_KEYBOARD_DOUBLE_MOVE):
@@ -223,13 +225,20 @@ class MoveExtractor:
         else:
             distance = MIN_DISTANCE
 
-        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2, prominence=(SOUND_PROMINENCE, None))
+        #peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2, prominence=(SOUND_PROMINENCE, None))
+        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2)
+
         peak_heights = peak_properties['peak_heights']
         avg_height = np.average(peak_heights)
         std_height = np.std(peak_heights)
         max_height = np.max(peak_heights) if len(peak_heights) > 0 else 0.0
+        min_height = np.min(peak_heights) if len(peak_heights) > 0 else 0.0
 
-        adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, 0.5 * (max_height - threshold) + threshold)
+        cutoff = cutoff_factor * (max_height - threshold) + threshold
+        adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, cutoff)
+
+        #if min_height > cutoff:
+        #    adaptive_threshold = min_height - SMALL_NUMBER
 
         #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Avg Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
 
@@ -528,7 +537,7 @@ if __name__ == '__main__':
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_MOVE
+    sound = SAMSUNG_KEY_SELECT
 
     extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
