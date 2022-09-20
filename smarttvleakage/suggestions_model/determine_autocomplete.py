@@ -311,7 +311,7 @@ if __name__ == "__main__":
             "suggestions_model/local/dictionaries/enwiki-20210820-words-frequency.txt", 50, True)
         englishDictionary.save("suggestions_model/local/dictionaries/ed.pkl.gz")
     elif args.ed_path == "ry":
-        rockyouDictionary = NgramDictionary.restore("suggestions_model/local/rockyou_d.pkl.gz")
+        rockyouDictionary = NgramDictionary.restore("suggestions_model/local/rockyou_dict_updated.pkl.gz")
     elif args.ed_path != "skip":
         englishDictionary = EnglishDictionary.restore(args.ed_path)
 
@@ -337,6 +337,15 @@ if __name__ == "__main__":
     # 12 - test msfd vs exp vs sql
     test = 13
 
+    if test == 14:
+        print("test 14")
+        print("build ryd")
+        ryd = NgramDictionary()
+        ryd.build("suggestions_model/local/rockyou.txt", 0, False, False)
+        save_pickle_gz(ryd, "suggestions_model/local/rockyou_dict_updated.pkl.gz")
+
+
+
     if test == 13:
         print("test 13")
         
@@ -347,7 +356,7 @@ if __name__ == "__main__":
         ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
         ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 100)
         print("test dicts built")
-        db_path = "rockyou-samsung.db"
+        db_path = "rockyou-samsung-updated.db"
         db = PasswordRainbow(db_path)
 
         ac = .26

@@ -31,7 +31,7 @@ def suggestion_from_id(i : int) -> str:
 def recover_string(true_word : str, ms : List[int],
                     suggestions_model, suggestions : int,
                     dictionary, max_num_results : int, msfd = None, db = None,
-                    auto_cutoff : int = .5, non_cutoff : int = .5):
+                    auto_cutoff : int = .5, non_cutoff : int = .5, peak : int = 30):
     """Attempts to recover a string, returns the rank and # candidates"""
     tv_type = SmartTVType.SAMSUNG
     did_use_autocomplete = False
@@ -53,7 +53,7 @@ def recover_string(true_word : str, ms : List[int],
             use_suggestions = (classify_ms(suggestions_model, move_sequence_vals)[0] == 1)
         else:
             use_suggestions = (classify_ms_with_msfd_full(
-            suggestions_model, msfd, db, move_sequence_vals, auto_cutoff=auto_cutoff, non_cutoff=non_cutoff)[0] == 1)
+            suggestions_model, msfd, db, move_sequence_vals, auto_cutoff=auto_cutoff, non_cutoff=non_cutoff, peak=peak)[0] == 1)
 
 
     if use_suggestions:
@@ -167,7 +167,7 @@ if __name__ == "__main__":
         msfd = build_msfd(args.msfd_path)
 
     if args.db_path is None:
-        args.db_path = "rockyou-samsung.db"
+        args.db_path = "rockyou-samsung-updated.db"
         db = PasswordRainbow(args.db_path)
 
     # Tests
@@ -182,9 +182,9 @@ if __name__ == "__main__":
 
     if test == 5:
         max_num_results = 50
-        take_english = 1
-        take_rockyou = 1
-        take_phpbb = 1
+        take_english = 100
+        take_rockyou = 100
+        take_phpbb = 700
         dictionary = englishDictionary
         print("building test dicts")
         ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take_english)
@@ -288,10 +288,10 @@ if __name__ == "__main__":
 
 
     if test == 4:
-        max_num_results = 50
-        take_english = 1
-        take_rockyou = 1
-        take_phpbb = 1
+        max_num_results = 100
+        take_english = 100
+        take_rockyou = 100
+        take_phpbb = 700
         dictionary = englishDictionary
         print("building test dicts")
         ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take_english)
@@ -301,6 +301,7 @@ if __name__ == "__main__":
         print("test dicts built")
         ac = .26
         nc = .32
+        peak = 25
 
         # ranks, candidates
         # "vqsablpzla"
@@ -317,19 +318,19 @@ if __name__ == "__main__":
             for key, val in ms_dict_auto_test.items():
                 rank, candidates = recover_string(key, val, model, sug[0],
                                     dictionary, max_num_results, msfd, db=db,
-                                    auto_cutoff=ac, non_cutoff=nc)
+                                    auto_cutoff=ac, non_cutoff=nc, peak=peak)
                 results[s][(key, "auto")] = (rank, candidates)
             print("testing nons")
             for key, val in ms_dict_non_test.items():
                 rank, candidates = recover_string(key, val, model, sug[1],
                                     dictionary, max_num_results, msfd, db=db,
-                                    auto_cutoff=ac, non_cutoff=nc)
+                                    auto_cutoff=ac, non_cutoff=nc, peak=peak)
                 results[s][(key, "non")] = (rank, candidates)
             print("testing rockyous")
             for key, val in ms_dict_rockyou.items():
                 rank, candidates = recover_string(key, val, model, sug[2],
                                     rockyouDictionary, max_num_results, msfd, db=db,
-                                    auto_cutoff=ac, non_cutoff=nc)
+                                    auto_cutoff=ac, non_cutoff=nc, peak=peak)
                 results[s][(key, "rockyou")] = (rank, candidates)
             print("testing phpbbs")
             for key, val in ms_dict_phpbb.items():
@@ -338,7 +339,7 @@ if __name__ == "__main__":
                 print(key)
                 rank, candidates = recover_string(key, val, model, sug[2],
                                     phpbbDictionary, max_num_results, msfd, db=db,
-                                    auto_cutoff=ac, non_cutoff=nc)
+                                    auto_cutoff=ac, non_cutoff=nc, peak=peak)
                 results[s][(key, "phpbb")] = (rank, candidates)
 
         lines = {}
