@@ -29,7 +29,7 @@ class PasswordRainbow:
             query = self._cursor.execute(QUERY_WITH_LIMIT, {'seq': move_vector, 'limit': max_num_results})
 
         query_result = query.fetchall()
-        return list(sorted(map(lambda t: RainbowEntry(word=t[0], score=t[1]), query_result), key=lambda t: t.score, reverse=True))
+        return list(sorted(map(lambda t: RainbowEntry(word=t[0], score=t[1]), query_result), key=lambda t: t.score))
 
     def get_seq_for_string(self, password: str, tv_type: SmartTVType) -> List[RainbowEntry]:
 

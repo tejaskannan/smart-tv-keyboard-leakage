@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from typing import Tuple, List, Dict, Optional
 
 from smarttvleakage.audio import MoveExtractor, make_move_extractor, SmartTVTypeClassifier, Move
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.dictionary import restore_dictionary, CharacterDictionary
 from smarttvleakage.search_numeric import get_digits_from_moves
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType
@@ -22,7 +22,10 @@ def get_correct_rank(move_seq: List[Move], graph: MultiKeyboardGraph, dictionary
                                               graph=graph,
                                               dictionary=dictionary,
                                               tv_type=tv_type,
-                                              max_num_results=max_num_guesses)
+                                              max_num_results=max_num_guesses,
+                                              includes_done=True,
+                                              start_key=START_KEYS[graph.get_start_keyboard_mode()],
+                                              is_searching_reverse=False)
 
     for rank, (guess, _, _) in enumerate(ranked_candidates):
         if guess == target:

@@ -3,6 +3,7 @@ import os.path
 import io
 import gzip
 import time
+import sqlite3
 import numpy as np
 from collections import Counter, defaultdict, namedtuple, deque
 from typing import Dict, List, Optional, Iterable, Tuple, Any
@@ -127,9 +128,11 @@ class ExpYearDictionary(NumericDictionary):
 
     def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
         if len(prefix) == 0:
-            return { '2': 0.5 }
+            return { '2': 0.5, '3': 0.5 }
         elif (len(prefix) == 1) and prefix.startswith('2'):
             return {str(digit): (1.0 / 8.0) for digit in range(2, 10)}
+        elif (len(prefix) == 1) and prefix.startswith('3'):
+            return {str(digit): (1.0 / 4.0) for digit in range(0, 4)}
         else:
             return super().get_letter_counts(prefix, length)
 
@@ -368,7 +371,6 @@ class NgramDictionary(EnglishDictionary):
         }
 
         self._ngram_size = 5
-        
         self._total_count = 0
 
     def build(self, path: str, min_count: int, has_counts: bool, should_reverse: bool):
@@ -380,7 +382,7 @@ class NgramDictionary(EnglishDictionary):
                                                        min_count=min_count,
                                                        has_counts=has_counts)
 
-        # Build the ngram tries
+        # Build the ngram counters
         for word, count in string_dictionary.items():
             if len(word) == 0:
                 continue
@@ -395,28 +397,12 @@ class NgramDictionary(EnglishDictionary):
                 ngram_prefix, ngram_suffix = split_ngram(ngram)
                 self._counts_per_length[length_bucket][ngram_prefix][ngram_suffix] += 1
 
-            #self._single_counts[length_bucket][word[0]] += 1
-
-            #if len(word) >= 2:
-            #    self._counts_per_length[length_bucket][word[0]][word[1]] += 1
-
-            #if len(word) >= 3:
-            #    self._counts_per_length[length_bucket][word[0:2]][word[2]] += 1
-
-            #for four_gram in create_ngrams(word, 4):
-            #    self._counts_per_length[length_bucket][four_gram[0:3]][four_gram[3]] += 1
-
             self._total_count += 1
 
             if (self._total_count % 10000) == 0:
                 print('Completed {} Strings...'.format(self._total_count), end='\r')
 
         print()
-
-        print(len(self._counts_per_length[0]))
-        print(len(self._counts_per_length[1]))
-        print(len(self._counts_per_length[2]))
-
         self._is_built = True
 
     def get_length_bucket(self, length: int) -> int:
@@ -502,18 +488,65 @@ class NgramDictionary(EnglishDictionary):
     @classmethod
     def restore(cls, serialized: Dict[str, Any]):
         dictionary = cls()
-        #dictionary._single_counts = serialized['1gram']
         dictionary._counts_per_length = serialized['ngram']
         dictionary._is_built = True
         return dictionary
 
     def save(self, path: str):
         data_dict = {
-            #'1gram': self._single_counts,
             'ngram': self._counts_per_length,
             'dict_type': 'ngram'
         }
         save_pickle_gz(data_dict, path)
+
+
+class NgramSQLDictionary(NgramDictionary):
+
+    def __init__(self, db_file: str):
+        self._is_built = True
+
+        self._db_file = db_file
+        self._conn = sqlite3.connect(db_file)
+
+        self._ngram_size = 5
+
+    def get_letter_counts(self, prefix: str, length: Optional[int]) -> Dict[str, int]:
+        assert self._is_built, 'Must call build() first'
+
+        length_bucket = self.get_length_bucket(length)
+
+        # Look up the string in the SQL table
+        if len(prefix) <= (self._ngram_size - 1):
+            adjusted_prefix = prepend_start_characters(prefix, self._ngram_size - 1)
+        else:
+            adjusted_prefix = prefix[-self._ngram_size + 1:]
+
+        cursor = self._conn.cursor()
+        query_exec = cursor.execute('SELECT suffix, count FROM ngrams WHERE prefix=:prefix AND length_bucket=:length_bucket;', {'prefix': adjusted_prefix, 'length_bucket': length_bucket})
+        query_results = query_exec.fetchall()
+        character_counts = { char: count for (char, count) in query_results }
+
+        # Convert any characters
+        character_counts = {REVERSE_CHARACTER_TRANSLATION.get(char, char): count for char, count in character_counts.items()}
+
+        # Apply Laplace Smoothing and include the end character
+        for character in self._characters:
+            character_counts[character] = character_counts.get(character, 0) + SMOOTH_DELTA
+
+        character_counts[END_CHAR] = character_counts.get(END_CHAR, 0) + SMOOTH_DELTA
+
+        # Normalize the result
+        total_count = sum(character_counts.values())
+        character_counts = {char: (count / total_count) for char, count in character_counts.items()}
+        return character_counts
+
+    @classmethod
+    def restore(cls, db_file: str):
+        dictionary = cls(db_file)
+        return dictionary
+
+    def save(self, path: str):
+        pass
 
 
 def restore_dictionary(path: str) -> CharacterDictionary:
@@ -529,6 +562,8 @@ def restore_dictionary(path: str) -> CharacterDictionary:
         return ExpYearDictionary()
     elif path == 'cvv':
         return CVVDictionary()
+    elif path.endswith('.db'):
+        return NgramSQLDictionary.restore(path)
     else:
         data_dict = read_pickle_gz(path)
         dict_type = data_dict['dict_type']

@@ -8,18 +8,19 @@ from enum import Enum, auto
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Dict, Tuple, DefaultDict, Union
 
-from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType, Direction
+from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType, Direction, SMALL_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
 from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, SAMSUNG_KEY_SELECT
 from smarttvleakage.audio.constants import SAMSUNG_MOVE, SAMSUNG_SELECT, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.audio.constants import APPLETV_KEYBOARD_MOVE, APPLETV_KEYBOARD_SELECT, APPLETV_SYSTEM_MOVE
 from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLETV_KEYBOARD_DOUBLE_MOVE, APPLETV_TOOLBAR_MOVE
+from smarttvleakage.audio.data_types import Move
 
 
 MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
 SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold', 'match_buffer'])
-Move = namedtuple('Move', ['num_moves', 'end_sound', 'directions'])
+#Move = namedtuple('Move', ['num_moves', 'end_sound', 'directions'])
 
 
 APPLETV_PASSWORD_THRESHOLD = 800
@@ -107,39 +108,6 @@ def moving_window_similarity(target: np.ndarray, known: np.ndarray) -> List[floa
     similarity = convolve(similarity, smooth_filter).astype(float).tolist()
 
     return similarity
-
-
-#def compute_masked_spectrogram(spectrogram: float, threshold: float, min_freq: int, max_freq: int) -> np.ndarray:
-#    clipped_spectrogram = spectrogram[min_freq:max_freq, :]
-#    return (clipped_spectrogram >= threshold).astype(int)
-#
-#
-#def moving_window_similarity(target: np.ndarray, known: np.ndarray, should_smooth: bool, should_match_binary: bool) -> List[float]:
-#    target = target.T
-#    known = known.T
-#
-#    segment_size = known.shape[0]
-#    similarity: List[float] = []
-#
-#    for start in range(target.shape[0]):
-#        end = start + segment_size
-#        target_segment = target[start:end]
-#
-#        if len(target_segment) < segment_size:
-#            target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
-#
-#        if not should_match_binary:
-#            sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
-#        else:
-#            sim_score = np.sum(target_segment * known)
-#
-#        similarity.append(sim_score)
-#
-#    if should_smooth:
-#        smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
-#        similarity = convolve(similarity, smooth_filter).astype(float).tolist()
-#
-#    return similarity
 
 
 class MoveExtractor:
@@ -245,42 +213,39 @@ class MoveExtractor:
 
         sound_profile = self._known_sounds[sound][0]
         threshold = sound_profile.match_threshold
+        cutoff_factor = 0.5
 
         if (self._tv_type == SmartTVType.SAMSUNG) and (sound == SAMSUNG_KEY_SELECT):
             distance = KEY_SELECT_DISTANCE
+            cutoff_factor = 0.6
         elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_KEYBOARD_MOVE):
             distance = APPLETV_MOVE_DISTANCE
+        elif sound in (SAMSUNG_DOUBLE_MOVE, APPLETV_KEYBOARD_DOUBLE_MOVE):
+            distance = MIN_DOUBLE_MOVE_DISTANCE
         else:
             distance = MIN_DISTANCE
 
-        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
+        #peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2, prominence=(SOUND_PROMINENCE, None))
+        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2)
+
         peak_heights = peak_properties['peak_heights']
         avg_height = np.average(peak_heights)
         std_height = np.std(peak_heights)
         max_height = np.max(peak_heights) if len(peak_heights) > 0 else 0.0
+        min_height = np.min(peak_heights) if len(peak_heights) > 0 else 0.0
 
-        adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, 0.5 * (max_height - threshold) + threshold)
+        cutoff = cutoff_factor * (max_height - threshold) + threshold
+        adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, cutoff)
 
-        #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Max Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
+        #if min_height > cutoff:
+        #    adaptive_threshold = min_height - SMALL_NUMBER
+
+        #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Avg Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
 
         peaks, peak_properties = find_peaks(x=similarity, height=adaptive_threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
         peak_heights = peak_properties['peak_heights']
 
-        # Filter out duplicate double moves
-        if (sound == SAMSUNG_DOUBLE_MOVE) and (len(peaks) > 0):
-            filtered_peaks = [peaks[0]]
-            filtered_peak_heights = [peak_heights[0]]
-
-            for idx in range(len(peaks)):
-                if (peaks[idx] - filtered_peaks[-1]) >= MIN_DOUBLE_MOVE_DISTANCE:
-                    filtered_peaks.append(peaks[idx])
-                    filtered_peak_heights.append(peak_heights[idx])
-
-                idx += 1
-
-            return filtered_peaks, filtered_peak_heights
-        else:
-            return peaks, peak_heights
+        return peaks, peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
@@ -380,22 +345,21 @@ class SamsungMoveExtractor(MoveExtractor):
         window_move_times: List[int] = []
 
         while move_idx < len(clipped_move_times):
-
             while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
                 directions = extract_move_directions(window_move_times)
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, end_time=key_select_times[key_idx]))
                 key_idx += 1
                 num_moves = 0
                 window_move_times = []
 
             while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY, end_time=clipped_select_times[select_idx]))
                 select_idx += 1
                 num_moves = 0
                 window_move_times = []
 
             while (delete_idx < len(clipped_delete_times)) and (clipped_move_times[move_idx] > clipped_delete_times[delete_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY))
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY, end_time=clipped_delete_times[delete_idx]))
                 delete_idx += 1
                 num_moves = 0
                 window_move_times = []
@@ -419,7 +383,7 @@ class SamsungMoveExtractor(MoveExtractor):
         # Write out the last group if we haven't reached the last key
         if key_idx < len(key_select_times):
             directions = extract_move_directions(window_move_times)
-            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions))
+            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, end_time=key_select_times[key_idx]))
 
         # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
         # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
@@ -437,7 +401,7 @@ class SamsungMoveExtractor(MoveExtractor):
         # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
         # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
         if include_moves_to_done:
-            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, directions=Direction.ANY)
+            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, directions=Direction.ANY, end_time=next_select)
             result.append(move_to_done)
 
         # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
@@ -573,9 +537,9 @@ if __name__ == '__main__':
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = APPLETV_KEYBOARD_SELECT
+    sound = SAMSUNG_KEY_SELECT
 
-    extractor = AppleTVMoveExtractor()
+    extractor = SamsungMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 

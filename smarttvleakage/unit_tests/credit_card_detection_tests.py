@@ -1,5 +1,6 @@
 import unittest
 
+from smarttvleakage.evaluate_credit_card_recovery import compute_recovery_rank
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.utils.constants import KeyboardType
 from smarttvleakage.audio import Move, SAMSUNG_SELECT
@@ -8,6 +9,33 @@ from smarttvleakage.utils.credit_card_detection import extract_credit_card_seque
 
 
 graph = MultiKeyboardGraph(keyboard_type=KeyboardType.SAMSUNG)
+
+
+class CreditCardRankTests(unittest.TestCase):
+
+    def test_top_ranked(self):
+        total_rank = compute_recovery_rank(ccn_rank=1, month_rank=1, year_rank=1, cvv_rank=1, zip_rank=1)
+        self.assertEqual(total_rank, 1)
+
+    def test_ccn_4(self):
+        total_rank = compute_recovery_rank(ccn_rank=4, month_rank=1, year_rank=1, cvv_rank=1, zip_rank=1)
+        self.assertEqual(total_rank, 4)
+
+    def test_cvv_2(self):
+        total_rank = compute_recovery_rank(ccn_rank=1, month_rank=1, year_rank=1, cvv_rank=2, zip_rank=1)
+        self.assertEqual(total_rank, 6)
+
+    def test_ccn_3_cvv_2(self):
+        total_rank = compute_recovery_rank(ccn_rank=3, month_rank=1, year_rank=1, cvv_rank=2, zip_rank=1)
+        self.assertEqual(total_rank, 8)
+
+    def test_zip_2(self):
+        total_rank = compute_recovery_rank(ccn_rank=1, month_rank=1, year_rank=1, cvv_rank=1, zip_rank=2)
+        self.assertEqual(total_rank, 26)
+
+    def test_cvv_2_zip_2(self):
+        total_rank = compute_recovery_rank(ccn_rank=1, month_rank=1, year_rank=1, cvv_rank=2, zip_rank=2)
+        self.assertEqual(total_rank, 31)
 
 
 class CreditCardDetectionTests(unittest.TestCase):

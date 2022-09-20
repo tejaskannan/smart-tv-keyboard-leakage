@@ -1,12 +1,18 @@
+import os
 import io
 import numpy as np
 import string
 import time
 import sqlite3
+import sys
 from argparse import ArgumentParser
+from functools import partial
+from more_itertools import chunked
+from multiprocessing import Pool
+from multiprocessing.pool import ThreadPool
 from typing import Any, Dict, Iterable, List, Tuple, Optional
 
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.dictionary.dictionaries import NgramDictionary, restore_dictionary
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.utils.constants import KeyboardType, SmartTVType
@@ -15,17 +21,13 @@ from smarttvleakage.utils.transformations import move_seq_to_vector
 
 
 SCORE_THRESHOLD = 1e5
+BATCH_SIZE = 1000
 
 
-def create_records(input_path: str, max_num_records: Optional[int], dictionary: NgramDictionary, keyboard_type: KeyboardType) -> Iterable[Dict[str, Any]]:
+def load_passwords(path: str, max_num_records: Optional[int]) -> Iterable[str]:
     words: List[str] = []
 
-    if keyboard_type == KeyboardType.SAMSUNG:
-        tv_type = SmartTVType.SAMSUNG
-    else:
-        tv_type = SmartTVType.APPLE_TV
-
-    with open(input_path, 'rb') as fin:
+    with open(path, 'rb') as fin:
         io_wrapper = io.TextIOWrapper(fin, encoding='utf-8', errors='ignore')
 
         for line in io_wrapper:
@@ -34,65 +36,76 @@ def create_records(input_path: str, max_num_records: Optional[int], dictionary: 
             if len(word) == 0:
                 continue
 
-            if all((c in string.printable) and (c != '_') for c in word):
+            if all(c in string.printable for c in word):
                 words.append(word)
 
-    print('Read {} passwords. Generating dataset...'.format(len(words)))
-    keyboard = MultiKeyboardGraph(keyboard_type=keyboard_type)
+            if (max_num_records is not None) and (len(words) >= max_num_records):
+                break
 
-    for idx, word in enumerate(words):
-        if (max_num_records is not None) and (idx >= max_num_records):
-            break
-
-        if ((idx + 1) % 10000) == 0:
-            print('Completed {} records.'.format(idx + 1), end='\r')
-
-        word_score = dictionary.get_score_for_string(word, length=len(word))
-        if word_score > SCORE_THRESHOLD:
-            continue
-
-        if keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
-            try:
-                moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
-                move_vector = move_seq_to_vector(moves, tv_type=tv_type)
-
-                if all(m.num_moves is not None for m in moves):
-                    yield { 'target': word, 'move_seq': move_vector, 'score': word_score}
-            except AssertionError as ex:
-                print('\nWARNING: Caught {} for {}'.format(ex, word))
-        else:
-            try:
-                moves = findPath(word, use_shortcuts=False, use_wraparound=False, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
-                move_vector = move_seq_to_vector(moves, tv_type=tv_type)
-
-                if all(m.num_moves is not None for m in moves):
-                    yield { 'target': word, 'move_seq': move_vector, 'score': word_score}
-
-                wraparound_moves = findPath(word, use_shortcuts=False, use_wraparound=True, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
-                wraparound_vector = move_seq_to_vector(wraparound_moves, tv_type=tv_type)
-
-                if wraparound_vector != move_vector and all(m.num_moves is not None for m in wraparound_moves):
-                    yield { 'target': word, 'move_seq': wraparound_vector, 'score': word_score }
-
-                shortcut_moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard)
-                shortcut_vector = move_seq_to_vector(shortcut_moves, tv_type=tv_type)
-
-                if (shortcut_vector != wraparound_vector) and (shortcut_vector != move_vector) and all(m.num_moves is not None for m in shortcut_moves):
-                    yield { 'target': word, 'move_seq': shortcut_vector, 'score': word_score }
-            except AssertionError as ex:
-                print('\nWARNING: Caught {} for {}'.format(ex, word))
-
-    print()
+    return words
 
 
-def make_sql_batch(records_batch: List[Dict[str, Any]]) -> List[Tuple[str, str, float]]:
+#def create_records(word: str, dictionary_path: str, keyboard_type: KeyboardType, keyboard: MultiKeyboardGraph) -> List[Dict[str, Any]]:
+def create_records(word: str, dictionary: NgramDictionary, keyboard_type: KeyboardType, keyboard: MultiKeyboardGraph) -> List[Dict[str, Any]]:
+    # Get the start key
+    start_key = START_KEYS[keyboard.get_start_keyboard_mode()]
+
+    # Set the dictionary characters
+    dictionary.set_characters(keyboard.get_characters())
+
+    # Get the score for this string
+    word_score = dictionary.get_score_for_string(word, length=len(word))
+    if word_score > SCORE_THRESHOLD:
+        return []
+
+    if word.lower() == 'hallo':
+        print('{}: {}'.format(word, word_score))
+
+    result: List[Dict[str, Any]] = []
+
+    if keyboard_type == KeyboardType.APPLE_TV_PASSWORD:
+        try:
+            moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=True, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard, start_key=start_key)
+            move_vector = move_seq_to_vector(moves, tv_type=tv_type)
+
+            if all(m.num_moves is not None for m in moves):
+                result.append({'target': word, 'move_seq': move_vector, 'score': word_score})
+        except AssertionError as ex:
+            print('\nWARNING: Caught {} for {}'.format(ex, word))
+    else:
+        try:
+            moves = findPath(word, use_shortcuts=False, use_wraparound=False, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard, start_key=start_key)
+            move_vector = move_seq_to_vector(moves, tv_type=tv_type)
+
+            if all(m.num_moves is not None for m in moves):
+                result.append({'target': word, 'move_seq': move_vector, 'score': word_score})
+
+            wraparound_moves = findPath(word, use_shortcuts=False, use_wraparound=True, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard, start_key=start_key)
+            wraparound_vector = move_seq_to_vector(wraparound_moves, tv_type=tv_type)
+
+            if wraparound_vector != move_vector and all(m.num_moves is not None for m in wraparound_moves):
+                result.append({'target': word, 'move_seq': wraparound_vector, 'score': word_score})
+
+            shortcut_moves = findPath(word, use_shortcuts=True, use_wraparound=True, use_done=False, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard, start_key=start_key)
+            shortcut_vector = move_seq_to_vector(shortcut_moves, tv_type=tv_type)
+
+            if (shortcut_vector != wraparound_vector) and (shortcut_vector != move_vector) and all(m.num_moves is not None for m in shortcut_moves):
+                result.append({'target': word, 'move_seq': shortcut_vector, 'score': word_score})
+        except AssertionError as ex:
+            print('\nWARNING: Caught {} for {}'.format(ex, word))
+
+    return result
+
+
+def make_sql_batch(records_batch: List[Dict[str, Any]], record_idx: int) -> Tuple[List[Tuple[str, str, float]], int]:
     result: List[Tuple[str, str, float]] = []
 
     for record in records_batch:
-        sql_element = (record['idx'], record['move_seq'], record['target'], record['score'])
+        sql_element = (record_idx, record['move_seq'], record['target'], record['score'])
         result.append(sql_element)
+        record_idx += 1
 
-    return result
+    return result, record_idx
 
 
 if __name__ == '__main__':
@@ -104,27 +117,59 @@ if __name__ == '__main__':
     parser.add_argument('--keyboard-type', type=str, choices=[t.name.lower() for t in KeyboardType], required=True)
     args = parser.parse_args()
 
-    print('Loading the dictionary...')
-    dictionary = restore_dictionary(args.dictionary_path)
+    assert not args.dictionary_path.endswith('.db'), 'Must provide an in-memory (pickle) dictionary file for efficiency purposes.'
 
+    # Make the keyboard
     keyboard_type = KeyboardType[args.keyboard_type.upper()]
+    if keyboard_type == KeyboardType.SAMSUNG:
+        tv_type = SmartTVType.SAMSUNG
+    else:
+        tv_type = SmartTVType.APPLE_TV
+
+    keyboard = MultiKeyboardGraph(keyboard_type=keyboard_type)
+
+    # Delete any existing database file (if present)
+    if os.path.exists(args.output_path):
+        print('You are going to overwrite the file {}. Is this okay? [y/n]'.format(args.output_path), end=' ')
+        decision = input().lower()
+
+        if decision not in ('yes', 'y'):
+            print('Quitting.')
+            sys.exit(0)
+
+        os.remove(args.output_path)
+
+    # Create the dictionary
+    print('Restoring dictionary...')
+    dictionary = restore_dictionary(args.dictionary_path)
 
     # Open the database connection
     conn = sqlite3.connect(args.output_path)
     cursor = conn.cursor()
 
-    batch: List[Dict[str, Any]] = []
-    for idx, record in enumerate(create_records(args.input_path, max_num_records=args.max_num_records, dictionary=dictionary, keyboard_type=keyboard_type)):
-        record['idx'] = idx
-        batch.append(record)
+    # Make the table
+    cursor.execute('CREATE TABLE passwords(id int IDENTITY PRIMARY KEY, seq varchar(500), password varchar(100), score double);')
+    cursor.execute('CREATE INDEX seq_index ON passwords (seq);')
 
-        if len(batch) % 1000 == 0:
-            sql_batch = make_sql_batch(batch)
-            cursor.executemany('INSERT INTO passwords VALUES(?, ?, ?, ?)', sql_batch)
-            conn.commit()
-            batch = []
+    # Load the passwords into memory
+    passwords = load_passwords(args.input_path, max_num_records=args.max_num_records)
+    record_idx = 0
+    password_idx = 0
 
-    if len(batch) > 0:
-        sql_batch = make_sql_batch(batch)
+    for password_batch in chunked(passwords, BATCH_SIZE):
+        # Create the list of move sequences for all the passwords in this batch
+        create_fn = partial(create_records, dictionary=dictionary, keyboard=keyboard, keyboard_type=keyboard_type)
+        record_lists = list(map(create_fn, password_batch))
+
+        # Group and write the results in one transaction
+        records_batch: List[Dict[str, Any]] = []
+        for record_list in record_lists:
+            records_batch.extend(record_list)
+
+        sql_batch, record_idx = make_sql_batch(records_batch, record_idx=record_idx)
         cursor.executemany('INSERT INTO passwords VALUES(?, ?, ?, ?)', sql_batch)
         conn.commit()
+
+        password_idx += len(password_batch)
+        print('Completed {} records.'.format(password_idx), end='\r')
+    print()
