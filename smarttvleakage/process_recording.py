@@ -16,45 +16,35 @@ from smarttvleakage.utils.credit_card_detection import extract_credit_card_seque
 from smarttvleakage.utils.file_utils import save_json, iterate_dir, read_pickle_gz
 
 
-SAMSUNG_TIME_DELAY = 1500
+SAMSUNG_TIME_DELAY = 750
 
 
-def split_samsung(audio: np.ndarray, move_seq: List[Move], extractor: MoveExtractor) -> List[List[Move]]:
-    # Get the times of key selects (which denote keyboard instances)
-    key_select_times, _ = extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_KEY_SELECT)
-    #delete_times, _ = extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_DELETE)
-    #candidate_times = np.sort(np.concatenate([key_select_times, delete_times], axis=0))
-    candidate_times = key_select_times
-
-    split_points: List[int] = []
-    for idx in range(len(candidate_times) - 1):
-        curr_time = candidate_times[idx]
-        next_time = candidate_times[idx + 1]
-
-        if abs(next_time - curr_time) >= SAMSUNG_TIME_DELAY:
-            split_points.append(int((next_time + curr_time) / 2.0))
-
+def split_samsung(move_seq: List[Move]) -> List[List[Move]]:
+    """
+    Splits the move sequence into keyboard instances based on timing
+    """
     move_seq_splits: List[List[Move]] = []
     current_split: List[Move] = []
-    split_idx = 0
-    prev_time = 0
 
-    for move in move_seq:
-        split_point = split_points[split_idx] if split_idx < len(split_points) else BIG_NUMBER
-        avg_time_btwn_moves = (move.end_time - prev_time) / move.num_moves if (move.num_moves > 0) else 0
+    for move_idx in range(len(move_seq) - 1):
+        curr_move = move_seq[move_idx]
+        next_move = move_seq[move_idx + 1]
+        current_split.append(curr_move)
 
-        if (move.end_time > split_point):
+        diff = abs(next_move.start_time - curr_move.end_time)
+
+        if diff > SAMSUNG_TIME_DELAY:
+            #print('Split Diff: {}'.format(diff))
+            #print('Curr End Sound: {}, Next End Sound: {}'.format(curr_move.end_sound, next_move.end_sound))
             move_seq_splits.append(current_split)
-            current_split = []
-            split_idx += 1
+            current_split: List[Move] = []
 
-        current_split.append(move)
-        prev_time = move.start_time
+    # Add in the final move
+    current_split.append(move_seq[-1])
+    move_seq_splits.append(current_split)
 
-    if len(current_split) > 0:
-        move_seq_splits.append(current_split)
-
-    return move_seq_splits
+    # Filter out all splits without a key select
+    return list(filter(lambda split: any(s.end_sound == SAMSUNG_KEY_SELECT for s in split), move_seq_splits))
 
 
 if __name__ == '__main__':
@@ -100,7 +90,7 @@ if __name__ == '__main__':
         else:
             # Split the move sequence into distinct keyboard instances
             if tv_type == SmartTVType.SAMSUNG:
-                move_sequence_splits = split_samsung(audio=audio_signal, move_seq=move_sequence, extractor=move_extractor)
+                move_sequence_splits = split_samsung(move_seq=move_sequence)
             else:
                 raise ValueError('No split routine for {}'.format(tv_type.name))
 
