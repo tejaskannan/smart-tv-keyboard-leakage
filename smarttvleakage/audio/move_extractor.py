@@ -268,6 +268,24 @@ class SamsungMoveExtractor(MoveExtractor):
     def __init__(self):
         super().__init__(SmartTVType.SAMSUNG)
 
+    def get_next_break_sound(self, key_idx: int, key_times: List[int], sel_idx: int, sel_times: List[int], del_idx: int, del_times: List[int]) -> str:
+        # Get the next time for each sound
+        key_time = key_times[key_idx] if key_idx < len(key_times) else BIG_NUMBER
+        sel_time = sel_times[sel_idx] if sel_idx < len(sel_times) else BIG_NUMBER
+        del_time = del_times[del_idx] if del_idx < len(del_times) else BIG_NUMBER
+
+        min_time = min(key_time, min(sel_time, del_time))
+        
+        if key_time == min_time:
+            return SAMSUNG_KEY_SELECT
+        elif sel_time == min_time:
+            return SAMSUNG_SELECT
+        elif del_time == min_time:
+            return SAMSUNG_DELETE
+        else:
+            return SAMSUNG_KEY_SELECT
+
+
     def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
         Extracts the number of moves between key selections in the given audio sequence.
@@ -335,48 +353,84 @@ class SamsungMoveExtractor(MoveExtractor):
         clipped_select_times = list(filter(lambda t: (t > start_time) and any(True for s in key_select_times if s > t), select_times))
         clipped_delete_times = list(filter(lambda t: t > start_time, delete_times))
 
+        break_indices: Dict[str, int] = {
+            SAMSUNG_KEY_SELECT: 0,
+            SAMSUNG_SELECT: 0,
+            SAMSUNG_DELETE: 0
+        }
+
+        break_sound_times: Dict[str, List[int]] = {
+            SAMSUNG_KEY_SELECT: key_select_times,
+            SAMSUNG_SELECT: clipped_select_times,
+            SAMSUNG_DELETE: clipped_delete_times
+        }
+
         move_idx = 0
         start_move_idx = 0
-        key_idx = 0
-        select_idx = 0
         double_move_idx = 0
-        delete_idx = 0
+        key_idx, sel_idx, del_idx = 0, 0, 0
         num_moves = 0
         last_num_moves = 0
         result: List[int] = []
         window_move_times: List[int] = []
 
-        print('Key Times: {}'.format(key_select_times))
-        print('Move Times: {}'.format(clipped_move_times))
-        print('Select Times: {}'.format(clipped_select_times))
+        #print('Key Times: {}'.format(key_select_times))
+        #print('Move Times: {}'.format(clipped_move_times))
+        #print('Select Times: {}'.format(clipped_select_times))
+        #print('Delete Times: {}'.format(clipped_delete_times))
 
         while move_idx < len(clipped_move_times):
 
             # TODO: Fix tie-breaking bug. Only select a key select when it is the next in line.
-            while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
+            break_sound = self.get_next_break_sound(key_idx=break_indices[SAMSUNG_KEY_SELECT],
+                                                    key_times=break_sound_times[SAMSUNG_KEY_SELECT],
+                                                    sel_idx=break_indices[SAMSUNG_SELECT],
+                                                    sel_times=break_sound_times[SAMSUNG_SELECT],
+                                                    del_idx=break_indices[SAMSUNG_DELETE],
+                                                    del_times=break_sound_times[SAMSUNG_DELETE])
+
+            sound_idx = break_indices[break_sound]
+            sound_times = break_sound_times[break_sound]
+
+            while (sound_idx < len(sound_times)) and (clipped_move_times[move_idx] > sound_times[sound_idx]):
+                # Add the move to the running list
                 directions = extract_move_directions(window_move_times)
-                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else key_select_times[key_idx]
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, start_time=start_time, end_time=key_select_times[key_idx]))
-                key_idx += 1
+                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else sound_times[sound_idx]
+                result.append(Move(num_moves=num_moves, end_sound=break_sound, directions=directions, start_time=start_time, end_time=sound_times[sound_idx]))
+
+                # Advance the sound index and get the next-nearest sound
+                break_indices[break_sound] += 1
+
+                break_sound = self.get_next_break_sound(key_idx=break_indices[SAMSUNG_KEY_SELECT],
+                                                        key_times=break_sound_times[SAMSUNG_KEY_SELECT],
+                                                        sel_idx=break_indices[SAMSUNG_SELECT],
+                                                        sel_times=break_sound_times[SAMSUNG_SELECT],
+                                                        del_idx=break_indices[SAMSUNG_DELETE],
+                                                        del_times=break_sound_times[SAMSUNG_DELETE])
+
+                sound_idx = break_indices[break_sound]
+                sound_times = break_sound_times[break_sound]
+
+                # Reset the state
                 num_moves = 0
                 start_move_idx = move_idx
                 window_move_times = []
 
-            while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
-                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else clipped_select_times[select_idx]
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY, start_time=start_time, end_time=clipped_select_times[select_idx]))
-                select_idx += 1
-                num_moves = 0
-                start_move_idx = move_idx
-                window_move_times = []
+            #while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
+            #    start_time = clipped_move_times[start_move_idx] if num_moves > 0 else clipped_select_times[select_idx]
+            #    result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY, start_time=start_time, end_time=clipped_select_times[select_idx]))
+            #    select_idx += 1
+            #    num_moves = 0
+            #    start_move_idx = move_idx
+            #    window_move_times = []
 
-            while (delete_idx < len(clipped_delete_times)) and (clipped_move_times[move_idx] > clipped_delete_times[delete_idx]):
-                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else clipped_delete_times[delete_idx]
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY, start_time=start_time, end_time=clipped_delete_times[delete_idx]))
-                delete_idx += 1
-                num_moves = 0
-                start_move_idx = move_idx
-                window_move_times = []
+            #while (delete_idx < len(clipped_delete_times)) and (clipped_move_times[move_idx] > clipped_delete_times[delete_idx]):
+            #    start_time = clipped_move_times[start_move_idx] if num_moves > 0 else clipped_delete_times[delete_idx]
+            #    result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY, start_time=start_time, end_time=clipped_delete_times[delete_idx]))
+            #    delete_idx += 1
+            #    num_moves = 0
+            #    start_move_idx = move_idx
+            #    window_move_times = []
 
             window_move_times.append(clipped_move_times[move_idx])
 
@@ -395,6 +449,7 @@ class SamsungMoveExtractor(MoveExtractor):
                 move_idx += 1
 
         # Write out the last group if we haven't reached the last key
+        key_idx, key_select_times = break_indices[SAMSUNG_KEY_SELECT], break_sound_times[SAMSUNG_KEY_SELECT]
         if key_idx < len(key_select_times):
             directions = extract_move_directions(window_move_times)
             start_time = clipped_move_times[start_move_idx] if num_moves > 0 else key_select_times[key_idx]

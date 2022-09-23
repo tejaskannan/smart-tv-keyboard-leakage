@@ -5,7 +5,6 @@ These entries should be manually annotated with the actual typed string for grou
 import os
 import moviepy.editor as mp
 import numpy as np
-import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from typing import List, Dict, Any
 
@@ -23,8 +22,9 @@ SAMSUNG_TIME_DELAY = 1500
 def split_samsung(audio: np.ndarray, move_seq: List[Move], extractor: MoveExtractor) -> List[List[Move]]:
     # Get the times of key selects (which denote keyboard instances)
     key_select_times, _ = extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_KEY_SELECT)
-    delete_times, _ = extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_DELETE)
-    candidate_times = np.sort(np.concatenate([key_select_times, delete_times], axis=0))
+    #delete_times, _ = extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_DELETE)
+    #candidate_times = np.sort(np.concatenate([key_select_times, delete_times], axis=0))
+    candidate_times = key_select_times
 
     split_points: List[int] = []
     for idx in range(len(candidate_times) - 1):
@@ -37,16 +37,19 @@ def split_samsung(audio: np.ndarray, move_seq: List[Move], extractor: MoveExtrac
     move_seq_splits: List[List[Move]] = []
     current_split: List[Move] = []
     split_idx = 0
+    prev_time = 0
 
     for move in move_seq:
         split_point = split_points[split_idx] if split_idx < len(split_points) else BIG_NUMBER
+        avg_time_btwn_moves = (move.end_time - prev_time) / move.num_moves if (move.num_moves > 0) else 0
 
-        if move.end_time > split_point:
+        if (move.end_time > split_point):
             move_seq_splits.append(current_split)
             current_split = []
             split_idx += 1
 
         current_split.append(move)
+        prev_time = move.start_time
 
     if len(current_split) > 0:
         move_seq_splits.append(current_split)
@@ -101,6 +104,8 @@ if __name__ == '__main__':
             else:
                 raise ValueError('No split routine for {}'.format(tv_type.name))
 
+        print('Found {} Splits for {}'.format(len(move_sequence_splits), video_file))
+
         # Make the output file name
         file_name = os.path.basename(video_file).replace('.MOV', '').replace('.mp4', '')
         output_path = os.path.join(output_folder, '{}.json'.format(file_name))
@@ -110,8 +115,24 @@ if __name__ == '__main__':
         results: List[Dict[str, Any]] = []
 
         for move_sequence in move_sequence_splits:
+            # Determine whether to include the final move (based on whether we ended with a proper 'done' or not)
+            if (tv_type == SmartTVType.SAMSUNG) and (move_sequence[-1].end_sound != SAMSUNG_SELECT) and (move_sequence[-1].num_moves == 1):
+                move_sequence = move_sequence[0:-1]  # The last move was a suggested done key. This gives us no information, so we remove it.
+
+            # Filter out any other 'select' sounds which may occur in the interim
+            start_idx = 0
+            while (start_idx < len(move_sequence)) and (move_sequence[start_idx].end_sound == SAMSUNG_SELECT) and (move_sequence[start_idx].num_moves != 1):
+                start_idx += 1
+
+            if start_idx >= len(move_sequence):
+                continue
+
+            move_sequence = move_sequence[start_idx:]
             move_counts = list(map(lambda m: m.num_moves, move_sequence))
             did_use_suggestions = (tv_type == SmartTVType.SAMSUNG) and (classify_ms(suggestions_model, move_counts)[0] == 1)
+
+            print('Move Counts: {}'.format(move_counts))
+            print('End Sounds: {}'.format(list(map(lambda m: m.end_sound, move_sequence))))
 
             result = {
                 'move_seq': list(map(lambda m: m.to_dict(), move_sequence)),
