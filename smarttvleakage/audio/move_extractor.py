@@ -314,9 +314,10 @@ class SamsungMoveExtractor(MoveExtractor):
             select_time_diff = np.abs(np.subtract(select_times, t))
             move_time_diff = np.abs(np.subtract(move_times, t))
 
-            num_moves_between = len(list(filter(lambda move_time: (move_time > last_select) and (move_time < t), move_times)))
+            #num_moves_between = len(list(filter(lambda move_time: (move_time > last_select) and (move_time < t), move_times)))
+            # ((t < last_select) or (num_moves_between > 0))
 
-            if np.all(select_time_diff > KEY_SELECT_DISTANCE) and np.all(move_time_diff > KEY_SELECT_DISTANCE) and ((t < last_select) or (num_moves_between > 0)):
+            if np.all(select_time_diff > KEY_SELECT_DISTANCE) and np.all(move_time_diff > KEY_SELECT_DISTANCE):
                 key_select_times.append(t)
 
         if len(key_select_times) == 0:
@@ -335,6 +336,7 @@ class SamsungMoveExtractor(MoveExtractor):
         clipped_delete_times = list(filter(lambda t: t > start_time, delete_times))
 
         move_idx = 0
+        start_move_idx = 0
         key_idx = 0
         select_idx = 0
         double_move_idx = 0
@@ -344,24 +346,36 @@ class SamsungMoveExtractor(MoveExtractor):
         result: List[int] = []
         window_move_times: List[int] = []
 
+        print('Key Times: {}'.format(key_select_times))
+        print('Move Times: {}'.format(clipped_move_times))
+        print('Select Times: {}'.format(clipped_select_times))
+
         while move_idx < len(clipped_move_times):
+
+            # TODO: Fix tie-breaking bug. Only select a key select when it is the next in line.
             while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
                 directions = extract_move_directions(window_move_times)
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, end_time=key_select_times[key_idx]))
+                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else key_select_times[key_idx]
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, start_time=start_time, end_time=key_select_times[key_idx]))
                 key_idx += 1
                 num_moves = 0
+                start_move_idx = move_idx
                 window_move_times = []
 
             while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY, end_time=clipped_select_times[select_idx]))
+                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else clipped_select_times[select_idx]
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY, start_time=start_time, end_time=clipped_select_times[select_idx]))
                 select_idx += 1
                 num_moves = 0
+                start_move_idx = move_idx
                 window_move_times = []
 
             while (delete_idx < len(clipped_delete_times)) and (clipped_move_times[move_idx] > clipped_delete_times[delete_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY, end_time=clipped_delete_times[delete_idx]))
+                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else clipped_delete_times[delete_idx]
+                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY, start_time=start_time, end_time=clipped_delete_times[delete_idx]))
                 delete_idx += 1
                 num_moves = 0
+                start_move_idx = move_idx
                 window_move_times = []
 
             window_move_times.append(clipped_move_times[move_idx])
@@ -383,7 +397,8 @@ class SamsungMoveExtractor(MoveExtractor):
         # Write out the last group if we haven't reached the last key
         if key_idx < len(key_select_times):
             directions = extract_move_directions(window_move_times)
-            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, end_time=key_select_times[key_idx]))
+            start_time = clipped_move_times[start_move_idx] if num_moves > 0 else key_select_times[key_idx]
+            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, start_time=start_time, end_time=key_select_times[key_idx]))
 
         # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
         # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
@@ -400,8 +415,9 @@ class SamsungMoveExtractor(MoveExtractor):
 
         # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
         # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
-        if include_moves_to_done:
-            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, directions=Direction.ANY, end_time=next_select)
+        if include_moves_to_done and (len(selects_after) > 0):
+            start_time = moves_between[0] if len(moves_between) > 0 else 0
+            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, directions=Direction.ANY, start_time=start_time, end_time=next_select)
             result.append(move_to_done)
 
         # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
@@ -549,7 +565,7 @@ if __name__ == '__main__':
     print('Keyboard type: {}'.format(keyboard_type.name))
 
     for idx, move in enumerate(move_seq):
-        print('Move {}: {} ({})'.format(idx, move.directions, move.end_sound))
+        print('Move {}: {} ({}, {})'.format(idx, move.directions, move.num_moves, move.end_sound))
 
     fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 
