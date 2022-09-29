@@ -24,7 +24,7 @@ SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params
 
 
 APPLETV_PASSWORD_THRESHOLD = 800
-APPLETV_MOVE_DISTANCE = 5
+APPLETV_MOVE_DISTANCE = 3
 MIN_DISTANCE = 12
 KEY_SELECT_DISTANCE = 25
 MIN_DOUBLE_MOVE_DISTANCE = 30
@@ -242,10 +242,40 @@ class MoveExtractor:
 
         #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Avg Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
 
-        peaks, peak_properties = find_peaks(x=similarity, height=adaptive_threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
-        peak_heights = peak_properties['peak_heights']
+        filter_threshold = adaptive_threshold if (self._tv_type != SmartTVType.APPLE_TV) or (sound != APPLETV_KEYBOARD_MOVE) else threshold
+        filtered_peaks, filtered_peak_properties = find_peaks(x=similarity, height=filter_threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
+        filtered_peak_heights = filtered_peak_properties['peak_heights']
 
-        return peaks, peak_heights
+        # Filter out non-moves based on peak height and distance
+        if (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_KEYBOARD_MOVE):
+            clipped_peaks: List[int] = []
+            clipped_peak_heights: List[float] = []
+
+            for peak_idx in range(len(filtered_peaks)):
+                peak = filtered_peaks[peak_idx]
+                peak_height = filtered_peak_heights[peak_idx]
+        
+                if peak_height >= adaptive_threshold:
+                    clipped_peaks.append(peak)
+                    clipped_peak_heights.append(peak_height)
+                elif len(filtered_peaks) > 1:
+                    dist_to_adjacent = BIG_NUMBER
+
+                    if peak_idx == 0:
+                        dist_to_adjacent = filtered_peaks[peak_idx + 1] - peak
+                    elif peak_idx == len(filtered_peaks) - 1:
+                        dist_to_adjacent = peak - filtered_peaks[peak_idx - 1]
+                    else:
+                        dist_to_adjacent = max(peak - filtered_peaks[peak_idx - 1], filtered_peaks[peak_idx + 1] - peak)
+
+                    if dist_to_adjacent < 30:
+                        clipped_peaks.append(peak)
+                        clipped_peak_heights.append(peak_height)
+
+            filtered_peaks = clipped_peaks
+            filtered_peak_heights = clipped_peak_heights
+
+        return filtered_peaks, filtered_peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
@@ -496,10 +526,10 @@ class AppleTVMoveExtractor(MoveExtractor):
             A list of moves before selections. The length of this list is the number of selections.
         """
         # Get the raw keyboard select times
-        keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
+        raw_keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
 
         # Signals without any key selections do not interact with the keyboard
-        if len(keyboard_select_times) == 0:
+        if len(raw_keyboard_select_times) == 0:
             return [], False, KeyboardType.APPLE_TV_SEARCH
 
         # Get occurances of the other sounds
@@ -510,6 +540,12 @@ class AppleTVMoveExtractor(MoveExtractor):
         toolbar_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_TOOLBAR_MOVE)
 
         # Filter out conflicting sounds
+        keyboard_select_times: List[int] = []
+        for key_time in raw_keyboard_select_times:
+            diff = np.abs(np.subtract(keyboard_delete_times, key_time))
+            if np.all(diff > MIN_DISTANCE):
+                keyboard_select_times.append(key_time)
+
         system_move_times: List[int] = []
         for move_time in raw_system_move_times:
             diff = np.abs(np.subtract(keyboard_select_times, move_time))
@@ -527,7 +563,8 @@ class AppleTVMoveExtractor(MoveExtractor):
             keyboard_diff = np.abs(np.subtract(keyboard_select_times, move_time))
             system_diff = np.abs(np.subtract(system_move_times, move_time))
             double_move_diff = np.abs(np.subtract(keyboard_double_move_times, move_time))
-            if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DISTANCE):
+            delete_diff = np.abs(np.subtract(keyboard_delete_times, move_time))
+            if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DISTANCE) and np.all(delete_diff > MIN_DISTANCE):
                 keyboard_move_times.append(move_time)
 
         # Get the end time as the last system move / toolbar move
@@ -608,9 +645,9 @@ if __name__ == '__main__':
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_KEY_SELECT
+    sound = APPLETV_KEYBOARD_MOVE
 
-    extractor = SamsungMoveExtractor()
+    extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
