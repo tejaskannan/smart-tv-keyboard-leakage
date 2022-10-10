@@ -157,7 +157,7 @@ def simulate_ms(dict, ss_path : str, word : str, auto : bool) -> List[int]:
     """Simulates a move sequence"""
     keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
     if not auto:
-        move = findPath(word, 0, False, False, 0, 0, keyboard)
+        move = findPath(word, False, False, False, 0, 0, 0, keyboard, "q")
         ms = []
         for m in move:
             ms.append(m.num_moves)

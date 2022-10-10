@@ -172,53 +172,6 @@ def save_model(path : str, model):
 # Classify move sequences
 
 
-# takes in a model and a move sequence, returns an int; 1 for auto, 0 for non
-def classify_ms(model, ms : List[int],
-                bins : int = 3, weight : int = 3) -> Tuple[int, float]:
-    """Classifies a move sequence, returns class and confidence"""
-    data = np.empty((0, bins), dtype=float)
-    list_dist = make_row_dist(ms, range(bins), weight)
-    new_row = np.array(list_dist, dtype=float)
-    data = np.append(data, [new_row], axis=0)
-    column_titles = make_column_titles_dist(range(bins))
-    df = pd.DataFrame(data = data, columns = column_titles)
-
-    pred_probas = model.predict_proba(df)[0]
-    if pred_probas[0] >= .5:
-        return (0, pred_probas[0])
-    return (1, pred_probas[1])
-
-
-def classify_ms_with_msfd(model, msfd,
-                ms : List[int],
-                bins : int = 3, weight : int = 3,
-                auto_cutoff : float = .5, non_cutoff : float = .5) -> Tuple[int, float, float, float]:
-    """Classifies a move sequence using ML and algorithmic method,
-    returns class, ML confidence, manual score, combined score"""
-
-    data = np.empty((0, bins), dtype=float)
-    list_dist = make_row_dist(ms, range(bins), weight)
-    new_row = np.array(list_dist, dtype=float)
-    data = np.append(data, [new_row], axis=0)
-
-    column_titles = make_column_titles_dist(range(bins))
-    df = pd.DataFrame(data = data, columns = column_titles)
-
-    # now predict from the dataframe, and then add manual
-
-    pred_probas = model.predict_proba(df)[0]
-    if pred_probas[0] >= 1-non_cutoff:
-        return (0, pred_probas[0], -1, pred_probas[0])
-    if pred_probas[1] > 1-auto_cutoff:
-        return (1, pred_probas[1], -1, pred_probas[1])
-
-    # go into manual scoring, use strategy = 2!
-    manual_score = get_score_from_ms(ms, 2, msfd)[0][1]
-    combined_score, normalized_manual_score = combine_confidences(pred_probas[0], manual_score, 0)
-    if combined_score > .5:
-        return (0, pred_probas[0], normalized_manual_score, combined_score)
-    return (1, pred_probas[1], normalized_manual_score, 1-combined_score)
-
 def classify_ms_with_msfd_full(model, msfd, db,
                 ms : List[int],
                 bins : int = 3, weight : int = 3, peak : float = 30,
@@ -293,14 +246,6 @@ if __name__ == "__main__":
     if args.msfd_path is None:
         args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
         msfd = build_msfd(args.msfd_path)
-    elif args.msfd_path == "base":
-        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
-        msfd = build_msfd(args.msfd_path)
-    elif args.msfd_path == "both":
-        args.msfd_path = "suggestions_model/local/msfd.pkl.gz"
-        msfd_base = build_msfd(args.msfd_path)
-        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
-        msfd_exp = build_msfd(args.msfd_path)
 
     if args.ed_path is None:
         englishDictionary = EnglishDictionary.restore(
@@ -308,7 +253,7 @@ if __name__ == "__main__":
     elif args.ed_path == "build":
         englishDictionary = EnglishDictionary(50)
         englishDictionary.build(
-            "suggestions_model/local/dictionaries/enwiki-20210820-words-frequency.txt", 50, True)
+            "suggestions_model/local/dictionaries/enwiki-20210820-words-frequency.txt", 50, True, False)
         englishDictionary.save("suggestions_model/local/dictionaries/ed.pkl.gz")
     elif args.ed_path == "ry":
         rockyouDictionary = NgramDictionary.restore("suggestions_model/local/rockyou_dict_updated.pkl.gz")
@@ -323,31 +268,17 @@ if __name__ == "__main__":
 
     # Tests
     # 0 - save model
-    # 1 - test all dicts
-    # 2 - test all dicts configs
-    # 3 - (1) with sim model
-    # 4 - (2) with sim model
-    # 5 - reveal mistake words ADD
-    # 6 - (5) with build model (sim)
-    # 7 - test loaded model with 3 class breakdown
-    # 8 - test a move sequence with a model
-    # 9 - find best cutoffs
-    # 10 - test msfd vs exp
-    # 11 - sql test
-    # 12 - test msfd vs exp vs sql
-    test = 13
-
-    if test == 14:
-        print("test 14")
-        print("build ryd")
-        ryd = NgramDictionary()
-        ryd.build("suggestions_model/local/rockyou.txt", 0, False, False)
-        save_pickle_gz(ryd, "suggestions_model/local/rockyou_dict_updated.pkl.gz")
+    # 1 - 3 class matrix
+    # 2 - test with ms as CL arg
+    # 3?
+ 
+    test = 3
 
 
 
-    if test == 13:
-        print("test 13")
+
+    if test == 3:
+        print("test 3")
         
         model = read_pickle_gz(args.model_path)
         print("building test dicts")
@@ -370,7 +301,6 @@ if __name__ == "__main__":
             ms_dict_phpbb_test.items())
         for peak in peaks:
             results[peak] = []
-            msfd = msfd_base
 
             print("classifying autos")
             for key, val in ms_dict_auto_test.items():
@@ -429,276 +359,40 @@ if __name__ == "__main__":
 
 
 
-    if test == 12:
-        print("test 12")
-        
-        model = read_pickle_gz(args.model_path)
-        print("building test dicts")
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
-        ms_dict_non_test = build_ms_dict(args.ms_path_non)
-        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 1000, 500)
-        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 1000)
-        print("test dicts built")
-        db_path = "rockyou-samsung.db"
+    if test == 2:
+        print("test 2")
+
+        db_path = "rockyou-samsung-updated.db"
         db = PasswordRainbow(db_path)
 
-        ac = .26
-        nc = .32
-        results = {}
-        ds = ["base", "exp", "sql"]
-        for d in ds:
-            results[d] = []
-            if d == "exp":
-                msfd = msfd_exp
-            else:
-                msfd = msfd_base
-
-            print("classifying autos")
-            for key, val in ms_dict_auto_test.items():
-                if d == "sql":
-                    pred = classify_ms_with_msfd_full(model, msfd, db,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                else:
-                    pred = classify_ms_with_msfd(model, msfd,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 0:
-                    results[d].append((key, "auto"))
-            print("classifying nons")
-            for key, val in ms_dict_non_test.items():
-                if d == "sql":
-                    pred = classify_ms_with_msfd_full(model, msfd, db,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                else:
-                    pred = classify_ms_with_msfd(model, msfd,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 1:
-                    results[d].append((key, "non"))
-            print("classifying rockyous")
-            for key, val in ms_dict_rockyou_test.items():
-                if d == "sql":
-                    pred = classify_ms_with_msfd_full(model, msfd, db,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                else:
-                    pred = classify_ms_with_msfd(model, msfd,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 1:
-                    results[d].append((key, "rockyou"))
-            print("classifying phpbbs")
-            for key, val in ms_dict_phpbb_test.items():
-                if d == "sql":
-                    pred = classify_ms_with_msfd_full(model, msfd, db,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                else:
-                    pred = classify_ms_with_msfd(model, msfd,
-                        val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 1:
-                    results[d].append((key, "phpbb"))
-            #print("classified")
-
-
-        for d in ds:
-            print(d)
-            print("all: ", end="")
-            print(len(results[d]), end="| ")
-            non_list = list(filter(lambda x : x[1] == "non", results[d]))
-            auto_list = list(filter(lambda x : x[1] == "auto", results[d]))
-            rockyou_list = list(filter(lambda x : x[1] == "rockyou", results[d]))
-            phpbb_list = list(filter(lambda x : x[1] == "phpbb", results[d]))
-            print("non: ", end="")
-            print(len(non_list), end="; ")
-            print("auto: ", end="")
-            print(len(auto_list), end="; ")
-            print("rockyou: ", end="")
-            print(len(rockyou_list), end="; ")
-            print("phpbb: ", end="")
-            print(len(phpbb_list))
-
-
-
-
-    if test == 11:
-        print("test 11")
-        #model = read_pickle_gz(args.model_path)
-        db_path = "rockyou-samsung.db"
-        db = PasswordRainbow(db_path)
-        ms = args.move_sequence
-        print(ms)
-
-        moves = [Move(num_moves=num_moves, directions=Direction.ANY,
-                    end_sound=SAMSUNG_KEY_SELECT) for num_moves in ms]
-        print(moves)
-
-        print("test without")
-        db_strings = db.get_strings_for_seq(moves, tv_type=SmartTVType.SAMSUNG, max_num_results=None)
-        print(db_strings)
-
-
-        print("\n\ntest reverse")
-        db_output = db.get_seq_for_string("12345", tv_type=SmartTVType.SAMSUNG)
-        print(db_output)
-
-        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 1000)
-        scores = []
-        for ms in ms_dict_rockyou_test.values():
-            moves = [Move(num_moves=num_moves, directions=Direction.ANY,
-                    end_sound=SAMSUNG_KEY_SELECT) for num_moves in ms]
-            scores.append(db.get_strings_for_seq(moves, tv_type=SmartTVType.SAMSUNG, max_num_results=None)[0][1])
-        scores.sort(key=lambda x : x, reverse=True)
-        print(scores[0]) # top score from 1000 - 29.5
-        scores.sort(key=lambda x : x, reverse=False)
-        print(scores[0]) # 13.47
-        # For now, just divide by 30?
-
-    #msfd: all: 353, phpbb: 344
-    #exp: all: 266, phpbb: 258
-    if test == 10:
-        print("test 10")
-        model = read_pickle_gz(args.model_path)
-        print("building test dicts")
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
-        ms_dict_non_test = build_ms_dict(args.ms_path_non)
-        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
-        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 500)
-        print("test dicts built")
-
-        ac = .26
-        nc = .32
-        results = {}
-        ds = ["msfd", "exp"]
-        for d in ds:
-            results[d] = []
-            if d == "msfd":
-                msfd = msfd_base
-            else:
-                msfd = msfd_exp
-
-            print("classifying autos")
-            for key, val in ms_dict_auto_test.items():
-                pred = classify_ms_with_msfd(
-                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 0:
-                    results[d].append((key, "auto"))
-            print("classifying nons")
-            for key, val in ms_dict_non_test.items():
-                pred = classify_ms_with_msfd(
-                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 1:
-                    results[d].append((key, "non"))
-            print("classifying rockyous")
-            for key, val in ms_dict_rockyou_test.items():
-                pred = classify_ms_with_msfd(
-                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 1:
-                    results[d].append((key, "rockyou"))
-            print("classifying phpbbs")
-            for key, val in ms_dict_phpbb_test.items():
-                pred = classify_ms_with_msfd(
-                    model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                if pred == 1:
-                    results[d].append((key, "phpbb"))
-            print("classified")
-
-        for d in ds:
-            print(d)
-            for word, ty in results[d]:
-                print(word + ", " + ty)
-        for d in ds:
-            print(d)
-            print("all: ", end="")
-            print(len(results[d]))
-            phpbb_list = list(filter(lambda x : x[1] == "phpbb", results[d]))
-            print("phpbb: ", end="")
-            print(len(phpbb_list))
-
-
-
-    if test == 9:
-        print("test 9")
-        model = read_pickle_gz(args.model_path)
-        print("building test dicts")
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
-        ms_dict_non_test = build_ms_dict(args.ms_path_non)
-        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
-        print("test dicts built")
-
-        acs = [x / 50 for x in range(11, 21)]
-        ncs = [x / 50 for x in range(11, 21)]
-        results = {}
-        for ac in acs:
-            for nc in ncs:
-                results[(ac, nc)] = []
-                print("classifying autos")
-                for key, val in ms_dict_auto_test.items():
-                    pred = classify_ms_with_msfd(
-                        model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                    if pred == 0:
-                        results[(ac, nc)].append((key, "auto"))
-                print("classifying nons")
-                for key, val in ms_dict_non_test.items():
-                    pred = classify_ms_with_msfd(
-                        model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                    if pred == 1:
-                        results[(ac, nc)].append((key, "non"))
-                print("classifying rockyous")
-                for key, val in ms_dict_rockyou_test.items():
-                    pred = classify_ms_with_msfd(
-                        model, msfd, val, bins=3, weight=3, auto_cutoff=ac, non_cutoff=nc)[0]
-                    if pred == 1:
-                        results[(ac, nc)].append((key, "rockyou"))
-                print("classified")
-        
-        items = list(results.items())
-        items.sort(key = lambda x : len(x[1]), reverse=True)
-        lines = []
-        for params, wrongs in items:
-            ac, nc = params
-            lines.append("ac: " + str(ac) + "; nc: " + str(nc) + "\n")
-            print("ac: " + str(ac) + "; nc: " + str(nc))
-            
-            for ty in ["non", "auto", "rockyou"]:
-                lines.append(ty + ": ")
-                for word, _ in filter(lambda x : x[1] == ty, wrongs):
-                    lines.append(word + ", ")
-                    print(word + ", " + ty)
-                lines.append("\n")
-            lines.append("\n")
-
-        if args.results_path is not None:
-            with open(args.results_path, "w", encoding="utf-8") as f:
-                f.writelines(lines)
-                f.close()
-
-    if test == 8:
-        print("test 8")
         model = read_pickle_gz(args.model_path)
         if args.move_sequence is None:
             keyboard_type = KeyboardType.SAMSUNG
             graph = MultiKeyboardGraph(keyboard_type=keyboard_type)
-            ms = findPath(args.target, False, False, False, False, 0, 0, 0, graph)
+            ms = findPath(args.target, False, False, False, 0, 0, 0, graph, "q")
             ms = list(map(lambda x : x.num_moves, ms))
             print(ms)
         else:
             ms = args.move_sequence
 
-        if args.classify is None:
-            clas, proba = classify_ms(model, ms)
-            print(clas)
-            print(proba)
-        elif args.classify == "msfd":
-            clas, conf, manual, combined = classify_ms_with_msfd(
-                model, msfd, ms, auto_cutoff=.32, non_cutoff=.26, weight=1)
-            print(clas)
-            print(conf)
-            print(manual)
-            print(combined)
+        clas, conf, manual, combined = classify_ms_with_msfd_full(
+            model, msfd, db, ms, auto_cutoff=.32, non_cutoff=.26, weight=1)
+        print(clas)
+        print(conf)
+        print(manual)
+        print(combined)
 
         msfd_word, msfd_score = get_score_from_ms(ms, 2, msfd)[0]
         print("msfd word: " + msfd_word)
         print("msfd score: " + str(msfd_score))
 
 
-    if test == 7:
+    if test == 1:
         print("test 7")
+
+        db_path = "rockyou-samsung-updated.db"
+        db = PasswordRainbow(db_path)
+
         model = read_pickle_gz(args.model_path)
         print("building test dicts")
         ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
@@ -709,15 +403,15 @@ if __name__ == "__main__":
         results = {}
         print("classifying autos")
         for key, val in ms_dict_auto_test.items():
-            pred = classify_ms(model, val, bins=3, weight=3)[0]
+            pred = classify_ms_with_msfd_full(model, msfd, db, val, bins=3, weight=3)[0]
             results[(key, "auto")] = pred
         print("classifying nons")
         for key, val in ms_dict_non_test.items():
-            pred = classify_ms(model, val, bins=3, weight=3)[0]
+            pred = classify_ms_with_msfd_full(model, msfd, db, val, bins=3, weight=3)[0]
             results[(key, "non")] = pred
         print("classifying rockyous")
         for key, val in ms_dict_rockyou_test.items():
-            pred = classify_ms(model, val, bins=3, weight=3)[0]
+            pred = classify_ms_with_msfd_full(model, msfd, db, val, bins=3, weight=3)[0]
             results[(key, "rockyou")] = pred
         print("classified")
 
@@ -773,367 +467,11 @@ if __name__ == "__main__":
         if args.save_path is not None:
             fig.savefig(args.save_path)
 
-    if test == 6:
-        print("test 6")
-
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
-        ms_dict_non_test = build_ms_dict(args.ms_path_non)
-        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
-
-        model = read_pickle_gz(args.model_path)
-        errors = []
-        for key, val in ms_dict_auto_test.items():
-            pred = classify_ms_with_msfd(
-                model, msfd, val, bins=3, weight=3, auto_cutoff=.25, non_cutoff=.25)[0]
-            if pred != 1:
-                errors.append((key, "auto", val))
-
-        for key, val in ms_dict_non_test.items():
-            pred = classify_ms_with_msfd(
-                model, msfd, val, bins=3, weight=3, auto_cutoff=.25, non_cutoff=.25)[0]
-            if pred != 0:
-                errors.append((key, "non", val))
-
-        for key, val in ms_dict_rockyou_test.items():
-            pred = classify_ms_with_msfd(
-                model, msfd, val, bins=3, weight=3, auto_cutoff=.25, non_cutoff=.25)[0]
-            if pred != 0:
-                errors.append((key, "rockyou", val))
-
-        print("errors:")
-        for word, ty, ms in errors:
-            print(word + ", " + ty, end=": ")
-            print(ms)
-
-    if test == 5:
-        print("test 5")
-        split = 53
-        ms_dict_auto_train = build_ms_dict(args.ms_path_auto, take=split)
-        ms_dict_non_train = build_ms_dict(args.ms_path_non, take=split)
-        ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take=(0-split))
-        ms_dict_non_test = build_ms_dict(args.ms_path_non, take=(0-split))
-        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
-
-        results = {}
-        model = build_model(include_rockyou=True, bins=3, weight=3,
-                            ms_dict_auto=ms_dict_auto_train, ms_dict_non=ms_dict_non_train,
-                            ms_dict_rockyou=ms_dict_rockyou_train)
-
-        errors = []
-        for key, val in ms_dict_auto_test.items():
-            pred = classify_ms_with_msfd(
-                model, msfd, val, bins=3, weight=3, auto_cutoff=.25, non_cutoff=.25)[0]
-            if pred != 1:
-                errors.append((key, "auto", val))
-
-        for key, val in ms_dict_non_test.items():
-            pred = classify_ms_with_msfd(
-                model, msfd, val, bins=3, weight=3, auto_cutoff=.25, non_cutoff=.25)[0]
-            if pred != 0:
-                errors.append((key, "non", val))
-
-        for key, val in ms_dict_rockyou_test.items():
-            pred = classify_ms_with_msfd(
-                model, msfd, val, bins=3, weight=3, auto_cutoff=.25, non_cutoff=.25)[0]
-            if pred != 0:
-                errors.append((key, "rockyou", val))
-
-        print("errors:")
-        for word, ty, ms in errors:
-            print(word + ", " + ty, end=": ")
-            print(ms)
-    
-
-
-
-    if test == 4:
-        print("test 4")
-        auto_words = grab_words(200, args.words_path)
-        non_words = grab_words(200, args.words_path)
-        ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
-        ms_dict_non_test = build_ms_dict(args.ms_path_non)
-        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
-
-        bss = [3, 4, 5]
-        weights = [3, 4, 5]
-        certainty_cutoffs = [.25, .3, .35, .4, .45, .5]
-
-        print("building rockyou dict")
-        print("build rockyou dict")
-
-        results = {}
-        for bs in bss:
-            for w in weights:
-                model = build_model_sim(ms_dict_rockyou=ms_dict_rockyou_train,
-                                        englishDictionary=englishDictionary, ss_path=args.ss_path,
-                                        words_auto=auto_words, words_non=non_words,
-                                        include_rockyou=True, bins=bs, weight=w)
-                    
-                for cc in certainty_cutoffs:
-                    print("testing bins: " + str(bs) + "; cc: " + str(cc) + "; " + id_to_weight(w))
-
-                    gt_array = []
-                    label_array = []
-
-                    for _, val in ms_dict_auto_test.items():
-                        pred = classify_ms_with_msfd(
-                            model, msfd, val, bins=bs, weight=w, auto_cutoff=cc, non_cutoff=cc)[0]
-                        gt_array.append(1)
-                        label_array.append(pred)
-
-                    for _, val in ms_dict_non_test.items():
-                        pred = classify_ms_with_msfd(
-                            model, msfd, val, bins=bs, weight=w, auto_cutoff=cc, non_cutoff=cc)[0]
-                        gt_array.append(0)
-                        label_array.append(pred)
-
-                    for _, val in ms_dict_rockyou_test.items():
-                        pred = classify_ms_with_msfd(
-                            model, msfd, val, bins=bs, weight=w, auto_cutoff=cc, non_cutoff=cc)[0]
-                        gt_array.append(0)
-                        label_array.append(pred)
-
-                    cm = confusion_matrix(gt_array, label_array, labels=[0, 1])
-                    acc = accuracy_score(gt_array, label_array)
-                    f1 = f1_score(gt_array, label_array)
-
-                    results[(bs, w, cc)] = (cm, acc, f1)
-
-        results_list = []
-        for bs, w, cc in results:
-            cm, acc, f1 = results[(bs, w, cc)]
-            results_list.append((bs, w, cc, cm, acc, f1))
-
-        results_list.sort(key=(lambda x : x[4]), reverse=True)
-        lines = []
-        for bs, w, cc, cm, acc, f1 in results_list:
-            print("bins: " + str(bs) + "; weight: " + str(w) + "; cc: " + str(cc))
-            print("acc: " + str(acc))
-            print("f1: " + str(f1))
-            #disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["non", "auto"])
-            #disp.plot()
-            #plt.show()
-            print("\n")
-
-            lines.append("bins: " + str(bs) + "; weight: " + str(w) + "; cc: " + str(cc) + "\n")
-            lines.append("acc: " + str(acc))
-            lines.append(", f1: " + str(f1) + "\n")
-            lines.append("cm:\n" + str(cm))
-            lines.append("\n\n")
-
-        if args.results_path is not None:
-            with open(args.results_path, "a", encoding="utf-8") as f:
-                f.writelines(lines)
-                f.close()
-
-
-    if test == 3:
-        print("test 3")
-        model = build_model_sim(build_rockyou_ms_dict(args.ms_path_rockyou, 500), englishDictionary,
-                                ss_path=args.ss_path,
-                                words_auto=grab_words(2000, args.words_path),
-                                words_non=grab_words(2000, args.words_path),
-                                include_rockyou=True)
-
-        ms_dict_rockyou = build_rockyou_ms_dict(args.ms_path_rockyou, 105, 200)
-
-        correct_auto = 0
-        correct_non = 0
-        correct_rockyou = 0
-        total_auto = 0
-        total_non = 0
-        total_rockyou = 0
-
-        for key, val in ms_dict_auto.items():
-            print(key)
-            if classify_ms_with_msfd(model, msfd, val, auto_cutoff=.5, non_cutoff=.5)[0] == 1:
-                correct_auto += 1
-            total_auto += 1
-        for key, val in ms_dict_non.items():
-            print(key)
-            if classify_ms_with_msfd(model, msfd, val, auto_cutoff=.5, non_cutoff=.5)[0] == 0:
-                correct_non += 1
-            total_non += 1
-        for key, val in ms_dict_rockyou.items():
-            print(key)
-            if classify_ms_with_msfd(model, msfd, val, auto_cutoff=.5, non_cutoff=.5)[0] == 0:
-                correct_rockyou += 1
-            total_rockyou += 1
-
-        print("correct auto: " + str(correct_auto))
-        print("total auto: " + str(total_auto))
-        print("accuracy auto: " + str(correct_auto/total_auto))
-        print("\n")
-        print("correct non: " + str(correct_non))
-        print("total non: " + str(total_non))
-        print("accuracy non: " + str(correct_non/total_non))
-        print("\n")
-        print("correct rockyou: " + str(correct_rockyou))
-        print("total rockyou: " + str(total_rockyou))
-        print("accuracy rockyou: " + str(correct_rockyou/total_rockyou))
-        print("\n")
-        correct = correct_auto + correct_non + correct_rockyou
-        total = total_auto + total_non + total_rockyou
-        print("correct: " + str(correct))
-        print("total auto: " + str(total))
-        print("accuracy auto: " + str(correct/total))
-
-    if test == 2:
-        split = 53
-        ms_dict_auto_train = build_ms_dict(args.ms_path_auto, take=split)
-        ms_dict_non_train = build_ms_dict(args.ms_path_non, take=split)
-        ms_dict_rockyou_train = build_rockyou_ms_dict(args.ms_path_rockyou, 500)
-        ms_dict_auto_test = build_ms_dict(args.ms_path_auto, take=(0-split))
-        ms_dict_non_test = build_ms_dict(args.ms_path_non, take=(0-split))
-        ms_dict_rockyou_test = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
-
-        bss = [3, 4, 5]
-        weights = [3, 4, 5]
-        certainty_cutoffs = [.25, .3, .35, .4, .45, .5]
-        print("test 2")
-
-        results = {}
-        for bs in bss:
-            for w in weights:
-                model = build_model(include_rockyou=True, bins=bs, weight=w, ms_dict_auto=ms_dict_auto_train, ms_dict_non=ms_dict_non_train, ms_dict_rockyou=ms_dict_rockyou_train)
-                    
-                for cc in certainty_cutoffs:
-                    print("testing bins: " + str(bs) + "; cc: " + str(cc) + "; " + id_to_weight(w))
-
-                    gt_array = []
-                    label_array = []
-
-                    for _, val in ms_dict_auto_test.items():
-                        pred = classify_ms_with_msfd(model, msfd, val, bins=bs, weight=w, auto_cutoff=cc, non_cutoff=cc)[0]
-                        gt_array.append(1)
-                        label_array.append(pred)
-
-                    for _, val in ms_dict_non_test.items():
-                        pred = classify_ms_with_msfd(model, msfd, val, bins=bs, weight=w, auto_cutoff=cc, non_cutoff=cc)[0]
-                        gt_array.append(0)
-                        label_array.append(pred)
-
-                    for _, val in ms_dict_rockyou_test.items():
-                        pred = classify_ms_with_msfd(model, msfd, val, bins=bs, weight=w, auto_cutoff=cc, non_cutoff=cc)[0]
-                        gt_array.append(0)
-                        label_array.append(pred)
-
-                    cm = confusion_matrix(gt_array, label_array, labels=[0, 1])
-                    acc = accuracy_score(gt_array, label_array)
-                    f1 = f1_score(gt_array, label_array)
-
-                    results[(bs, w, cc)] = (cm, acc, f1)
-
-        results_list = []
-        for bs, w, cc in results:
-            cm, acc, f1 = results[(bs, w, cc)]
-            results_list.append((bs, w, cc, cm, acc, f1))
-        
-        results_list.sort(key=(lambda x : x[4]), reverse=True)
-        
-        lines = []
-        for bs, w, cc, cm, acc, f1 in results_list:
-            print("bins: " + str(bs) + "; weight: " + str(w) + "; cc: " + str(cc))
-            print("acc: " + str(acc))
-            print("f1: " + str(f1))
-            #disp = ConfusionMatrixDisplay(confusion_matrix=cm, display_labels=["non", "auto"])
-            #disp.plot()
-            #plt.show()
-            print("\n")
-
-            lines.append("bins: " + str(bs) + "; weight: " + str(w) + "; cc: " + str(cc) + "\n")
-            lines.append("acc: " + str(acc))
-            lines.append(", f1: " + str(f1) + "\n")
-            lines.append("cm:\n" + str(cm))
-            lines.append("\n\n")
-        if args.results_path is not None:
-            with open(args.results_path, "w") as f:
-                f.writelines(lines)
-                f.close()
-
-    if test == 1:
-        print("test 1")
-        #model = read_pickle_gz("max/model_rockyou.pkl.gz")
-        model = build_model(include_rockyou=True,
-                        ms_dict_auto=build_ms_dict(args.ms_path_auto, take=53),
-                        ms_dict_non=build_ms_dict(args.ms_path_non, take=70),
-                        ms_dict_rockyou=ms_dict_rockyou)
-        ms_dict_auto = build_ms_dict(args.ms_path_auto, take=-53)
-        ms_dict_non = build_ms_dict(args.ms_path_non, take=-53)
-
-        ms_dict_rockyou = build_rockyou_ms_dict(args.ms_path_rockyou, 100, 500)
-        
-        correct_auto = 0
-        correct_non = 0
-        correct_rockyou = 0
-        total_auto = 0
-        total_non = 0
-        total_rockyou = 0
-
-        gt_array = []
-        label_array = []
-
-        for key, val in ms_dict_auto.items():
-            print(key)
-            pred = classify_ms_with_msfd(model, msfd, val, auto_cutoff=.3, non_cutoff=.3)[0]
-            if pred == 1:
-                correct_auto += 1
-            total_auto += 1
-
-            gt_array.append(1)
-            label_array.append(pred)
-        for key, val in ms_dict_non.items():
-            print(key)
-            pred = classify_ms_with_msfd(model, msfd, val, auto_cutoff=.3, non_cutoff=.3)[0]
-            if pred == 0:
-                correct_non += 1
-            total_non += 1
-
-            gt_array.append(0)
-            label_array.append(pred)
-        for key, val in ms_dict_rockyou.items():
-            print(key)
-            pred = classify_ms_with_msfd(model, msfd, val, auto_cutoff=.3, non_cutoff=.3)[0]
-            if pred == 0:
-                correct_rockyou += 1
-            total_rockyou += 1
-
-            gt_array.append(0)
-            label_array.append(pred)
-
-        print("correct auto: " + str(correct_auto))
-        print("total auto: " + str(total_auto))
-        print("accuracy auto: " + str(correct_auto/total_auto))
-        print("\n")
-        print("correct non: " + str(correct_non))
-        print("total non: " + str(total_non))
-        print("accuracy non: " + str(correct_non/total_non))
-        print("\n")
-        print("correct rockyou: " + str(correct_rockyou))
-        print("total rockyou: " + str(total_rockyou))
-        print("accuracy rockyou: " + str(correct_rockyou/total_rockyou))
-        print("\n")
-        correct = correct_auto + correct_non + correct_rockyou
-        total = total_auto + total_non + total_rockyou
-        print("correct: " + str(correct))
-        print("total auto: " + str(total))
-        print("accuracy auto: " + str(correct/total))
-
-        # Metrics
-        print("confusion matrix:")
-        print(confusion_matrix(gt_array, label_array))
-
-        print("f1 score: ", end="")
-        print(f1_score(gt_array, label_array))
-
-        print("accuracy: ", end="")
-        print(accuracy_score(gt_array, label_array))
 
 
     # build and save model
     elif test == 0:
+        print("test 0")
         if args.save_path is None:
             print("no save path")
         else:
