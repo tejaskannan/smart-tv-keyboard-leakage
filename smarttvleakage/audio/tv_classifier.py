@@ -6,6 +6,11 @@ from smarttvleakage.audio.constants import SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_
 from smarttvleakage.utils.constants import SmartTVType
 
 
+SAMSUNG_MIN_PEAK_HEIGHT = 1.1
+APPLETV_MIN_PEAK_HEIGHT = 0.4
+
+
+
 class SmartTVTypeClassifier:
 
     def __init__(self):
@@ -14,16 +19,19 @@ class SmartTVTypeClassifier:
 
     def get_tv_type(self, audio: np.ndarray) -> SmartTVType:
         # Get instances of samsung sounds
-        samsung_times, _ = self._samsung_extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_KEY_SELECT)
+        _, samsung_heights = self._samsung_extractor.find_instances_of_sound(audio=audio, sound=SAMSUNG_KEY_SELECT)
+        _, appletv_heights = self._apple_tv_extractor.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
 
-        if len(samsung_times) > 0:
+        if min(samsung_heights) > SAMSUNG_MIN_PEAK_HEIGHT:
             return SmartTVType.SAMSUNG
-        else:
+        elif min(appletv_heights) > APPLETV_MIN_PEAK_HEIGHT:
             return SmartTVType.APPLE_TV
+        else:
+            return SmartTVType.UNKNOWN
 
 
 if __name__ == '__main__':
-    video_clip = mp.VideoFileClip('/local/apple-tv/ten/wecrashed.MOV')
+    video_clip = mp.VideoFileClip('/local/smart-tv-gettysburg/year.MOV')
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 

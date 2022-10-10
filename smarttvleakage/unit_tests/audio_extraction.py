@@ -186,6 +186,24 @@ class AppleTVAudioExtraction(unittest.TestCase):
         move_seq = list(map(lambda t: t.num_moves, moves))
         self.assertEqual(move_seq, [4, 18, 2, 15, 17, 18, 11, 3, 1])
 
+    def test_hello_scroll(self):
+        audio_signal = read_pickle_gz('sounds/apple_tv/hello_scroll.pkl.gz')
+
+        extractor = make_move_extractor(tv_type=SmartTVType.APPLE_TV)
+        moves, _, _ = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=False)
+
+        move_seq = list(map(lambda t: t.num_moves, moves))
+        self.assertEqual(move_seq, [13, 3, 7, 0, 5])
+
+    def test_test_scroll(self):
+        audio_signal = read_pickle_gz('sounds/apple_tv/test_scroll.pkl.gz')
+
+        extractor = make_move_extractor(tv_type=SmartTVType.APPLE_TV)
+        moves, _, _ = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=False)
+
+        move_seq = list(map(lambda t: t.num_moves, moves))
+        self.assertEqual(move_seq, [1, 15, 16, 1])
+
     def test_star_trek_backspace(self):
         audio_signal = read_pickle_gz('sounds/apple_tv/star_trek.pkl.gz')
 

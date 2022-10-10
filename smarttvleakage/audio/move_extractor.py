@@ -15,22 +15,30 @@ from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_DOUBLE_MOVE, 
 from smarttvleakage.audio.constants import SAMSUNG_MOVE, SAMSUNG_SELECT, APPLETV_KEYBOARD_DELETE
 from smarttvleakage.audio.constants import APPLETV_KEYBOARD_MOVE, APPLETV_KEYBOARD_SELECT, APPLETV_SYSTEM_MOVE
 from smarttvleakage.audio.constants import SAMSUNG_SOUNDS, APPLETV_SOUNDS, APPLETV_KEYBOARD_DOUBLE_MOVE, APPLETV_TOOLBAR_MOVE
+from smarttvleakage.audio.constants import APPLETV_KEYBOARD_SCROLL_DOUBLE, APPLETV_KEYBOARD_SCROLL_TRIPLE
 from smarttvleakage.audio.data_types import Move
+from smarttvleakage.audio.utils import filter_conflicts
 
 
 MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
-SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold', 'match_buffer'])
+SoundProfile = namedtuple('SoundProfile', ['channel0', 'channel1', 'match_params', 'match_threshold', 'match_buffer', 'min_threshold'])
 #Move = namedtuple('Move', ['num_moves', 'end_sound', 'directions'])
 
 
 APPLETV_PASSWORD_THRESHOLD = 800
-APPLETV_MOVE_DISTANCE = 5
+APPLETV_MOVE_DISTANCE = 3
+APPLETV_MOVE_CONFLICT_DISTANCE = 20
+APPLETV_SCROLL_DOUBLE_CONFLICT_DISTANCE = 5
+APPLETV_SCROLL_CONFLICT_DISTANCE_FORWARD = 50
+APPLETV_SCROLL_CONFLICT_DISTANCE_BACKWARD = 15
+APPLETV_TOOLBAR_MOVE_DISTANCE = 50
+APPLETV_PROMINENCE = 0.01
+SAMSUNG_PROMINENCE = 0.0009
 MIN_DISTANCE = 12
 KEY_SELECT_DISTANCE = 25
 MIN_DOUBLE_MOVE_DISTANCE = 30
 MOVE_BINARY_THRESHOLD = -70
 WINDOW_SIZE = 8
-SOUND_PROMINENCE = 0.0009
 KEY_SELECT_MOVE_DISTANCE = 20
 SELECT_MOVE_DISTANCE = 30
 MOVE_DELETE_THRESHOLD = 315
@@ -153,7 +161,8 @@ class MoveExtractor:
                                        channel1=channel1_clipped,
                                        match_params=match_params,
                                        match_threshold=config[sound]['match_threshold'],
-                                       match_buffer=config[sound]['match_buffer'])
+                                       match_buffer=config[sound]['match_buffer'],
+                                       min_threshold=config[sound].get('min_threshold', 0.0))
                 self._known_sounds[sound].append(profile)
 
     def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
@@ -220,6 +229,8 @@ class MoveExtractor:
             cutoff_factor = 0.6
         elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_KEYBOARD_MOVE):
             distance = APPLETV_MOVE_DISTANCE
+        elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == APPLETV_TOOLBAR_MOVE):
+            distance = APPLETV_TOOLBAR_MOVE_DISTANCE
         elif sound in (SAMSUNG_DOUBLE_MOVE, APPLETV_KEYBOARD_DOUBLE_MOVE):
             distance = MIN_DOUBLE_MOVE_DISTANCE
         else:
@@ -236,16 +247,19 @@ class MoveExtractor:
 
         cutoff = cutoff_factor * (max_height - threshold) + threshold
         adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, cutoff)
+        adaptive_threshold = max(adaptive_threshold, sound_profile.min_threshold)
 
         #if min_height > cutoff:
         #    adaptive_threshold = min_height - SMALL_NUMBER
 
+        prominence = SAMSUNG_PROMINENCE if (self._tv_type == SmartTVType.SAMSUNG) else APPLETV_PROMINENCE
+        filter_threshold = adaptive_threshold if (self._tv_type != SmartTVType.APPLE_TV) or (sound != APPLETV_KEYBOARD_MOVE) else threshold
+        filtered_peaks, filtered_peak_properties = find_peaks(x=similarity, height=filter_threshold, distance=distance, prominence=(prominence, None))
+        filtered_peak_heights = filtered_peak_properties['peak_heights']
+
         #print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Avg Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
 
-        peaks, peak_properties = find_peaks(x=similarity, height=adaptive_threshold, distance=distance, prominence=(SOUND_PROMINENCE, None))
-        peak_heights = peak_properties['peak_heights']
-
-        return peaks, peak_heights
+        return filtered_peaks, filtered_peak_heights
 
     def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
@@ -267,6 +281,23 @@ class SamsungMoveExtractor(MoveExtractor):
 
     def __init__(self):
         super().__init__(SmartTVType.SAMSUNG)
+
+    def get_next_break_sound(self, key_idx: int, key_times: List[int], sel_idx: int, sel_times: List[int], del_idx: int, del_times: List[int]) -> str:
+        # Get the next time for each sound
+        key_time = key_times[key_idx] if key_idx < len(key_times) else BIG_NUMBER
+        sel_time = sel_times[sel_idx] if sel_idx < len(sel_times) else BIG_NUMBER
+        del_time = del_times[del_idx] if del_idx < len(del_times) else BIG_NUMBER
+
+        min_time = min(key_time, min(sel_time, del_time))
+        
+        if key_time == min_time:
+            return SAMSUNG_KEY_SELECT
+        elif sel_time == min_time:
+            return SAMSUNG_SELECT
+        elif del_time == min_time:
+            return SAMSUNG_DELETE
+        else:
+            return SAMSUNG_KEY_SELECT
 
     def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
         """
@@ -314,9 +345,7 @@ class SamsungMoveExtractor(MoveExtractor):
             select_time_diff = np.abs(np.subtract(select_times, t))
             move_time_diff = np.abs(np.subtract(move_times, t))
 
-            num_moves_between = len(list(filter(lambda move_time: (move_time > last_select) and (move_time < t), move_times)))
-
-            if np.all(select_time_diff > KEY_SELECT_DISTANCE) and np.all(move_time_diff > KEY_SELECT_DISTANCE) and ((t < last_select) or (num_moves_between > 0)):
+            if np.all(select_time_diff > KEY_SELECT_DISTANCE) and np.all(move_time_diff > KEY_SELECT_DISTANCE):
                 key_select_times.append(t)
 
         if len(key_select_times) == 0:
@@ -334,34 +363,62 @@ class SamsungMoveExtractor(MoveExtractor):
         clipped_select_times = list(filter(lambda t: (t > start_time) and any(True for s in key_select_times if s > t), select_times))
         clipped_delete_times = list(filter(lambda t: t > start_time, delete_times))
 
+        break_indices: Dict[str, int] = {
+            SAMSUNG_KEY_SELECT: 0,
+            SAMSUNG_SELECT: 0,
+            SAMSUNG_DELETE: 0
+        }
+
+        break_sound_times: Dict[str, List[int]] = {
+            SAMSUNG_KEY_SELECT: key_select_times,
+            SAMSUNG_SELECT: clipped_select_times,
+            SAMSUNG_DELETE: clipped_delete_times
+        }
+
         move_idx = 0
-        key_idx = 0
-        select_idx = 0
+        start_move_idx = 0
         double_move_idx = 0
-        delete_idx = 0
+        key_idx, sel_idx, del_idx = 0, 0, 0
         num_moves = 0
         last_num_moves = 0
         result: List[int] = []
         window_move_times: List[int] = []
 
         while move_idx < len(clipped_move_times):
-            while (key_idx < len(key_select_times)) and (clipped_move_times[move_idx] > key_select_times[key_idx]):
+
+            # TODO: Fix tie-breaking bug. Only select a key select when it is the next in line.
+            break_sound = self.get_next_break_sound(key_idx=break_indices[SAMSUNG_KEY_SELECT],
+                                                    key_times=break_sound_times[SAMSUNG_KEY_SELECT],
+                                                    sel_idx=break_indices[SAMSUNG_SELECT],
+                                                    sel_times=break_sound_times[SAMSUNG_SELECT],
+                                                    del_idx=break_indices[SAMSUNG_DELETE],
+                                                    del_times=break_sound_times[SAMSUNG_DELETE])
+
+            sound_idx = break_indices[break_sound]
+            sound_times = break_sound_times[break_sound]
+
+            while (sound_idx < len(sound_times)) and (clipped_move_times[move_idx] > sound_times[sound_idx]):
+                # Add the move to the running list
                 directions = extract_move_directions(window_move_times)
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, end_time=key_select_times[key_idx]))
-                key_idx += 1
-                num_moves = 0
-                window_move_times = []
+                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else sound_times[sound_idx]
+                result.append(Move(num_moves=num_moves, end_sound=break_sound, directions=directions, start_time=start_time, end_time=sound_times[sound_idx]))
 
-            while (select_idx < len(clipped_select_times)) and (clipped_move_times[move_idx] > clipped_select_times[select_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_SELECT, directions=Direction.ANY, end_time=clipped_select_times[select_idx]))
-                select_idx += 1
-                num_moves = 0
-                window_move_times = []
+                # Advance the sound index and get the next-nearest sound
+                break_indices[break_sound] += 1
 
-            while (delete_idx < len(clipped_delete_times)) and (clipped_move_times[move_idx] > clipped_delete_times[delete_idx]):
-                result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_DELETE, directions=Direction.ANY, end_time=clipped_delete_times[delete_idx]))
-                delete_idx += 1
+                break_sound = self.get_next_break_sound(key_idx=break_indices[SAMSUNG_KEY_SELECT],
+                                                        key_times=break_sound_times[SAMSUNG_KEY_SELECT],
+                                                        sel_idx=break_indices[SAMSUNG_SELECT],
+                                                        sel_times=break_sound_times[SAMSUNG_SELECT],
+                                                        del_idx=break_indices[SAMSUNG_DELETE],
+                                                        del_times=break_sound_times[SAMSUNG_DELETE])
+
+                sound_idx = break_indices[break_sound]
+                sound_times = break_sound_times[break_sound]
+
+                # Reset the state
                 num_moves = 0
+                start_move_idx = move_idx
                 window_move_times = []
 
             window_move_times.append(clipped_move_times[move_idx])
@@ -381,9 +438,11 @@ class SamsungMoveExtractor(MoveExtractor):
                 move_idx += 1
 
         # Write out the last group if we haven't reached the last key
+        key_idx, key_select_times = break_indices[SAMSUNG_KEY_SELECT], break_sound_times[SAMSUNG_KEY_SELECT]
         if key_idx < len(key_select_times):
             directions = extract_move_directions(window_move_times)
-            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, end_time=key_select_times[key_idx]))
+            start_time = clipped_move_times[start_move_idx] if num_moves > 0 else key_select_times[key_idx]
+            result.append(Move(num_moves=num_moves, end_sound=SAMSUNG_KEY_SELECT, directions=directions, start_time=start_time, end_time=key_select_times[key_idx]))
 
         # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
         # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
@@ -400,8 +459,9 @@ class SamsungMoveExtractor(MoveExtractor):
 
         # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
         # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
-        if include_moves_to_done:
-            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, directions=Direction.ANY, end_time=next_select)
+        if include_moves_to_done and (len(selects_after) > 0):
+            start_time = moves_between[0] if len(moves_between) > 0 else 0
+            move_to_done = Move(num_moves=len(moves_between), end_sound=SAMSUNG_SELECT, directions=Direction.ANY, start_time=start_time, end_time=next_select)
             result.append(move_to_done)
 
         # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
@@ -425,39 +485,74 @@ class AppleTVMoveExtractor(MoveExtractor):
             A list of moves before selections. The length of this list is the number of selections.
         """
         # Get the raw keyboard select times
-        keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
+        raw_keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SELECT)
 
         # Signals without any key selections do not interact with the keyboard
-        if len(keyboard_select_times) == 0:
+        if len(raw_keyboard_select_times) == 0:
             return [], False, KeyboardType.APPLE_TV_SEARCH
 
         # Get occurances of the other sounds
         raw_keyboard_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_MOVE)
         raw_system_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_SYSTEM_MOVE)
         raw_keyboard_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DOUBLE_MOVE)
+        raw_keyboard_scroll_double_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SCROLL_DOUBLE)
+        keyboard_scroll_six_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_SCROLL_TRIPLE)
         keyboard_delete_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_KEYBOARD_DELETE)
-        toolbar_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_TOOLBAR_MOVE)
+        raw_toolbar_move_times, _ = self.find_instances_of_sound(audio=audio, sound=APPLETV_TOOLBAR_MOVE)
 
         # Filter out conflicting sounds
-        system_move_times: List[int] = []
-        for move_time in raw_system_move_times:
-            diff = np.abs(np.subtract(keyboard_select_times, move_time))
-            if np.all(diff > MIN_DISTANCE):
-                system_move_times.append(move_time)
+        keyboard_select_times: List[int] = filter_conflicts(target_times=raw_keyboard_select_times,
+                                                            comparison_times=[keyboard_delete_times],
+                                                            forward_distance=MIN_DISTANCE,
+                                                            backward_distance=MIN_DISTANCE)
 
-        keyboard_double_move_times: List[int] = []
-        for move_time in raw_keyboard_double_move_times:
-            diff = np.abs(np.subtract(system_move_times, move_time))
-            if np.all(diff > MIN_DISTANCE):
-                keyboard_double_move_times.append(move_time)
+        toolbar_move_times: List[int] = filter_conflicts(target_times=raw_toolbar_move_times,
+                                                         comparison_times=[keyboard_select_times],
+                                                         forward_distance=APPLETV_TOOLBAR_MOVE_DISTANCE,
+                                                         backward_distance=APPLETV_TOOLBAR_MOVE_DISTANCE)
 
-        keyboard_move_times: List[int] = []
-        for move_time in raw_keyboard_move_times:
-            keyboard_diff = np.abs(np.subtract(keyboard_select_times, move_time))
-            system_diff = np.abs(np.subtract(system_move_times, move_time))
-            double_move_diff = np.abs(np.subtract(keyboard_double_move_times, move_time))
-            if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DISTANCE):
-                keyboard_move_times.append(move_time)
+        system_move_times: List[int] = filter_conflicts(target_times=raw_system_move_times,
+                                                        comparison_times=[keyboard_select_times, keyboard_delete_times],
+                                                        forward_distance=MIN_DISTANCE,
+                                                        backward_distance=MIN_DISTANCE)
+
+        keyboard_double_move_times: List[int] = filter_conflicts(target_times=raw_keyboard_double_move_times,
+                                                                 comparison_times=[system_move_times],
+                                                                 forward_distance=MIN_DISTANCE,
+                                                                 backward_distance=MIN_DISTANCE)
+
+        keyboard_scroll_double_times: List[int] = filter_conflicts(target_times=raw_keyboard_scroll_double_times,
+                                                                   comparison_times=[keyboard_scroll_six_times],
+                                                                   forward_distance=MIN_DISTANCE,
+                                                                   backward_distance=MIN_DISTANCE)
+
+        keyboard_move_times: List[int] = filter_conflicts(target_times=raw_keyboard_move_times,
+                                                          comparison_times=[keyboard_select_times, system_move_times, keyboard_delete_times, keyboard_double_move_times],
+                                                          forward_distance=APPLETV_MOVE_CONFLICT_DISTANCE,
+                                                          backward_distance=APPLETV_MOVE_CONFLICT_DISTANCE)
+
+        #print('Keyboard Move Times: {}'.format(keyboard_move_times))
+        keyboard_move_times = filter_conflicts(target_times=keyboard_move_times,
+                                               comparison_times=[keyboard_scroll_double_times],
+                                               forward_distance=APPLETV_SCROLL_DOUBLE_CONFLICT_DISTANCE,
+                                               backward_distance=APPLETV_SCROLL_DOUBLE_CONFLICT_DISTANCE)
+
+        keyboard_move_times = filter_conflicts(target_times=keyboard_move_times,
+                                               comparison_times=[keyboard_scroll_six_times],
+                                               forward_distance=APPLETV_SCROLL_CONFLICT_DISTANCE_FORWARD,
+                                               backward_distance=APPLETV_SCROLL_CONFLICT_DISTANCE_BACKWARD)
+
+        #print('Keyboard Move Times: {}'.format(keyboard_move_times))
+        #print('Scroll Double: {}'.format(keyboard_scroll_double_times))
+        #print('Scroll Full: {}'.format(keyboard_scroll_six_times))
+
+        #for move_time in raw_keyboard_move_times:
+        #    keyboard_diff = np.abs(np.subtract(keyboard_select_times, move_time))
+        #    system_diff = np.abs(np.subtract(system_move_times, move_time))
+        #    double_move_diff = np.abs(np.subtract(keyboard_double_move_times, move_time))
+        #    delete_diff = np.abs(np.subtract(keyboard_delete_times, move_time))
+        #    if np.all(keyboard_diff > MIN_DISTANCE) and np.all(system_diff > MIN_DISTANCE) and np.all(double_move_diff > MIN_DISTANCE) and np.all(delete_diff > MIN_DISTANCE):
+        #        keyboard_move_times.append(move_time)
 
         # Get the end time as the last system move / toolbar move
         last_keyboard_move = keyboard_move_times[-1]
@@ -475,37 +570,91 @@ class AppleTVMoveExtractor(MoveExtractor):
         num_moves = 0
         move_idx = 0
         double_move_idx = 0
+        scroll_double_idx = 0
+        scroll_six_idx = 0
         key_select_idx = 0
         delete_idx = 0
+        toolbar_move_idx = 0
+
+        #print('Select: {}'.format(keyboard_select_times))
+        #print('Move: {}'.format(keyboard_move_times))
+        #print('Scroll Double: {}'.format(keyboard_scroll_double_times))
+        #print('Scroll Full: {}'.format(keyboard_scroll_six_times))
 
         while (move_idx < len(keyboard_move_times)) and (keyboard_move_times[move_idx] < end_time):
+
+            current_event_time = keyboard_move_times[move_idx]
+
             # Write move elements
             while (key_select_idx < len(keyboard_select_times)) and (keyboard_move_times[move_idx] > keyboard_select_times[key_select_idx]):
-                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT, directions=Direction.ANY))
+                current_event_time = min(current_event_time, keyboard_select_times[key_select_idx])
+                move_start_time = min(window_move_times) if len(window_move_times) > 0 else (move_sequence[-1].end_time if len(move_sequence) > 0 else 0)
+                move_end_time = keyboard_select_times[key_select_idx]
+
+                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT, directions=Direction.ANY, start_time=move_start_time, end_time=move_end_time))
                 num_moves = 0
                 key_select_idx += 1
                 window_move_times = []
 
             while (delete_idx < len(keyboard_delete_times)) and (keyboard_move_times[move_idx] > keyboard_delete_times[delete_idx]):
-                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_DELETE, directions=Direction.ANY))
+                current_event_time = min(current_event_time, keyboard_delete_times[delete_idx])
+                move_start_time = min(window_move_times) if len(window_move_times) > 0 else (move_sequences[-1].end_time if len(move_sequence) > 0 else 0)
+                move_end_time = keyboard_delete_times[delete_idx]
+
+                move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_DELETE, directions=Direction.ANY, start_time=move_start_time, end_time=move_end_time))
                 num_moves = 0
                 delete_idx += 1
                 window_move_times = []
 
+            while (num_moves > 0) and (toolbar_move_idx < len(toolbar_move_times)) and (keyboard_move_times[move_idx] > toolbar_move_times[toolbar_move_idx]):
+                current_event_time = min(current_event_time, toolbar_move_times[toolbar_move_idx])
+                move_start_time = min(window_move_times) if len(window_move_times) > 0 else (move_sequence[-1].end_time if len(move_sequence) > 0 else 0)
+                move_end_time = toolbar_move_times[toolbar_move_idx]
+
+                if move_start_time < move_end_time:
+                    move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_TOOLBAR_MOVE, directions=Direction.ANY, start_time=move_start_time, end_time=move_end_time))
+
+                num_moves = 0
+                toolbar_move_idx += 1
+                window_move_times = []
+
             window_move_times.append(keyboard_move_times[move_idx])
 
-            if (double_move_idx < len(keyboard_double_move_times)) and (move_idx < (len(keyboard_move_times) - 1)) and (keyboard_double_move_times[double_move_idx] > keyboard_move_times[move_idx]) and (keyboard_double_move_times[double_move_idx] < keyboard_move_times[move_idx + 1]):
+            # Get the time of the next event (to account for scroll moves
+            next_move_time = keyboard_move_times[move_idx + 1] if (move_idx < (len(keyboard_move_times) - 1)) else BIG_NUMBER
+            next_key_select_time = keyboard_select_times[key_select_idx] if (key_select_idx < len(keyboard_select_times)) else BIG_NUMBER
+            next_delete_time = keyboard_delete_times[delete_idx] if (delete_idx < len(keyboard_delete_times)) else BIG_NUMBER
+            next_toolbar_move_time = toolbar_move_times[toolbar_move_idx] if (toolbar_move_idx < len(toolbar_move_times)) else BIG_NUMBER
+            next_event_time = min(next_move_time, min(next_key_select_time, next_delete_time))
+
+            while (double_move_idx < len(keyboard_double_move_times)) and (keyboard_double_move_times[double_move_idx] > current_event_time) and (keyboard_double_move_times[double_move_idx] < next_event_time):
                 last_move_time = window_move_times[-1] if len(window_move_times) > 0 else 0
                 window_move_times.append(last_move_time)
 
                 double_move_idx += 1
                 num_moves += 2
 
+            while (scroll_double_idx < len(keyboard_scroll_double_times)) and (keyboard_scroll_double_times[scroll_double_idx] > current_event_time) and (keyboard_scroll_double_times[scroll_double_idx] < next_event_time):
+                last_move_time = window_move_times[-1] if len(window_move_times) > 0 else 0
+                window_move_times.append(last_move_time)
+
+                scroll_double_idx += 1
+                num_moves += 2
+
+            while (scroll_six_idx < len(keyboard_scroll_six_times)) and (keyboard_scroll_six_times[scroll_six_idx] > current_event_time) and (keyboard_scroll_six_times[scroll_six_idx] < next_event_time):
+                last_move_time = window_move_times[-1] if len(window_move_times) > 0 else 0
+                window_move_times.append(last_move_time)
+
+                scroll_six_idx += 1
+                num_moves += 6
+
             num_moves += 1
             move_idx += 1
 
         if key_select_idx < len(keyboard_select_times):
-            move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT, directions=Direction.ANY))
+            move_start_time = min(window_move_times)
+            move_end_time = keyboard_select_times[key_select_idx]
+            move_sequence.append(Move(num_moves=num_moves, end_sound=APPLETV_KEYBOARD_SELECT, directions=Direction.ANY, start_time=move_start_time, end_time=move_end_time))
 
         # We use the password keyboard both of the following hold:
         #   (1) The time between the first toolbar move and first keyboard move is "long"
@@ -531,15 +680,16 @@ class AppleTVMoveExtractor(MoveExtractor):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--video-file', type=str, required=True)
+    parser.add_argument('--output-file', type=str)
     args = parser.parse_args()
 
     video_clip = mp.VideoFileClip(args.video_file)
     audio = video_clip.audio
     audio_signal = audio.to_soundarray()
 
-    sound = SAMSUNG_KEY_SELECT
+    sound = APPLETV_KEYBOARD_MOVE
 
-    extractor = SamsungMoveExtractor()
+    extractor = AppleTVMoveExtractor()
     similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
     instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
 
@@ -549,13 +699,28 @@ if __name__ == '__main__':
     print('Keyboard type: {}'.format(keyboard_type.name))
 
     for idx, move in enumerate(move_seq):
-        print('Move {}: {} ({})'.format(idx, move.directions, move.end_sound))
+        print('Move {}: {} ({}, {}), (Start: {}, End: {})'.format(idx, move.directions, move.num_moves, move.end_sound, move.start_time, move.end_time))
 
-    fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
+    with plt.style.context('seaborn-ticks'):
+        fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
 
-    ax0.plot(list(range(audio_signal.shape[0])), audio_signal[:, 0])
-    ax1.plot(list(range(len(similarity))), similarity)
+        ax0.plot(list(range(audio_signal.shape[0])), audio_signal[:, 0])
+        ax1.plot(list(range(len(similarity))), similarity)
+        ax1.scatter(instance_idx, instance_heights, marker='o', color='orange')
 
-    ax1.scatter(instance_idx, instance_heights, marker='o', color='orange')
+        word = os.path.split(args.video_file)[-1].replace('.MOV', '').replace('.mp4', '')
 
-    plt.show()
+        ax0.set_xlabel('Time Step')
+        ax0.set_ylabel('Audio Signal (dB)')
+        ax0.set_title('Audio Signal for {}'.format(word))
+
+        ax1.set_xlabel('Time Step')
+        ax1.set_ylabel('Match Similarity')
+        ax1.set_title('Matches for Sound: {}'.format(' '.join((t.capitalize() for t in sound.split()))))
+
+        plt.tight_layout()
+
+        if args.output_file is not None:
+            plt.savefig(args.output_file, bbox_inches='tight', transparent=True)
+        else:
+            plt.show()

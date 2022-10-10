@@ -3,7 +3,7 @@ import string
 from typing import List
 
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE, APPLETV_SEARCH_ALPHABET
-from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, APPLETV_PASSWORD_CAPS
+from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, APPLETV_PASSWORD_CAPS, SAMSUNG_SPECIAL_TWO
 from smarttvleakage.utils.constants import KeyboardType, Direction
 
 # Load the samsung_graphs once globally
@@ -301,6 +301,16 @@ class SamsungGraphMoveCounts(unittest.TestCase):
                                                           use_wraparound=False,
                                                           directions=Direction.ANY)
         expected = ['+', ':', '<DIV>', '-', '\\', '<COM>', '<LANGUAGE>']
+        self.list_equal(neighbors, expected)
+
+    def test_special_2(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<NEXT>',
+                                                          num_moves=3,
+                                                          mode=SAMSUNG_SPECIAL_TWO,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=Direction.ANY)
+        expected = ['_', '<BULLET>']
         self.list_equal(neighbors, expected)
 
     def test_wraparound(self):
