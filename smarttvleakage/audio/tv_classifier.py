@@ -2,7 +2,7 @@ import moviepy.editor as mp
 import numpy as np
 
 from smarttvleakage.audio.move_extractor import MoveExtractor, AppleTVMoveExtractor, SamsungMoveExtractor
-from smarttvleakage.audio.constants import SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
+from smarttvleakage.audio.sounds import SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
 from smarttvleakage.utils.constants import SmartTVType
 
 
