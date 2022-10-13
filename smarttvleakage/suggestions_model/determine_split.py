@@ -160,14 +160,82 @@ if __name__ == "__main__":
     # 0 - accuracy test
     # 2 - analysis test
     # 3 - heurs test
-    test = 3
+    # 4 - ranking test
+    # 5 - 3+4
+    test = 5
+
+
+    if test == 5:
+        print("test 5")
+
+        ms_dict_combo = build_combo_dict(ms_dict_auto, ms_dict_non, 200)
+        mults = [[.6, .8, 1], [.4, .6], [.4, .6], [.6, .9]]
+        results = {}
+
+        for i in mults[0]:
+            for j in mults[1]:
+                for k in mults[2]:
+                    for l in mults[3]:
+                        hs = (i, j, k, l)
+                        results[hs] = [0, 0, 0, 0]
+                        print("testing", end=": ")
+                        print(hs)
+
+                        for keys, vals in ms_dict_combo.items():
+                            ms = vals[0] + [vals[2]] + vals[1]
+                            guesses = evaluate_all_splits(model, msfd, ms, strategy=0, mults=hs)
+                            if guesses[0][0] == len(keys[0]):
+                                results[hs][0] += 1
+                            elif len(guesses) > 0 and guesses[1][0] == len(keys[0]):
+                                results[hs][1] += 1
+                            elif len(guesses) > 1 and guesses[2][0] == len(keys[0]):
+                                results[hs][2] += 1
+                            else:
+                                results[hs][3] += 1
+
+                        print(results[hs])
+
+        res = list(results.items())
+        res_weighted = list(map(lambda x : (x[0], x[1][0] + .5*x[1][1] + .25*x[1][2]), res))
+        res_weighted.sort(key = lambda x : x[1])
+        for hs, correct in res_weighted:
+            print(hs, end=": ")
+            print(correct, end="; weighted acc: ")
+            print(correct / len(list(ms_dict_combo.items())))
+
+
+
+
+    if test == 4:
+        print("test 4")
+
+        ms_dict_combo = build_combo_dict(ms_dict_auto, ms_dict_non, 1000)
+        hs = (.85, .5, .6, .7)
+        results = {}
+        for i in range(10):
+            results[i] = 0
+        print("testing", end=": ")
+        print(hs)
+
+        for keys, vals in ms_dict_combo.items():
+            ms = vals[0] + [vals[2]] + vals[1]
+            guesses = evaluate_all_splits(model, msfd, ms, strategy=0, mults=hs)
+            for i, guess in enumerate(guesses):
+                if guess[0] == len(keys[0]):
+                    results[i] += 1
+
+        for key, val in results.items():
+            print(key, end=": ")
+            print(val)
+
+
 
     # think best for 4[.7, .85, 1] was [x, .7, .7!!, .7]?
     if test == 3:
         print("test 3")
 
-        ms_dict_combo = build_combo_dict(ms_dict_auto, ms_dict_non, 2000)
-        mults = [.3, .4, .5, .6]
+        ms_dict_combo = build_combo_dict(ms_dict_auto, ms_dict_non, 500)
+        mults = [.3, .4, .5]
         results = {}
 
         for i in mults:
@@ -192,6 +260,7 @@ if __name__ == "__main__":
 
     if test == 2:
         print("test 2")
+        hs = (.85, 1, 1, .7)
 
         ms_dict_combo = build_combo_dict(ms_dict_auto, ms_dict_non, 10)
         results = {}
@@ -199,7 +268,7 @@ if __name__ == "__main__":
             ms = vals[0] + [vals[2]] + vals[1]
             results[(keys)] = list(map(
                             lambda x : (x[0], (x[1][1], x[1][2])), 
-                            evaluate_all_splits(model, msfd, ms, strategy=1)))
+                            evaluate_all_splits(model, msfd, ms, strategy=1, mults=hs)))
 
         for keys, rs in results.items():
             print(keys[0] + "/" + keys[1])
