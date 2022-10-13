@@ -4,6 +4,7 @@ import os.path
 from argparse import ArgumentParser
 from typing import Tuple, List, Dict
 
+from smarttvleakage.audio.constants import SAMSUNG_SELECT
 from smarttvleakage.audio.data_types import Move
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.dictionary import restore_dictionary, NumericDictionary
@@ -13,7 +14,7 @@ from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggest
 from smarttvleakage.search_numeric import get_digits_from_moves
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType, BIG_NUMBER
 from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence
-from smarttvleakage.utils.file_utils import read_json, iterate_dir
+from smarttvleakage.utils.file_utils import read_json_gz, read_json, iterate_dir
 
 
 AUTOCOMPLETE_PREFIX_COUNT = 15
@@ -25,7 +26,6 @@ if __name__ == '__main__':
     parser.add_argument('--dictionary-path', type=str, required=True)
     parser.add_argument('--max-num-results', type=int)
     parser.add_argument('--max-num-videos', type=int)
-    parser.add_argument('--suggestions', type=str)
     args = parser.parse_args()
 
     if os.path.isdir(args.processed_path):
@@ -55,23 +55,30 @@ if __name__ == '__main__':
     is_numeric = isinstance(dictionary, NumericDictionary)
     count = 0
 
+    rand = np.random.RandomState(seed=749)
+
     for file_path in processed_paths:
-        if not file_path.endswith('.json'):
+        if not file_path.endswith('.json.gz'):
             continue
 
         # Read in the processed video path
-        serialized_list = read_json(file_path)
+        serialized_list = read_json_gz(file_path)
 
-        for serialized in serialized_list:
+        # Read in the labels
+        folder, file_name = os.path.split(file_path)
+        file_name = file_name.replace('.json.gz', '_labels.json')
+        labels = read_json(os.path.join(folder, file_name))['labels']
+
+        for serialized, true_word in zip(serialized_list, labels):
             if (args.max_num_videos is not None) and (count >= args.max_num_videos):
                 break
 
             count += 1
 
             # Extract the processed information
-            assert 'target' in serialized, 'Must annotate entries with the `target` result before recovering strings'
+            #assert 'target' in serialized, 'Must annotate entries with the `target` result before recovering strings'
 
-            true_word = serialized['target']
+            #true_word = serialized['target']
             move_sequence = [Move.from_dict(m) for m in serialized['move_seq']]
             tv_type = SmartTVType[serialized['smart_tv_type'].upper()]
             keyboard_type = KeyboardType[serialized['keyboard_type'].upper()]
@@ -145,6 +152,7 @@ if __name__ == '__main__':
                                                                min_length=len(move_sequence) + 1,
                                                                max_num_results=args.max_num_results)
                 else:
+                    includes_done = (tv_type == SmartTVType.APPLE_TV) or (move_sequence[-1].end_sound == SAMSUNG_SELECT)
                     ranked_candidates = get_words_from_moves(move_sequence=move_sequence,
                                                              graph=graph,
                                                              dictionary=dictionary,
@@ -153,7 +161,7 @@ if __name__ == '__main__':
                                                              precomputed=None,
                                                              is_searching_reverse=False,
                                                              start_key=start_key,
-                                                             includes_done=True)
+                                                             includes_done=includes_done)
 
                 did_find_word = False
                 found_rank = BIG_NUMBER
