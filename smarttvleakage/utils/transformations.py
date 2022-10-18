@@ -1,7 +1,7 @@
 from typing import Set, Dict, List, Iterable, Tuple
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, SAMSUNG_DELETE, APPLETV_KEYBOARD_SELECT, APPLETV_KEYBOARD_DELETE, APPLETV_TOOLBAR_MOVE
-from smarttvleakage.graphs.keyboard_graph import START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE, SAMSUNG_SPECIAL_TWO
+from smarttvleakage.graphs.keyboard_graph import START_KEYS, SAMSUNG_STANDARD, SAMSUNG_SPECIAL_ONE
 from smarttvleakage.graphs.keyboard_graph import APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL
 from smarttvleakage.graphs.keyboard_graph import APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL, SAMSUNG_CAPS, APPLETV_PASSWORD_CAPS
 from smarttvleakage.dictionary import UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, CHANGE_KEYS

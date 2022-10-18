@@ -101,9 +101,6 @@ def make_df(bins_dist : List[int], weighted : int,
     print(df)
     return df
 
-
-
-
 def id_to_weight(id : int) -> str:
     """Describes a weight ID"""
     weight_names = []
