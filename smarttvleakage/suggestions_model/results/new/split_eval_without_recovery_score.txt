@@ -1,0 +1,31 @@
+count: 500 (phpbb)
+max_num_results: 100
+
+general ranks:
+1: 353
+2: 88
+4: 10
+3: 36
+5: 5
+6: 1
+7: 1
+
+relevant ranks:
+1: 213
+2: 40
+4: 3
+3: 15
+5: 0
+6: 1
+7: 0
+
+irrelevant ranks:
+1: 140
+2: 48
+4: 7
+3: 21
+5: 5
+6: 0
+7: 1
+
+wrong_gt: 222
