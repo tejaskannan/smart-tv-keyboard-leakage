@@ -1,41 +1,67 @@
 {
     "move": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 20, "min_threshold": -55, "max_threshold": -45 },
-            { "min_freq": 20, "max_freq": 40, "min_threshold": -65, "max_threshold": -55 }
-        ],
-        "match_threshold": 0.01,
-        "match_buffer": -2.0
+        "match_params": {
+            "min_freq": 5,
+            "max_freq": 50,
+            "time_delta": 10,
+            "freq_delta": 3,
+            "threshold": -70,
+            "time_tol": 3,
+            "freq_tol": 1
+        },
+        "match_threshold": 0.7,
+        "match_buffer": 0.0
     },
     "key_select": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 20, "min_threshold": -60, "max_threshold": -40 },
-            { "min_freq": 20, "max_freq": 40, "min_threshold": -75, "max_threshold": -65 }
-        ],
-        "match_threshold": 0.99,
-        "match_buffer": 0.1
+        "match_params": {
+            "min_freq": 15,
+            "max_freq": 50,
+            "time_delta": 10,
+            "freq_delta": 12,
+            "threshold": -71,
+            "time_tol": 2,
+            "freq_tol": 5
+        },
+        "match_threshold": 0.9,
+        "match_buffer": 0.0
     },
     "select": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 10, "min_threshold": -60, "max_threshold": -55 },
-            { "min_freq": 10, "max_freq": 30, "min_threshold": -60, "max_threshold": -45 }
-        ],
-        "match_threshold": 0.01,
-        "match_buffer": 2.0
+        "match_params": {
+            "min_freq": 5,
+            "max_freq": 50,
+            "time_delta": 5,
+            "freq_delta": 3,
+            "threshold": -66,
+            "time_tol": 3,
+            "freq_tol": 1
+        },
+        "match_threshold": 0.7,
+        "match_buffer": 2.5
     },
     "double_move": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 10, "min_threshold": -60, "max_threshold": -55 },
-            { "min_freq": 10, "max_freq": 30, "min_threshold": -60, "max_threshold": -45 }
-        ],
-        "match_threshold": 0.75,
-        "match_buffer": 2.5
+        "match_params": {
+            "min_freq": 5,
+            "max_freq": 50,
+            "time_delta": 10,
+            "freq_delta": 3,
+            "threshold": -70,
+            "time_tol": 3,
+            "freq_tol": 1
+        },
+        "match_threshold": 0.9,
+        "match_buffer": 0.0
     },
     "delete": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 30, "min_threshold": -70, "max_threshold": -45 }
-        ],
-        "match_threshold": 0.25,
-        "match_buffer": 2.5
+        "match_params": {
+            "min_freq": 5,
+            "max_freq": 50,
+            "time_delta": 10,
+            "freq_delta": 3,
+            "threshold": -70,
+            "time_tol": 3,
+            "freq_tol": 1
+        },
+        "match_threshold": 0.9,
+        "match_buffer": 0.0
     }
 }

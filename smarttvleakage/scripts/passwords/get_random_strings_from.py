@@ -1,4 +1,5 @@
 import io
+import string
 import numpy as np
 from argparse import ArgumentParser
 from typing import List
@@ -9,6 +10,8 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, required=True)
     parser.add_argument('--count', type=int, required=True)
+    parser.add_argument('--min-length', type=int, required=True)
+    parser.add_argument('--must-contain-special', action='store_true')
     args = parser.parse_args()
 
     strings: List[str] = []
@@ -18,7 +21,7 @@ if __name__ == '__main__':
 
         for idx, line in enumerate(io_wrapper):
             line = line.strip()
-            if len(line) >= 8:
+            if len(line) >= args.min_length and ((not args.must_contain_special) or any((c in string.punctuation) for c in line)):
                 strings.append(line)
 
     # Get random strings

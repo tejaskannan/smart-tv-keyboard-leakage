@@ -1,0 +1,17 @@
+{
+    "adjacency_list": {
+        "<NEXT>": {"down": "<CHANGE>", "right": "`"},
+        "`": {"down": "<OPEN-BULLET>", "left": "<NEXT>", "right": "~"},
+        "~": {"left": "`", "down": "<BULLET>", "right": "_"},
+        "_": {"left": "~", "down": "<OPEN-CIRCLE>", "right": "|"},
+        "|": {"left": "_", "down": "<CIRCLE>"},
+        "<CHANGE>": {"right": "<OPEN-BULLET>", "up": "<NEXT>"},
+        "<OPEN-BULLET>": {"left": "<CHANGE>", "up": "`", "right": "<BULLET>"},
+        "<BULLET>": {"left": "<OPEN-BULLET>", "up": "~", "right": "<OPEN-CIRCLE>"},
+        "<OPEN-CIRCLE>": {"left": "<BULLET>", "up": "_", "right": "<CIRCLE>"},
+        "<CIRCLE>": {"left": "<OPEN-CIRCLE>", "up": "|"}
+    },
+    "shortcuts": {},
+    "wraparound": {},
+    "unclickable": []
+}

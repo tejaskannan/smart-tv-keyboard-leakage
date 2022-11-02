@@ -9,12 +9,13 @@ from collections import deque
 from typing import Dict
 
 from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, DONE_SOUNDS, SPACE_SOUNDS, CHANGE_SOUNDS, KEY_SELECT_SOUNDS
-from smarttvleakage.dictionary.dictionaries import DONE, SPACE
+from smarttvleakage.dictionary.dictionaries import DONE, SPACE, CHANGE, NEXT
 from smarttvleakage.utils.constants import KeyboardType, Direction
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 from smarttvleakage.utils.transformations import get_keyboard_mode
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, CHANGE_KEYS, SELECT_KEYS, SingleKeyboardGraph
 from smarttvleakage.graphs.keyboard_graph import SAMSUNG_STANDARD, APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL, APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
+from smarttvleakage.graphs.keyboard_graph import SAMSUNG_CAPS, SAMSUNG_SPECIAL_ONE, SAMSUNG_SPECIAL_TWO
 from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
 from datetime import datetime, timedelta
 
@@ -50,22 +51,7 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
 
     for character in word:
         character = REVERSE_CHARACTER_TRANSLATION.get(character, character)
-        distance = -1
-        direction = []
-
-        #if use_direction:
-        #        direction = bfs_path(prev, character, keyboard.get_adjacency_list(mode, use_shortcuts, use_wraparound))
-        #        # print('direction: ', direction)
-        #        if direction == Direction.ANY:
-        #            if prev == character:
-        #                distance = 0
-        #            else:
-        #                distance = -1
-        #        else:
-        #            distance = len(direction)
-        #else:
         distance = keyboard.get_moves_from_key(prev, character, use_shortcuts, use_wraparound, mode)
-        #direction = Direction.ANY
 
         # handle page switching
         if distance == -1:
@@ -73,57 +59,47 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
             found_char = False
             is_backwards = False
 
-            # find which page the target key is on
-            for possible_keyboard in keyboard.get_keyboards().keys():
-                if found_char:
-                    break
-                if character in keyboard.get_keyboards()[possible_keyboard].get_characters():
-                    found_char = True
-                    in_keyboard = possible_keyboard
+            # Find which page the target key is on
+            target_keyboard_mode = keyboard.get_keyboard_with_character(character)
+            assert target_keyboard_mode is not None, 'The character {} was not found in any keyboard'.format(character)
 
             original_mode = mode
             counter = 0
             on_key = prev
 
-            # navigate to the correct page by going to the nearest character that switches to the next page
-            # and repeating this until the page is the correct one
-            # TODO: Make sure this doesn't infinite loop for unknown keys
-            while mode != in_keyboard:
-                changer = keyboard.get_nearest_link(prev, mode, in_keyboard, use_shortcuts, use_wraparound)
-
-                if changer != prev:
-                    on_key = changer
-                    original_mode = mode
-                    counter = 0
-
-                # TODO: Fix this for generality
-                if keyboard_type == KeyboardType.SAMSUNG:
-                    num_moves = keyboard.get_moves_from_key(prev, changer, use_shortcuts, use_wraparound, mode)
+            # Hard code in the change paths for each keyboard, as each keyboard type has different dynamics.
+            if keyboard_type == KeyboardType.SAMSUNG:
+                if mode in (SAMSUNG_STANDARD, SAMSUNG_CAPS):
+                    num_moves = keyboard.get_moves_from_key(prev, CHANGE, use_shortcuts, use_wraparound, mode)
                     path.append(Move(num_moves=num_moves, end_sound=CHANGE_SOUNDS[keyboard_type], directions=Direction.ANY))
+                    on_key = CHANGE
 
-                prev = changer
-                linked_state = keyboard.get_linked_states(on_key, original_mode)
+                    if target_keyboard_mode == SAMSUNG_SPECIAL_TWO:
+                        num_moves = keyboard.get_moves_from_key(CHANGE, NEXT, use_shortcuts, use_wraparound, SAMSUNG_SPECIAL_ONE)
+                        path.append(Move(num_moves=num_moves, end_sound=CHANGE_SOUNDS[keyboard_type], directions=Direction.ANY))
+                        on_key = NEXT
+                elif mode in (SAMSUNG_SPECIAL_ONE, SAMSUNG_SPECIAL_TWO):
+                    if target_keyboard_mode in (SAMSUNG_STANDARD, SAMSUNG_CAPS):
+                        num_moves = keyboard.get_moves_from_key(prev, CHANGE, use_shortcuts, use_wraparound, mode)
+                        path.append(Move(num_moves=num_moves, end_sound=CHANGE_SOUNDS[keyboard_type], directions=Direction.ANY))
+                        on_key = CHANGE
+                    elif target_keyboard_mode in (SAMSUNG_SPECIAL_ONE, SAMSUNG_SPECIAL_TWO):
+                        num_moves = keyboard.get_moves_from_key(prev, NEXT, use_shortcuts, use_wraparound, mode)
+                        path.append(Move(num_moves=num_moves, end_sound=CHANGE_SOUNDS[keyboard_type], directions=Direction.ANY))
+                        on_key = NEXT
+                    else:
+                        raise ValueError('Unknown keyboard mode: {}'.format(target_keyboard_mode))
+                else:
+                    raise ValueError('Unknown keyboard mode: {}'.format(mode))
+            elif keyboard_type in (KeyboardType.APPLE_TV_SEARCH, KeyboardType.APPLE_TV_PASSWORD):
+                on_key = keyboard.get_linked_key_to(current_key=prev,
+                                                    current_mode=mode,
+                                                    target_mode=target_keyboard_mode)
+                
+                assert on_key is not None, 'No linked key for {} from {} to {}'.format(prev, mode, target_keyboard_mode)
 
-                if len(linked_state) <= counter:
-                    break
-
-                mode = linked_state[counter][1]
-                prev = linked_state[counter][0]
-                counter += 1
-
-        #if use_direction:
-            #    direction = bfs_path(prev, character, keyboard.get_adjacency_list(mode, use_shortcuts, use_wraparound))
-            #    if direction == Direction.ANY:
-            #            if prev == character:
-            #                    distance = 0
-            #            else:
-            #                    distance = -1
-            #    else:
-            #            distance = len(direction)
-            #            # direction = Direction.ANY
-            #else:
-            distance = keyboard.get_moves_from_key(prev, character, use_shortcuts, use_wraparound, mode)
-            #direction = Direction.ANY
+            mode = target_keyboard_mode
+            distance = keyboard.get_moves_from_key(on_key, character, use_shortcuts, use_wraparound, mode)
 
         if character != DONE:
             assert (distance != -1) and (distance is not None), 'No path from {} to {}'.format(prev, character)
