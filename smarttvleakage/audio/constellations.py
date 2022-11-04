@@ -5,7 +5,7 @@ from collections import namedtuple
 from scipy.ndimage import maximum_filter
 from typing import List, Tuple
 
-from smarttvleakage.utils.constants import BIG_NUMBER
+from smarttvleakage.utils.constants import BIG_NUMBER, SMALL_NUMBER
 
 
 ConstellationMatch = namedtuple('ConstellationMatch', ['step', 'match_frac', 'match_dist'])
@@ -16,10 +16,36 @@ def compute_constellation_map(spectrogram: np.ndarray, freq_delta: int, time_del
     assert time_delta > 0, 'Must provide a positive time delta'
 
     # Find the peaks
-    filtered_spectrogram = maximum_filter(spectrogram, size=(freq_delta, time_delta), mode='constant', cval=0.0)
+    filtered_spectrogram = maximum_filter(spectrogram, size=(freq_delta, time_delta), mode='nearest')
     peak_matrix = np.logical_and(np.isclose(filtered_spectrogram, spectrogram), (spectrogram > threshold)).astype(int)
-
     freq_peaks, time_peaks = np.argwhere(peak_matrix == 1).T
+
+    # Find the pairwise distances between peaks
+    time_diffs = np.expand_dims(time_peaks, axis=0) - np.expand_dims(time_peaks, axis=-1)  # [D, D]
+    freq_diffs = np.expand_dims(freq_peaks, axis=0) - np.expand_dims(freq_peaks, axis=-1)  # [D, D]
+    distances = np.sqrt(np.square(time_diffs) + np.square(freq_diffs))
+
+    # Filter peaks by their prominence
+    indices = np.arange(len(time_peaks))  # [L]
+    filtered_freqs: List[int] = []
+    filtered_times: List[int] = []
+
+    for idx, (freq, time) in enumerate(zip(freq_peaks, time_peaks)):
+        mask = (indices == idx).astype(time_peaks.dtype) * BIG_NUMBER  # [L]
+        closest_peak_idx = np.argmin(mask + distances[idx])  # Scalar
+
+        peak_time_delta = max(abs(time - time_peaks[closest_peak_idx]) - 1, 0)
+        peak_freq_delta = max(abs(freq - freq_peaks[closest_peak_idx]), 0)
+
+        lower_time, upper_time = max(time - peak_time_delta, 0), min(time + peak_time_delta + 1, spectrogram.shape[1])
+        lower_freq, upper_freq = max(freq - peak_freq_delta, 0), min(freq + peak_freq_delta + 1, spectrogram.shape[0])
+
+        max_value = np.max(spectrogram[lower_freq:upper_freq, lower_time:upper_time])
+
+        if abs(spectrogram[freq, time] - max_value) < SMALL_NUMBER:
+            filtered_freqs.append(freq)
+            filtered_times.append(time)
+
     return time_peaks, freq_peaks
 
 
