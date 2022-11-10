@@ -9,10 +9,10 @@ from collections import namedtuple
 from itertools import permutations
 from scipy.ndimage import maximum_filter
 from scipy.signal import find_peaks
-from typing import List, Tuple, Set
+from typing import List, Tuple, Set, Any
 
 import smarttvleakage.audio.sounds as sounds
-from smarttvleakage.audio import MatchConfig
+#from smarttvleakage.audio import MatchConfig
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations, match_constellation_window
 from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram, clip_spectrogram, binarize_spectrogram
 from smarttvleakage.utils.constants import BIG_NUMBER
@@ -30,7 +30,7 @@ def normalize_spectrogram(spectrogram: np.ndarray) -> np.ndarray:
     return (spectrogram - avg_value) / std_value
 
 
-def binarize_and_clip(spectrogram: np.ndarray, match_configs: List[MatchConfig]) -> np.ndarray:
+def binarize_and_clip(spectrogram: np.ndarray, match_configs: List[Any]) -> np.ndarray:
     # Create the binarized spectro-gram
     binarized = np.zeros_like(spectrogram, dtype=int)
 
@@ -64,34 +64,25 @@ def moving_window_distances(target_spectrogram: np.ndarray, known_spectrogram: n
 
 
 def perform_match_constellations(target_times: np.ndarray, target_freq: np.ndarray, target_peaks: np.ndarray, ref_times: np.ndarray, ref_freq: np.ndarray, ref_peaks: np.ndarray):
-    time_diffs = np.expand_dims(ref_times, axis=-1) - np.expand_dims(target_times, axis=0)  # [N, M]
-    freq_diffs = np.expand_dims(ref_freq, axis=-1) - np.expand_dims(target_freq, axis=0)  # [N, M]
-    distances = np.abs(time_diffs) + np.abs(freq_diffs)  # [N, M]
+    # Compute the distance in time, frequency, and ranking
+    time_diffs = np.abs(np.expand_dims(ref_times, axis=-1) - np.expand_dims(target_times, axis=0))  # [N, M]
+    freq_diffs = np.abs(np.expand_dims(ref_freq, axis=-1) - np.expand_dims(target_freq, axis=0))  # [N, M]
+    distances = time_diffs + freq_diffs  # [N, M]
 
-    # Match from the larger to the smaller set, ensure that each in the smaller set
-    # has AT LEAST one match. To do this, we first run a bipartite matching from the smaller to the
-    # larger set. Then, we use a greedy approach on the remaining entries to get the full match.
-    # The first portion of this algorithm will ensure that we have a full matching set, while
-    # the second will ensure we use all of the points on both sides
-    bipartite_matrix = sp.csr_matrix(distances + 1)
-    ref_indices, target_indices = sp.csgraph.min_weight_full_bipartite_matching(bipartite_matrix, maximize=False)
+    num_matches = 0
 
-    # Start with the total weight of the bipartite matching
-    total_dist = np.sum(distances[ref_indices, target_indices])
+    for ref_idx in range(len(ref_times)):
+        closest_target_idx = np.argmin(distances[ref_idx])
 
-    # Account for point imbalance by greedily matching the remaining points (these can be duplicates)
-    if len(target_times) < len(ref_times):
-        for ref_idx in filter(lambda i: (i not in ref_indices), range(len(ref_times))):
-            total_dist += np.min(distances[ref_idx])
-    elif len(ref_times) < len(target_times):
-        for target_idx in filter(lambda i: (i not in target_indices), range(len(target_times))):
-            total_dist += np.min(distances[:, target_idx])
+        if (time_diffs[ref_idx, closest_target_idx] <= 1) and (freq_diffs[ref_idx, closest_target_idx] <= 1):
+            num_matches += 1
+            distances[ref_idx, :] = BIG_NUMBER
+            distances[:, closest_target_idx] = BIG_NUMBER
 
-    # Return the average matching distances
-    return total_dist / max(len(ref_times), len(target_times))
+    return num_matches / max(len(target_times), len(ref_times))
 
 
-def perform_match(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray) -> float:
+def perform_match_binary(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray) -> float:
     if first_spectrogram.shape[1] < second_spectrogram.shape[1]:
         return perform_match(second_spectrogram, first_spectrogram)  # Make sure the first spectrogram has the most time steps
 
@@ -118,42 +109,61 @@ def perform_match(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray)
     return best_similarity
 
 
-def get_sound_instances(max_energy: np.ndarray, peak_height: float, threshold: float) -> Tuple[List[int], List[int]]:
-    result_points: Set[Tuple[int, int]] = set()
+def is_in_peak_range(peak_time: int, peak_ranges: Set[Tuple[int, int]]) -> bool:
+    for peak_range in peak_ranges:
+        if (peak_time >= peak_range[0]) and (peak_time <= peak_range[1]):
+            return True
 
-    peak_times, _ = find_peaks(max_energy, height=peak_height, distance=2)
+    return False
 
-    for peak_time in peak_times:
+
+def get_sound_instances(max_energy: np.ndarray, peak_height: float, threshold_factor: float) -> Tuple[List[int], List[int]]:
+    peak_ranges: Set[Tuple[int, int]] = set()
+
+    peak_times, peak_properties = find_peaks(max_energy, height=peak_height, distance=2)
+    peak_heights = peak_properties['peak_heights']
+    prev_end = 0
+
+    for peak_time, peak_height in zip(peak_times, peak_heights):
+        if is_in_peak_range(peak_time, peak_ranges):
+            continue
+
+        peak_threshold = peak_height * threshold_factor
+
         # Get the start and end point
         start_time = peak_time
-        while (start_time > 0) and (max_energy[start_time] > threshold):
+        while (start_time > prev_end) and (max_energy[start_time] > peak_threshold):
             start_time -= 1
 
+        start_time += 1  # Adjust for going beyond the threshold
+
         end_time = peak_time
-        while (end_time < len(max_energy)) and (max_energy[end_time] > threshold):
+        while (end_time < len(max_energy)) and (max_energy[end_time] > peak_threshold):
             end_time += 1
 
         # Add the range to the result set
-        result_points.add((start_time, end_time))
+        peak_ranges.add((start_time, end_time))
+        prev_end = end_time
 
-    # Sort the results by start time
-    results_sorted = list(sorted(result_points, key=lambda t: t[0]))
-
-    start_times = [t[0] for t in results_sorted]
-    end_times = [t[1] for t in results_sorted]
-
+    # Sort the ranges by start time
+    peak_ranges_sorted = list(sorted(peak_ranges, key=lambda t: t[0]))
+    start_times = [t[0] for t in peak_ranges_sorted]
+    end_times = [t[1] for t in peak_ranges_sorted]
     return start_times, end_times
+
 
 
 class AppleTVMatcher:
 
     def __init__(self, sound_folder: str):
         self._range_min = 5
-        self._range_max = 50
+        self._range_max = 150
 
-        self._sound_threshold = -53.5
-        self._peak_threshold = -50
+        self._sound_threshold_factor = 1.3
+        self._peak_threshold = -47
+        self._min_time_gap = 3
         self._similarity_threshold = 0.15
+        self._min_length = 3
 
         self._spectrograms: Dict[str, np.ndarray] = dict()
 
@@ -167,13 +177,12 @@ class AppleTVMatcher:
             # Compute the spectrogram, clip the sound, and normalize the result
             spectrogram = create_spectrogram(audio)[self._range_min:self._range_max]
 
+            sound_threshold_factor = self._sound_threshold_factor if (sound != sounds.APPLETV_KEYBOARD_MOVE) else 1.15
+
             sound_starts, sound_ends = get_sound_instances(max_energy=np.max(spectrogram, axis=0),
                                                            peak_height=self._peak_threshold,
-                                                           threshold=self._sound_threshold)
+                                                           threshold_factor=sound_threshold_factor)
             sound_start, sound_end = sound_starts[0], sound_ends[0]
-
-            #normalized_spectrogram = normalize_spectrogram(spectrogram[:, sound_start:sound_end])
-            #binarized_spectrogram = binarize_and_clip(spectrogram[:, sound_start:sound_end], sound_configs)
 
             self._spectrograms[sound] = spectrogram[:, sound_start:sound_end]
 
@@ -185,24 +194,44 @@ class AppleTVMatcher:
     def range_max(self) -> int:
         return self._range_max
 
-    def get_candidate_sounds(self, segment: np.ndarray) -> List[str]:
-        candidates = [sounds.APPLETV_KEYBOARD_SELECT, sounds.APPLETV_SYSTEM_MOVE, sounds.APPLETV_KEYBOARD_DELETE, sounds.APPLETV_TOOLBAR_MOVE]
+    def get_reference_constellation(self, sound: str) -> Tuple[List[float], List[float]]:
+        if sound in sounds.APPLETV_SOUNDS:
+            properties = self._match_configs[sound]
+            return compute_constellation_map(spectrogram=self._spectrograms[sound],
+                                             freq_delta=properties['freq_delta'],
+                                             time_delta=properties['time_delta'],
+                                             threshold=properties['threshold'])
 
-        best_move_dist = BIG_NUMBER
-        best_move_sound = None
-        move_sounds = [sounds.APPLETV_KEYBOARD_MOVE, sounds.APPLETV_KEYBOARD_DOUBLE_MOVE, sounds.APPLETV_KEYBOARD_SCROLL_DOUBLE, sounds.APPLETV_KEYBOARD_SCROLL_SIX]
+        if sound == sounds.APPLETV_KEYBOARD_SCROLL_DOUBLE:
+            num_reps = 2
+        elif sound == sounds.APPLETV_KEYBOARD_SCROLL_TRIPLE:
+            num_reps = 3
+        elif sound == sounds.APPLETV_KEYBOARD_SCROLL_FOUR:
+            num_reps = 4
+        elif sound == sounds.APPLETV_KEYBOARD_SCROLL_FIVE:
+            num_reps = 5
+        else:
+            raise ValueError('Unknown sound: {}'.format(sound))
 
-        for move_sound in move_sounds:
-            diff = abs(segment.shape[1] - self._spectrograms[move_sound].shape[1])
+        # Stitch together multiple moves
+        base_spectrogram = self._spectrograms[sounds.APPLETV_KEYBOARD_MOVE]
+        spectrogram = np.concatenate([base_spectrogram for _ in range(num_reps)], axis=-1)
 
-            if diff < best_move_dist:
-                best_move_dist = diff
-                best_move_sound = move_sound
+        properties = self._match_configs[sounds.APPLETV_KEYBOARD_MOVE]
+        times, freqs = compute_constellation_map(spectrogram=spectrogram,
+                                                 freq_delta=properties['freq_delta'],
+                                                 time_delta=properties['time_delta'],
+                                                 threshold=properties['threshold'])
 
-        if best_move_sound is not None:
-            candidates.append(best_move_sound)
+        #fig, ax = plt.subplots()
 
-        return candidates
+        #ax.imshow(spectrogram, cmap='gray_r')
+        #ax.scatter(times, freqs, marker='o', color='red')
+        #ax.set_title('Reference {}'.format(sound))
+
+        #plt.show()
+
+        return times, freqs
 
     def find_sounds(self, target_audio: np.ndarray) -> List[SoundMatch]:
         assert len(target_audio.shape) == 1, 'Must provide a 1d array of audio values'
@@ -214,7 +243,7 @@ class AppleTVMatcher:
         max_energy = np.max(target_spectrogram, axis=0)
         start_times, end_times = get_sound_instances(max_energy=max_energy,
                                                      peak_height=self._peak_threshold,
-                                                     threshold=self._sound_threshold)
+                                                     threshold_factor=self._sound_threshold_factor)
 
         results: List[SoundMatch] = []
 
@@ -224,28 +253,20 @@ class AppleTVMatcher:
             #normalized_target_segment = normalize_spectrogram(target_segment)
             #normalized_target_segment = maximum_filter(normalized_target_segment, size=(3, 3))
 
+            # Skip segments that are too short, as these are likely just noise
+            if target_spectrogram.shape[1] < self._min_length:
+                continue
+
             # Get a list of possible sounds to match against the identified noise
             #candidate_sounds = self.get_candidate_sounds(segment=target_segment)
 
             # Find the closest known sound to the observed noise
-            best_sim = 0.0
-            best_sound = None
+            best_sim, second_best_sim = 0.0, 0.0
+            best_sound, second_best_sound = None, None
 
-            for sound in sounds.APPLETV_SOUNDS:
+            for sound in sorted(sounds.APPLETV_SOUNDS_EXTENDED):
                 # Match the sound on the spectrograms
-                ref_spectrogram = self._spectrograms[sound]  # [F, T0]
-                #binarized_target = binarize_and_clip(target_segment, self._match_configs[sound])
-
-                properties = self._match_configs[sound]
-                #properties = MatchProperties(time_delta=3, freq_delta=5, time_tol=2, freq_tol=2, threshold=-60)
-
-                # Binarize both spectrograms
-                #ref_spectrogram_binary = (ref_spectrogram > properties.threshold).astype(int)
-                #target_spectrogram_binary = (normalized_target_segment > properties.threshold).astype(int)
-
-                # Compute the match
-                #similarity = perform_match(first_spectrogram=binarized_target,
-                #                           second_spectrogram=ref_spectrogram)
+                properties = self._match_configs[sound] if (sound not in sounds.APPLETV_MOVE_SOUNDS) else self._match_configs[sounds.APPLETV_KEYBOARD_MOVE]
 
                 # Compute the constellation maps
                 target_times, target_freq = compute_constellation_map(spectrogram=target_segment,
@@ -255,25 +276,28 @@ class AppleTVMatcher:
 
                 target_peaks = [target_segment[freq, time] for time, freq in zip(target_times, target_freq)]
 
-                ref_times, ref_freq = compute_constellation_map(spectrogram=ref_spectrogram,
-                                                                 freq_delta=properties['freq_delta'],
-                                                                 time_delta=properties['time_delta'],
-                                                                 threshold=properties['threshold'])
+                ref_times, ref_freq = self.get_reference_constellation(sound=sound)
+                ref_peaks = []
 
-                ref_peaks = [self._spectrograms[sound][freq, time] for time, freq in zip(ref_times, ref_freq)]
-
-                #if sound in (sounds.APPLETV_KEYBOARD_SELECT, sounds.APPLETV_KEYBOARD_SCROLL_DOUBLE, sounds.APPLETV_KEYBOARD_MOVE, sounds.APPLETV_KEYBOARD_SCROLL_SIX):
+                #if sound in (sounds.APPLETV_KEYBOARD_SELECT, sounds.APPLETV_KEYBOARD_SCROLL_DOUBLE, sounds.APPLETV_KEYBOARD_MOVE, sounds.APPLETV_KEYBOARD_SCROLL_TRIPLE):
+                #if (sound == sounds.APPLETV_KEYBOARD_SCROLL_TRIPLE) and (start_time > 1700):
                 #    print('Sound: {}'.format(sound))
 
-                #    fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
-                #    ax0.imshow(ref_spectrogram, cmap='gray_r')
-                #    ax0.scatter(ref_times, ref_freq, marker='o', color='red')
+                #    #fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
+                #    #ax0.imshow(ref_spectrogram, cmap='gray_r')
+                #    #ax0.scatter(ref_times, ref_freq, marker='o', color='red')
 
-                #    ax1.imshow(target_segment, cmap='gray_r')
-                #    ax1.scatter(target_times, target_freq, marker='o', color='red')
+                #    fig, ax = plt.subplots()
 
-                #    ax0.set_title('Reference')
-                #    ax1.set_title('Target')
+                #    ax.imshow(target_segment, cmap='gray_r')
+                #    ax.scatter(target_times, target_freq, marker='o', color='red')
+                #    ax.scatter(ref_times, ref_freq, marker='x', color='green')
+
+                #    #ax0.set_title('Reference')
+                #    ax.set_title('Target')
+
+                #    print('Target: Times -> {}, Freq -> {}'.format(target_times, target_freq))
+                #    print('Ref: Times -> {}, Freq -> {}'.format(ref_times, ref_freq))
 
                 #    plt.show()
                 #    plt.close()
@@ -281,40 +305,42 @@ class AppleTVMatcher:
                 shifted_target_times = target_times - np.min(target_times)
                 shifted_ref_times = ref_times - np.min(ref_times)
 
-                avg_dist = perform_match_constellations(target_times=shifted_target_times,
+                similarity = perform_match_constellations(target_times=shifted_target_times,
                                          target_freq=target_freq,
                                          target_peaks=np.array(target_peaks),
                                          ref_times=shifted_ref_times,
                                          ref_freq=ref_freq,
                                          ref_peaks=np.array(ref_peaks))
-                similarity = (1.0 / avg_dist)
 
                 print('Sound: {}, Similarity: {}'.format(sound, similarity))
 
                 if similarity > best_sim:
+                    second_best_sim = best_sim
+                    second_best_sound = best_sound
+
                     best_sim = similarity
                     best_sound = sound
 
-                #for match_start_time in range(self._spectrograms[sound].shape[1]):
-                #    #print('Target Times: {}'.format(shifted_target_times))
+            # The toolbar sound constellations can sometimes conflict with the keyboard selection and/or the single movement.
+            # The order of the the peaks, however, are vastly difference between these sounds. Thus, we check matches on the toolbar
+            # sound against the second best candidate using binary matching directly on the spectrograms.
+            if (best_sound == sounds.APPLETV_TOOLBAR_MOVE) and (second_best_sound is not None):
+                # Compute the binary spectrograms
+                binary_threshold = -70
 
-                #    match_score = match_constellation_window(target_times=target_times,
-                #                                             target_freq=target_freq,
-                #                                             ref_times=ref_times,
-                #                                             ref_freq=ref_freq,
-                #                                             time_tol=properties.time_tol,
-                #                                             freq_tol=properties.freq_tol,
-                #                                             start_time=start_time)
-                #    match_scores.append(match_score)
-                #    shifted_target_times += 1
+                best_ref_spectrogram_binary = (self._spectrograms[best_sound] > binary_threshold).astype(int)
+                second_best_ref_spectrogram_binary = (self._spectrograms[second_best_sound] > binary_threshold).astype(int)
+                target_spectrogram_binary = (target_segment > binary_threshold).astype(int)
 
-                #max_sim = max(match_scores)
+                # Get the matching scores
+                best_sim_binary = perform_match_binary(target_spectrogram_binary, best_ref_spectrogram_binary)
+                second_best_sim_binary = perform_match_binary(target_spectrogram_binary, second_best_ref_spectrogram_binary)
 
-                #print('Sound: {}, Sim Score: {:.4f}'.format(sound, best_sim))
+                print('Toolbar Sim Binary: {}, {} Sim Binary: {}'.format(best_sim_binary, second_best_sound, second_best_sim_binary))
 
-                #if max_sim > best_sim:
-                #    best_sim = max_sim
-                #    best_sound = sound
+                # Determine the best sound based on this `tie-breaker`
+                best_sound = best_sound if (best_sim_binary > second_best_sim_binary) else second_best_sound
+                best_sim = best_sim if (best_sim_binary > second_best_sim_binary) else second_best_sim
 
             print('Best Sim: {:.5f}, Best sound: {}'.format(best_sim, best_sound))
             print('Sound Shape: {}'.format(target_segment.shape))
