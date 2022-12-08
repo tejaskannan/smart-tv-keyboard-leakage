@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Tuple, Set, Union
 
@@ -65,18 +66,46 @@ def perform_match_constellations_geometry(target_times: np.ndarray, target_freq:
     return matches
 
 
-def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray) -> float:
-    if first_spectrogram.shape[1] < second_spectrogram.shape[1]:
-        return perform_match_spectrograms(second_spectrogram, first_spectrogram)
+def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray, mask_threshold: float) -> float:
+    first_time_steps = first_spectrogram.shape[1]
+    second_time_steps = second_spectrogram.shape[1]
+    time_diff = abs(first_time_steps - second_time_steps)
 
+    if (first_time_steps < second_time_steps):
+        return perform_match_spectrograms(second_spectrogram, first_spectrogram, mask_threshold)
+
+    time_diff = first_time_steps - second_time_steps
+
+    # Get the mask based on the smaller (second) spectrogram
+    mask = (second_spectrogram >= mask_threshold).astype(second_spectrogram.dtype)
+    masked_second = mask * second_spectrogram
+
+    num_nonzero = np.sum(mask)
+
+    # Track the spectrogram similarity
     similarity = 0.0
 
-    for start_time in range(0, first_spectrogram.shape[1] - second_spectrogram.shape[1] + 1):
-        end_time = start_time + second_spectrogram.shape[1]
-        first_segment = first_spectrogram[:, start_time:end_time]
+    #print('Target time steps: {}, Ref time steps: {}'.format(target_time_steps, ref_time_steps))
 
-        dist = max(np.linalg.norm(first_segment - second_spectrogram, ord=2), SMALL_NUMBER)
+    for offset in range(time_diff + 1):
+        clipped_first = first_spectrogram[:, offset:(offset + second_time_steps)]
+        masked_first = clipped_first * mask
+
+        diff = np.abs(masked_first - masked_second)
+        dist = max(np.sum(diff / num_nonzero), SMALL_NUMBER)
         similarity = max(similarity, 1.0 / dist)
+
+        #print('Offset: {}, Similarity: {:.4f}'.format(offset, similarity))
+        #fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
+        #ax0.imshow(masked_first, cmap='gray_r')
+        #ax1.imshow(masked_second, cmap='gray_r')
+        #ax2.imshow(np.abs(masked_first - masked_second), cmap='gray_r')
+
+        #ax0.set_title('First')
+        #ax1.set_title('Second')
+        #ax2.set_title('Difference')
+        #
+        #plt.show()
 
     return similarity
 
@@ -114,7 +143,7 @@ def is_in_peak_range(peak_time: int, peak_ranges: Set[Tuple[int, int]]) -> bool:
     return False
 
 
-def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int) -> Tuple[List[int], List[int]]:
+def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float) -> Tuple[List[int], List[int]]:
     # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
     std_energy = np.std(spect, axis=-1, keepdims=True)
@@ -124,7 +153,7 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         smooth_filter = np.ones(shape=(smooth_window_size, ), dtype=max_energy.dtype) / float(smooth_window_size)
         max_energy = convolve(max_energy, smooth_filter, mode='full')  # [T]
 
-    peak_ranges: Set[Tuple[int, int]] = set()
+    peak_ranges: Set[Tuple[int, int, int]] = set()
 
     peak_times, peak_properties = find_peaks(max_energy, height=peak_height, distance=peak_distance, prominence=(peak_prominence, None))
     peak_heights = peak_properties['peak_heights']
@@ -139,23 +168,39 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
         # Get the start and end point
         start_time = peak_time
-        while (start_time > prev_end) and ((max_energy[start_time] > max_energy[start_time - 1]) or (max_energy[start_time] > backward_peak_threshold)):
+        while (start_time > prev_end) and (((max_energy[start_time] + tolerance) > max_energy[start_time - 1]) or (max_energy[start_time] > backward_peak_threshold)):
             start_time -= 1
 
         start_time += 1  # Adjust for going beyond the threshold
 
         end_time = peak_time
-        while (end_time < (len(max_energy) - 1)) and ((max_energy[end_time] > max_energy[end_time + 1]) or (max_energy[end_time] > forward_peak_threshold)):
+        while (end_time < (len(max_energy) - 1)) and (((max_energy[end_time] + tolerance) > max_energy[end_time + 1]) or (max_energy[end_time] > forward_peak_threshold)):
             end_time += 1
 
         # Add the range to the result set
-        peak_ranges.add((start_time, end_time))
+        peak_ranges.add((start_time, end_time, peak_height))
         prev_end = end_time
 
     # Sort the ranges by start time
     peak_ranges_sorted = list(sorted(peak_ranges, key=lambda t: t[0]))
-    start_times = [t[0] for t in peak_ranges_sorted]
-    end_times = [t[1] for t in peak_ranges_sorted]
+
+    if len(peak_ranges_sorted) == 0:
+        return [], []
+
+    peak_ranges_dedup: List[Tuple[int, int]] = [(peak_ranges_sorted[0][0], peak_ranges_sorted[0][1])]
+
+    for idx in range(1, len(peak_ranges_sorted)):
+        curr_start, curr_end, curr_height = peak_ranges_sorted[idx]
+        prev_start, prev_end, prev_height = peak_ranges_sorted[idx - 1]
+
+        if (((curr_height / prev_height) >= 1.5) or ((prev_height / curr_height) >= 1.5)) and ((curr_start - prev_end) <= 20):
+            peak_ranges_dedup.pop(-1)
+            peak_ranges_dedup.append((prev_start, curr_end))
+        else:
+            peak_ranges_dedup.append((curr_start, curr_end))
+
+    start_times = [t[0] for t in peak_ranges_dedup]
+    end_times = [t[1] for t in peak_ranges_dedup]
 
     return start_times, end_times
 

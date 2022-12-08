@@ -357,16 +357,20 @@ class SamsungMoveExtractor(MoveExtractor):
         return 50
 
     @property
-    def detection_forward_factor(self) -> float:
+    def detection_factor_forward(self) -> float:
         return 0.9
 
     @property
-    def detection_backward_factor(self) -> float:
-        return 0.6
+    def detection_factor_backward(self) -> float:
+        return 0.9
+
+    @property
+    def detection_tolerance(self) -> float:
+        return 0.02
 
     @property
     def detection_peak_height(self) -> float:
-        return 1.5
+        return 1.8
 
     @property
     def detection_peak_distance(self) -> int:
@@ -388,7 +392,7 @@ class SamsungMoveExtractor(MoveExtractor):
         assert len(audio.shape) == 1, 'Must provide a 1d audio signal'
 
         # Threshold for 'moves'
-        move_threshold = 0.24
+        move_threshold = 25.0
 
         # Compute the spectrogram of the target audio signal
         target_spectrogram = create_spectrogram(audio)  # [F, T]
@@ -398,19 +402,20 @@ class SamsungMoveExtractor(MoveExtractor):
         clipped_target_spectrogram[clipped_target_spectrogram < -BIG_NUMBER] = 0.0
 
         start_times, end_times = get_sound_instances(spect=clipped_target_spectrogram,
-                                                     forward_factor=self.detection_forward_factor,
-                                                     backward_factor=self.detection_backward_factor,
+                                                     forward_factor=self.detection_factor_forward,
+                                                     backward_factor=self.detection_factor_backward,
                                                      peak_height=self.detection_peak_height,
                                                      peak_distance=self.detection_peak_distance,
                                                      peak_prominence=self.detection_peak_prominence,
-                                                     smooth_window_size=self.smooth_detection_window_size)
+                                                     smooth_window_size=self.smooth_detection_window_size,
+                                                     tolerance=self.detection_tolerance)
 
         results: List[Move] = []
         current_num_moves = 0
         move_start_time, move_end_time = 0, 0
 
-        #fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
-        #ax0.imshow(clipped_target_spectrogram, cmap='gray_r')
+        #fig, ax = plt.subplots()
+        #ax.imshow(clipped_target_spectrogram, cmap='gray_r')
 
         #ax1.plot(max_energy)
         #for t0, t1 in zip(start_times, end_times):
@@ -445,12 +450,10 @@ class SamsungMoveExtractor(MoveExtractor):
 
                 #min_value, max_value = np.min(clipped_target_segment), np.max(clipped_target_segment)
                 clipped_target_segment = (clipped_target_segment - min_value) / (max_value - min_value)
-                clipped_target_segment = (clipped_target_segment > sound_config[PEAK_THRESHOLD]).astype(float) * clipped_target_segment
-
-                ref_segment = (self._ref_spectrograms[sound] > sound_config[PEAK_THRESHOLD]).astype(float) * self._ref_spectrograms[sound]
 
                 similarity = perform_match_spectrograms(first_spectrogram=clipped_target_segment,
-                                                       second_spectrogram=ref_segment)
+                                                        second_spectrogram=self._ref_spectrograms[sound],
+                                                        mask_threshold=sound_config[PEAK_THRESHOLD])
 
                 #if start_time >= 1500:
                 #    print('Ref Sound: {}, Sim: {:.4f}'.format(sound, similarity))
@@ -473,11 +476,15 @@ class SamsungMoveExtractor(MoveExtractor):
                     best_sim = similarity
                     best_sound = sound
 
+            # Skip sounds are are poor matches with all references
+            if best_sim < self._config[best_sound]['min_similarity']:
+                continue
+
             if (best_sound == sounds.SAMSUNG_DELETE) and (move_sim >= move_threshold):
                 best_sound = sounds.SAMSUNG_MOVE
                 best_sim = move_sim
 
-            print('Best Sound: {}, Similarity: {:.5f}'.format(best_sound, best_sim))
+            #print('Best Sound: {}, Similarity: {:.5f}'.format(best_sound, best_sim))
 
             if best_sound in (sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_DELETE, sounds.SAMSUNG_SELECT):
                 move = Move(num_moves=current_num_moves,
