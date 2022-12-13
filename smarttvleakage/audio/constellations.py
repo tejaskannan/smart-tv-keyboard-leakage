@@ -15,6 +15,10 @@ def compute_constellation_map(spectrogram: np.ndarray, freq_delta: int, time_del
     assert freq_delta > 0, 'Must provide a positive frequency delta'
     assert time_delta > 0, 'Must provide a positive time delta'
 
+    # Compute the thresholds at each frequency
+    #thresholds = np.linspace(start=start_threshold, stop=end_threshold, endpoint=True, num=spectrogram.shape[0])  # [F]
+    #thresholds = np.expand_dims(thresholds, axis=-1)  # [F, 1]
+
     # Find the peaks
     filtered_spectrogram = maximum_filter(spectrogram, size=(freq_delta, time_delta), mode='nearest')
     peak_matrix = np.logical_and(np.isclose(filtered_spectrogram, spectrogram), (spectrogram > threshold)).astype(int)

@@ -44,6 +44,26 @@ class SamsungMoveExtraction(unittest.TestCase):
         self.assertEqual(expected_sounds, list(map(lambda m: m.end_sound, observed_moves)))
 
 
+class AppleTVMoveExtraction(unittest.TestCase):
+
+    def test_qwerty(self):
+        expected_num_moves = [16, 6, 18, 13, 2, 5]
+        expected_sounds = [sounds.APPLETV_KEYBOARD_SELECT] * len(expected_num_moves)
+        
+        self.run_test(recording_path=os.path.join('recordings', 'appletv', 'qwerty.pkl.gz'),
+                      expected_num_moves=expected_num_moves,
+                      expected_sounds=expected_sounds)
+
+    def run_test(self, recording_path: str, expected_num_moves: List[int], expected_sounds: List[str]):
+        # Read in the serialized audio (use only channel 0)
+        audio = read_pickle_gz(recording_path)[:, 0]
+
+        move_extractor = AppleTVMoveExtractor()
+        observed_moves = move_extractor.extract_moves(audio)
+        
+        self.assertEqual(expected_num_moves, list(map(lambda m: m.num_moves, observed_moves)))
+        self.assertEqual(expected_sounds, list(map(lambda m: m.end_sound, observed_moves)))
+
 
 if __name__ == '__main__':
     unittest.main()

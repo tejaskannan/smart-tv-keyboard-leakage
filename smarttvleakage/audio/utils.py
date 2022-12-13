@@ -66,21 +66,21 @@ def perform_match_constellations_geometry(target_times: np.ndarray, target_freq:
     return matches
 
 
-def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray, mask_threshold: float) -> float:
+def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray, mask_threshold: float, should_plot: bool) -> float:
     first_time_steps = first_spectrogram.shape[1]
     second_time_steps = second_spectrogram.shape[1]
     time_diff = abs(first_time_steps - second_time_steps)
 
     if (first_time_steps < second_time_steps):
-        return perform_match_spectrograms(second_spectrogram, first_spectrogram, mask_threshold)
+        return perform_match_spectrograms(second_spectrogram, first_spectrogram, mask_threshold, should_plot)
 
     time_diff = first_time_steps - second_time_steps
 
-    # Get the mask based on the smaller (second) spectrogram
-    mask = (second_spectrogram >= mask_threshold).astype(second_spectrogram.dtype)
-    masked_second = mask * second_spectrogram
+    # Get the mask for the smaller (second) spectrogram
+    second_mask = (second_spectrogram >= mask_threshold).astype(second_spectrogram.dtype)
+    #masked_second = mask * second_spectrogram
 
-    num_nonzero = np.sum(mask)
+    #num_nonzero = np.sum(mask)
 
     # Track the spectrogram similarity
     similarity = 0.0
@@ -89,23 +89,29 @@ def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram
 
     for offset in range(time_diff + 1):
         clipped_first = first_spectrogram[:, offset:(offset + second_time_steps)]
-        masked_first = clipped_first * mask
 
+        first_mask = (clipped_first >= mask_threshold).astype(clipped_first.dtype)
+        mask = np.clip(first_mask + second_mask, a_min=0.0, a_max=1.0)
+        num_nonzero = np.sum(mask)
+
+        masked_first = clipped_first * mask
+        masked_second = second_spectrogram * mask
         diff = np.abs(masked_first - masked_second)
         dist = max(np.sum(diff / num_nonzero), SMALL_NUMBER)
         similarity = max(similarity, 1.0 / dist)
 
-        #print('Offset: {}, Similarity: {:.4f}'.format(offset, similarity))
-        #fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
-        #ax0.imshow(masked_first, cmap='gray_r')
-        #ax1.imshow(masked_second, cmap='gray_r')
-        #ax2.imshow(np.abs(masked_first - masked_second), cmap='gray_r')
+        if should_plot:
+            print('Offset: {}, Similarity: {:.4f}'.format(offset, similarity))
+            fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
+            ax0.imshow(masked_first, cmap='gray_r')
+            ax1.imshow(masked_second, cmap='gray_r')
+            ax2.imshow(np.abs(masked_first - masked_second), cmap='gray_r')
 
-        #ax0.set_title('First')
-        #ax1.set_title('Second')
-        #ax2.set_title('Difference')
-        #
-        #plt.show()
+            ax0.set_title('First')
+            ax1.set_title('Second')
+            ax2.set_title('Difference')
+        
+            plt.show()
 
     return similarity
 
@@ -143,7 +149,7 @@ def is_in_peak_range(peak_time: int, peak_ranges: Set[Tuple[int, int]]) -> bool:
     return False
 
 
-def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float) -> Tuple[List[int], List[int]]:
+def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float) -> Tuple[List[int], List[int]]:
     # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
     std_energy = np.std(spect, axis=-1, keepdims=True)
@@ -178,8 +184,9 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
             end_time += 1
 
         # Add the range to the result set
-        peak_ranges.add((start_time, end_time, peak_height))
-        prev_end = end_time
+        if (end_time - start_time) >= 3:
+            peak_ranges.add((start_time, end_time, peak_height))
+            prev_end = end_time
 
     # Sort the ranges by start time
     peak_ranges_sorted = list(sorted(peak_ranges, key=lambda t: t[0]))
@@ -187,20 +194,32 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
     if len(peak_ranges_sorted) == 0:
         return [], []
 
-    peak_ranges_dedup: List[Tuple[int, int]] = [(peak_ranges_sorted[0][0], peak_ranges_sorted[0][1])]
+    peak_ranges_dedup: List[Tuple[int, int]] = [peak_ranges_sorted[0]]
 
     for idx in range(1, len(peak_ranges_sorted)):
         curr_start, curr_end, curr_height = peak_ranges_sorted[idx]
-        prev_start, prev_end, prev_height = peak_ranges_sorted[idx - 1]
+        prev_start, prev_end, prev_height = peak_ranges_dedup[-1]
 
-        if (((curr_height / prev_height) >= 1.5) or ((prev_height / curr_height) >= 1.5)) and ((curr_start - prev_end) <= 20):
+        if (((curr_height / prev_height) >= merge_peak_factor) or ((prev_height / curr_height) >= merge_peak_factor)) and ((curr_start - prev_end) <= 20):
             peak_ranges_dedup.pop(-1)
-            peak_ranges_dedup.append((prev_start, curr_end))
+            peak_ranges_dedup.append((prev_start, curr_end, max(prev_height, curr_height)))
         else:
-            peak_ranges_dedup.append((curr_start, curr_end))
+            peak_ranges_dedup.append((curr_start, curr_end, curr_height))
 
     start_times = [t[0] for t in peak_ranges_dedup]
     end_times = [t[1] for t in peak_ranges_dedup]
+
+    fig, ax = plt.subplots()
+    ax.plot(list(range(len(max_energy))), max_energy)
+    
+    for t in start_times:
+        ax.axvline(t, color='orange')
+
+    for t in end_times:
+        ax.axvline(t, color='red')
+
+    plt.show()
+
 
     return start_times, end_times
 
