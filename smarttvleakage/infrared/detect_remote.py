@@ -2,6 +2,8 @@
 import numpy as np
 import sys
 import re
+import time
+from argparse import ArgumentParser
 from enum import Enum, auto
 from collections import Counter
 from typing import List, Optional, Dict
@@ -158,11 +160,14 @@ class SignalDecoder:
         decoded = int(''.join(bit_list), 2)
         return KEY_MAPPING.get(decoded, RemoteKey.UNKNOWN)
 
-    def run(self, encoder: SignalEncoder):
+    def run(self, encoder: SignalEncoder, output_path: str):
 
         encoded_characters: List[str] = []
+        start_time = time.time()
 
         for line in sys.stdin:
+            current_time = time.time() - start_time
+
             # Match the mode2 line
             match = MODE2_REGEX.match(line)
             if match is None:
@@ -179,12 +184,21 @@ class SignalDecoder:
                 encoding = ''.join(encoded_characters)
                 keystroke = self.decode(encoding)
 
-                print('Detected: {}'.format(keystroke))
+                with open(output_path, 'a') as fout:
+                    fout.write('{:.6f} {}\n'.format(current_time, keystroke.name.lower()))
+
+                #print('Detected: {}'.format(keystroke))
                 encoded_characters = []
 
 
 if __name__ == '__main__':
+    parser = ArgumentParser()
+    parser.add_argument('--output-path', type=str, required=True, help='The output file (.txt) to log results to.')
+    args = parser.parse_args()
+
+    assert args.output_path.endswith('.txt'), 'Must provide a `.txt` output file. Got: {}'.format(args.output_path)
+
     decoder = SignalDecoder()
     encoder = SignalEncoder()
 
-    decoder.run(encoder)
+    decoder.run(encoder, output_path=args.output_path)
