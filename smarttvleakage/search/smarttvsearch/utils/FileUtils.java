@@ -3,6 +3,7 @@ package smarttvsearch.utils;
 import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.File;
 import org.json.JSONObject;
 import org.json.JSONArray;
 
@@ -48,5 +49,9 @@ public class FileUtils {
         }
 
         return new JSONArray(jsonString);
+    }
+
+    public static String joinPath(String part0, String part1) {
+        return String.format("%s%s%s", part0, File.separator, part1);
     }
 }
