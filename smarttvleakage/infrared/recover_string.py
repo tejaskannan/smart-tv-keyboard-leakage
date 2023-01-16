@@ -1,118 +1,146 @@
 import os.path
 from argparse import ArgumentParser
 from collections import namedtuple, deque
-from typing import List, Iterable, Dict
+from typing import List, Iterable, Dict, Set
 
+import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.data_types import Move
-from smarttvleakage.utils.constants import Direction
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
+from smarttvleakage.utils.constants import Direction, SmartTVType, KeyboardType
 from smarttvleakage.utils.file_utils import read_json
+from smarttvleakage.utils.transformations import get_keyboard_mode, get_string_from_keys
 
 
-SearchState = namedtuple('SearchState', ['current_string', 'current_key', 'move_idx'])
-PathState = namedtuple('PathState', ['key', 'idx'])
+SearchState = namedtuple('SearchState', ['current_keys', 'current_key', 'move_idx', 'keyboard_mode'])
+DirectionState = namedtuple('DirectionState', ['prev_direction', 'directions'])
+
+SELECT_SOUNDS = frozenset(['<DONE>', '<CHANGE>', '<NEXT>', '<CANCEL>', '<LANGUAGE>', '<SETTINGS>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<CAPS>'])
+DELETE_SOUNDS = frozenset(['<BACK>', '<DELETEALL>'])
 
 
-def get_key_for_path(start_key: str, path: List[Direction], keyboard_graph: Dict[str, Dict[str, str]]) -> str:
-    prev_direction = Direction.RIGHT
+def iterate_directions(directions: List[Direction]) -> Iterable[List[Direction]]:
+    direction_frontier: deque = deque()
+    init_state = DirectionState(prev_direction=Direction.ANY, directions=[])
+    direction_frontier.append(init_state)
 
-    trajectories: deque = deque()
-    init_state = PathState(key=start_key, idx=0)
-    trajectories.append(init_state)
+    while len(direction_frontier) > 0:
+        current_state = direction_frontier.pop()
 
-    while len(trajectories) > 0:
-        state = trajectories.popleft()
+        if len(current_state.directions) == len(directions):
+            yield current_state.directions
+            continue
+    
+        direction_idx = len(current_state.directions)
+        current_direction = directions[direction_idx]
 
-        if state.idx == len(path):
-            yield state.key
+        candidate_directions: List[Direction] = []
+
+        if current_direction == Direction.ANY:
+            if (direction_idx > 0) and (directions[direction_idx - 1] != Direction.ANY):
+                candidate_directions.append(directions[direction_idx - 1])
+
+            # Include the remaining directions in an arbitrary order
+            all_directions = [Direction.RIGHT, Direction.LEFT, Direction.UP, Direction.DOWN]
+            for candidate in all_directions:
+                if candidate not in candidate_directions:
+                    candidate_directions.append(candidate)
         else:
-            direction = path[state.idx]
-            directions: List[Direction] = []
+            candidate_directions.append(current_direction)
 
-            if direction != Direction.ANY:
-                directions.append(direction)
-            else:
-                # Find the previous known direction
-                prev_idx = state.idx - 1
-                prev_direction = Direction.ANY
-                while (prev_idx >= 0) and (prev_direction != Direction.ANY):
-                    prev_direction = path[prev_idx]
-                    prev_idx -= 1
-
-                if prev_direction != Direction.ANY:
-                    directions.append(prev_direction)
-
-                # Find the next known direction
-                next_idx = state.idx + 1
-                next_direction = Direction.ANY
-                while (next_idx < len(path)) and (next_direction != Direction.ANY):
-                    next_direction = path[next_idx]
-                    next_idx += 1
-
-                if (next_direction != Direction.ANY) and (next_direction not in directions):
-                    directions.append(next_direction)
-                
-                # Include the remaining directions in an arbitrary order
-                if Direction.RIGHT not in directions:
-                    directions.append(Direction.RIGHT)
-
-                if Direction.LEFT not in directions:
-                    directions.append(Direction.LEFT)
-
-                if Direction.UP not in directions:
-                    directions.append(Direction.UP)
-
-                if Direction.DOWN not in directions:
-                    directions.append(Direction.DOWN)
-
-            for direction in reversed(directions):
-                next_key = keyboard_graph[state.key].get(direction.name.lower())
-
-                if next_key is not None:
-                    next_state = PathState(key=next_key, idx=(state.idx + 1))
-                    trajectories.append(next_state)
+        for direction in candidate_directions:
+            next_state = DirectionState(prev_direction=direction,
+                                        directions=current_state.directions + [direction])
+            direction_frontier.append(next_state)
 
 
-def recover_string(move_seq: List[Move], keyboard_graph: Dict[str, Dict[str, str]]) -> Iterable[str]:
+def recover_string(move_seq: List[Move], keyboard: MultiKeyboardGraph) -> Iterable[str]:
     search_frontier: deque = deque()
 
-    init_state = SearchState(current_string='', current_key='q', move_idx=0)
+    keyboard_mode = keyboard.get_start_keyboard_mode()
+    init_state = SearchState(current_keys=[],
+                             current_key='q',
+                             move_idx=0,
+                             keyboard_mode=keyboard_mode)
     search_frontier.append(init_state)
 
     while len(search_frontier) > 0:
         current_state = search_frontier.pop()  # Get the first state on the queue
 
-        if len(current_state.current_string) == (len(move_seq) - 1):
-            yield current_state.current_string
+        if len(current_state.current_keys) == (len(move_seq) - 1):
+            yield get_string_from_keys(current_state.current_keys)
             continue
 
         move = move_seq[current_state.move_idx]
+        seen_neighbors: Set[str] = set()
 
-        for next_key in get_key_for_path(start_key=current_state.current_key, path=move.directions, keyboard_graph=keyboard_graph):
-            next_state = SearchState(current_string=current_state.current_string + next_key,
-                                     current_key=next_key,
-                                     move_idx=current_state.move_idx + 1)
+        for direction_choice in iterate_directions(move.directions):
+            neighbor = keyboard.follow_path(start_key=current_state.current_key,
+                                            use_shortcuts=True,
+                                            use_wraparound=True,
+                                            directions=direction_choice,
+                                            mode=current_state.keyboard_mode)
+
+            if neighbor is None:
+                continue
+            elif (move.end_sound == sounds.SAMSUNG_SELECT) and (neighbor not in SELECT_SOUNDS):
+                continue
+            elif (neighbor in seen_neighbors):
+                continue
+
+            next_keyboard_mode = get_keyboard_mode(key=neighbor,
+                                                   mode=current_state.keyboard_mode,
+                                                   keyboard_type=keyboard.keyboard_type)
+
+            next_state = SearchState(current_keys=current_state.current_keys + [neighbor],
+                                     current_key=neighbor,
+                                     move_idx=current_state.move_idx + 1,
+                                     keyboard_mode=next_keyboard_mode)
+
             search_frontier.append(next_state)
+            seen_neighbors.add(neighbor)
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--processed-path', type=str, required=True)
-    parser.add_argument('--graph-path', type=str, required=True)
     args = parser.parse_args()
 
-    # Get the target string using the processed path file name
-    file_name = os.path.basename(args.processed_path)
-    target = file_name.replace('.json', '')
+    # Fix the tv type to samsung
+    tv_type = SmartTVType.SAMSUNG
+    keyboard_type = KeyboardType.SAMSUNG
 
-    # Read in the adjacency list (without any special treatment for now)
-    graph = read_json(args.graph_path)['adjacency_list']
-    
+    # Make the keyboard graph
+    keyboard = MultiKeyboardGraph(keyboard_type)
+
     # Parse the move sequence
-    move_seq_raw = read_json(args.processed_path)
-    move_seq = list(map(lambda d: Move.from_dict(d), move_seq_raw))
+    move_sequences = read_json(args.processed_path)
 
-    for idx, guess in enumerate(recover_string(move_seq, keyboard_graph=graph)):
-        print('{}. {}'.format(idx, guess))
+    # Get the labels
+    folder, file_name = os.path.split(args.processed_path)
+    labels_path = os.path.join(folder, file_name.replace('.json', '_labels.json'))
+    labels = read_json(labels_path)
 
-        if guess == target:
-            break
+    #assert len(labels) == len(move_sequences), 'Found {} labels and {} move sequences.'.format(len(labels), len(move_sequences))
+
+    for seq_idx, move_seq_raw in enumerate(move_sequences):
+        move_seq = list(map(lambda d: Move.from_dict(d), move_seq_raw))
+
+        rank = 1
+        for guess in recover_string(move_seq, keyboard=keyboard):
+            print('{}. {}'.format(rank, guess))
+
+            if guess == labels[seq_idx]:
+                break
+
+            rank += 1
+
+        for guess in recover_string(move_seq[1:], keyboard=keyboard):
+            print('{}. {}'.format(rank, guess))
+
+            if guess == labels[seq_idx]:
+                break
+
+            rank += 1
+
+        print('==========')
+

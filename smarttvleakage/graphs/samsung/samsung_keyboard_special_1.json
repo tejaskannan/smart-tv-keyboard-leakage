@@ -64,24 +64,24 @@
         "<LANGUAGE>": {"right": "'"}
     },
     "shortcuts": {
-        "<CHANGE>": ["<LANGUAGE>"],
-        "<LANGUAGE>": ["<CHANGE>"],
-        "<SPACE>": ["<SETTINGS>", "<WWW>"],
-        "<CENT>": ["<DONE>"],
-        "<SETTINGS>": ["<LANGUAGE>", "<SPACE>"],
-        "<WWW>": ["<SPACE>"],
-        "<DIV>": ["<SPACE>"],
-        "=": ["<SPACE>"],
-        "%": ["<SPACE>"],
-        "]": ["<BACK>"]
+        "<CHANGE>": { "down": "<LANGUAGE>" },
+        "<LANGUAGE>": { "up": "<CHANGE>" },
+        "<SPACE>": { "left": "<SETTINGS>", "right": "<WWW>" },
+        "<CENT>": { "right": "<DONE>" },
+        "<SETTINGS>": { "left": "<LANGUAGE>", "right": "<SPACE>" },
+        "<WWW>": { "left": "<SPACE>" },
+        "<DIV>": { "down": "<SPACE>" },
+        "=": { "down": "<SPACE>" },
+        "%": { "down": "<SPACE>" },
+        "]": { "up": "<BACK>" }
     },
     "wraparound": {
-        "<NEXT>": ["<DELETEALL>"],
-        "<DELETEALL>": ["<NEXT>"],
-        "<CHANGE>": ["<RETURN>"],
-        "<RETURN>": ["<CHANGE>"],
-        "<LANGUAGE>": ["<DONE>"],
-        "<DONE>": ["<LANGUAGE>"]
+        "<NEXT>": { "left": "<DELETEALL>" },
+        "<DELETEALL>": { "right": "<NEXT>" },
+        "<CHANGE>": { "left": "<RETURN>" },
+        "<RETURN>": { "right": "<CHANGE>" },
+        "<LANGUAGE>": { "left": "<DONE>" },
+        "<DONE>": { "right": "<LANGUAGE>" }
     },
     "unclickable": ["<LANGUAGE>", "<SETTINGS>", "<UP>", "<DOWN>", "<RETURN>"]
 }

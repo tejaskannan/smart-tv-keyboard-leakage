@@ -6,14 +6,14 @@ from scipy.io import wavfile
 from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import min_weight_full_bipartite_matching
 from scipy.signal import find_peaks, convolve
-from typing import Tuple, List
+from typing import Tuple, List, Dict, Any
 
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.data_types import Move
 from smarttvleakage.audio.utils import create_spectrogram
 from smarttvleakage.infrared.detect_remote import RemoteKey
 from smarttvleakage.utils.file_utils import save_json
-from smarttvleakage.utils.constants import Direction
+from smarttvleakage.utils.constants import Direction, BIG_NUMBER
 
 
 RemotePress = namedtuple('RemotePress', ['time', 'key'])
@@ -21,6 +21,17 @@ SoundRange = namedtuple('SoundRange', ['start', 'end', 'peak_time', 'peak_height
 THRESHOLD = 0.1
 AUDIO_THRESHOLD = 1.0
 WINDOW_SIZE = 256
+TIME_THRESHOLD = 0.5
+
+COLORS = {
+    RemoteKey.UP: 'green',
+    RemoteKey.DOWN: 'orange',
+    RemoteKey.LEFT: 'black',
+    RemoteKey.RIGHT: 'purple',
+    RemoteKey.SELECT: 'gray',
+    RemoteKey.BACK: 'yellow',
+    RemoteKey.UNKNOWN: 'yellow'
+}
 
 
 def transform_audio_signal(audio: np.ndarray) -> np.ndarray:
@@ -46,16 +57,6 @@ def get_sound_ranges(audio: np.ndarray) -> List[SoundRange]:
         end_idx = peak + 1
         while (end_idx < len(transformed_audio)) and (transformed_audio[end_idx] >= AUDIO_THRESHOLD):
             end_idx += 1
-
-        # Clip the audio to this range and create the spectrogram
-        #clip_audio = audio[start_idx:end_idx]
-        #clip_spectrogram = create_spectrogram(clip_audio)
-
-        #fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
-        #ax0.imshow(clip_spectrogram[0:100, :], cmap='gray_r')
-        #ax1.plot(list(range(len(clip_audio))), clip_audio)
-        #plt.show()
-        #plt.close()
 
         result.append(SoundRange(start=start_idx, end=end_idx, peak_time=peak, peak_height=height))
 
@@ -98,7 +99,7 @@ def read_ir_log(path: str, duration: int, start_time: float) -> List[RemotePress
             tokens = line.split()
             time, key = float(tokens[0]), RemoteKey[tokens[1].upper()]
 
-            if time < duration:
+            if (time < duration) and (key != RemoteKey.BACK):
                 press = RemotePress(time=time, key=key)
                 results.append(press)
 
@@ -121,30 +122,105 @@ def to_direction(key: RemoteKey) -> Direction:
         raise ValueError('Cannot convert key {} to direction.'.format(key))
 
 
-def create_move_sequence(audio_times: List[int], remote_presses: List[RemotePress], sample_rate: int) -> List[Move]:
+def create_instance_move_sequences(audio: np.ndarray, sound_ranges: List[SoundRange], remote_presses: List[RemotePress], split_times: List[int], sample_rate: int, min_length: int) -> List[List[Move]]:
+    result: List[List[Move]] = []
+    transformed = transform_audio_signal(audio)
+
+    prev_time = 0
+    for split_time in split_times:
+        # Convert to seconds
+        split_time_sec = int(split_time / sample_rate)
+        prev_time_sec = int(prev_time / sample_rate)
+
+        # Get the audio instances and IR reception for each split
+        split_sound_ranges = [r for r in sound_ranges if (r.peak_time >= prev_time) and (r.peak_time < split_time)]
+        split_remote_presses = [press for press in remote_presses if (press.time >= prev_time_sec) and (press.time < split_time_sec)]
+        split_audio = clipped_audio[prev_time:split_time]
+
+        # Idea: Split based on the `back` key if we see it
+        split_audio_times = [float(r.peak_time / sample_rate) for r in split_sound_ranges]
+        split_audio_heights = [r.peak_height for r in split_sound_ranges]
+
+        # Match the audio to presses. This process accounts for `misses`
+        move_seq = create_move_sequence(split_audio_times, audio_heights=split_audio_heights, remote_presses=split_remote_presses, sample_rate=sample_rate)
+
+        split_audio = transformed[prev_time:split_time]
+
+        #fig, ax = plt.subplots()
+        #ax.plot(list(range(len(split_audio))), split_audio)
+        #ax.scatter([r.peak_time - prev_time for r in split_sound_ranges], [r.peak_height for r in split_sound_ranges], marker='o', color='red')
+
+        #for press in split_remote_presses:
+        #    color = COLORS[press.key]
+        #    ax.axvline(int(press.time * sample_rate) - prev_time, color=color)
+
+        #plt.show()
+
+        # Set the previous time to the end of the current split
+        prev_time = split_time
+
+        # Skip move sequences which are too small
+        if len(move_seq) < min_length:
+            continue
+
+        result.append(move_seq)
+
+    return result
+
+
+def create_move_sequence(audio_times: List[int], audio_heights: List[int], remote_presses: List[RemotePress], sample_rate: int) -> List[Move]:
     remote_times = list(map(lambda press: press.time, remote_presses))
 
-    time_diffs = np.abs(np.expand_dims(audio_times, axis=-1) - np.expand_dims(remote_times, axis=0)) + 1.0  # [N, M]
-    biadj_matrix = csr_matrix(time_diffs)
-    row_idx, col_idx = min_weight_full_bipartite_matching(biadj_matrix)
+    # Compute the time differences and mask out any gaps above 0.5 seconds
+    time_diffs = np.abs(np.expand_dims(audio_times, axis=-1) - np.expand_dims(remote_times, axis=0))  # [N, M]
+    mask = (time_diffs < TIME_THRESHOLD).astype(time_diffs.dtype)
+    time_diffs += (1.0 - mask) * BIG_NUMBER
 
-    matching_audio_idx = 0
+    #biadj_matrix = csr_matrix(time_diffs)
+    #row_idx, col_idx = min_weight_full_bipartite_matching(biadj_matrix)
+    #row_idx_list = row_idx.astype(int).tolist()
+
+    # Perform a matching in a greedy fashion
+    match_indices: List[int] = []
+
+    for audio_idx in range(len(audio_times)):
+        # Get the mininmum time difference
+        closest_remote_idx = np.argmin(time_diffs[audio_idx, :])
+        closest_dist = time_diffs[audio_idx, closest_remote_idx]
+
+        if (closest_dist < TIME_THRESHOLD):
+            match_indices.append(closest_remote_idx)
+            time_diffs[audio_idx, :] = BIG_NUMBER
+            time_diffs[:, closest_remote_idx] = BIG_NUMBER
+        else:
+            match_indices.append(-1)
+
+    #match_indices: List[int] = []
+    #for audio_idx in range(len(audio_times)):
+    #    try:
+    #        match_idx = row_idx_list.index(audio_idx)
+    #        match_indices.append(col_idx[match_idx])
+    #    except ValueError:
+    #        match_indices.append(-1)
+
     directions: List[Direction] = []
     moves: List[Move] = []
 
     for audio_idx, audio_time in enumerate(audio_times):
         # If we have matched against a remote press, then use the corresponding direction
-        if (matching_audio_idx < len(row_idx)) and (row_idx[matching_audio_idx] == audio_idx):
-            remote_idx = col_idx[matching_audio_idx]
+        remote_idx = match_indices[audio_idx]
+
+        if remote_idx != -1:
             remote_key = remote_presses[remote_idx].key
-            matching_audio_idx += 1
         else:
             remote_key = RemoteKey.UNKNOWN
 
         if remote_key == RemoteKey.SELECT:
+            end_sound = sounds.SAMSUNG_KEY_SELECT if (audio_heights[audio_idx] < 5.0) else sounds.SAMSUNG_SELECT
+
             move = Move(num_moves=len(directions),
                         directions=directions,
-                        end_sound=sounds.SAMSUNG_KEY_SELECT)
+                        end_sound=end_sound)
             moves.append(move)
             directions = []
         elif remote_key != RemoteKey.BACK:
@@ -173,38 +249,16 @@ if __name__ == '__main__':
     sound_ranges = get_sound_ranges(clipped_audio)
     split_times = create_split_points(sound_ranges)
 
-    prev_time = 0
-    for split_time in split_times:
-        # Convert to seconds
-        split_time_sec = int(split_time / sample_rate)
-        prev_time_sec = int(prev_time / sample_rate)
-
-        # Get the audio instances and IR reception for each split
-        split_sound_ranges = [r for r in sound_ranges if (r.peak_time >= prev_time) and (r.peak_time < split_time)]
-        split_remote_presses = [press for press in remote_presses if (press.time >= prev_time_sec) and (press.time < split_time_sec)]
-        split_audio = clipped_audio[prev_time:split_time]
-
-        # Match the audio to presses to account for misses
-
-        for press in split_remote_presses:
-            print(press)
-
-        fig, ax = plt.subplots()
-        ax.plot(list(range(len(split_audio))), split_audio)
-
-        plt.show()
-
-        prev_time = split_time
-
-
-
-    audio_times = [t / sample_rate for t in peak_times]
-    move_seq = create_move_sequence(audio_times=audio_times, remote_presses=remote_presses, sample_rate=sample_rate)
+    move_sequences = create_instance_move_sequences(clipped_audio, sound_ranges, remote_presses, split_times=split_times, sample_rate=sample_rate, min_length=3)
 
     # Save the results
     if args.output_path is not None:
-        move_seq_dicts = list(map(lambda m: m.to_dict(), move_seq))
-        save_json(move_seq_dicts, args.output_path)
+        move_sequence_dicts: List[List[Dict[str, Any]]] = []
+
+        for move_seq in move_sequences:
+            move_sequence_dicts.append(list(map(lambda m: m.to_dict(), move_seq)))
+
+        save_json(move_sequence_dicts, args.output_path)
 
     if args.should_plot:
         #for idx, move in enumerate(move_seq):

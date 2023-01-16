@@ -5,10 +5,10 @@ from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set, Union, Optional
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE, NEXT
-from smarttvleakage.keyboard_utils.graph_search import breadth_first_search
+from smarttvleakage.keyboard_utils.graph_search import breadth_first_search, follow_path
 from smarttvleakage.utils.constants import KeyboardType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
-from smarttvleakage.audio.constants import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
+from smarttvleakage.audio.sounds import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
 from smarttvleakage.audio.move_extractor import Direction
 from .keyboard_linker import KeyboardLinker, KeyboardPosition
 
@@ -184,6 +184,9 @@ class MultiKeyboardGraph:
 
         return self._keyboards[mode].get_keys_for_moves_to(end_key=end_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
 
+    def follow_path(self, start_key: str, use_shortcuts: bool, use_wraparound: bool, directions: List[Direction], mode: str) -> Optional[str]:
+        return self._keyboards[mode].follow_path(start_key=start_key, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound, directions=directions)
+
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
 
@@ -238,6 +241,32 @@ class SingleKeyboardGraph:
 
     def is_unclickable(self, key: str) -> bool:
         return (key in self._unclickable_keys)
+
+    def follow_path(self, start_key: str, use_shortcuts: bool, use_wraparound: bool, directions: List[Direction]) -> Optional[str]:
+        if use_shortcuts and use_wraparound:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=self._shortcuts_list,
+                               wraparound=self._wraparound_list,
+                               directions=directions)
+        elif use_shortcuts:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=self._shortcuts_list,
+                               wraparound=None,
+                               directions=directions)
+        elif use_wraparound:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=None,
+                               wraparound=self._wraparound_list,
+                               directions=directions)
+        else:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=None,
+                               wraparound=None,
+                               directions=directions)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool, directions: Union[Direction, List[Direction]]) -> List[str]:
         assert num_moves >= 0, 'Must provide a non-negative number of moves. Got {}'.format(num_moves)
