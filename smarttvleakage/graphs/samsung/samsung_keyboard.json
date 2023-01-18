@@ -58,7 +58,7 @@
         "<DOWN>": {"left": "<LEFT>", "up": "<UP>", "right": "<RIGHT>"},
         "<RIGHT>": {"left": "<DOWN>", "up": "-", "right": "<CANCEL>"},
         "<CAPS>": {"right": "1", "down": "<CHANGE>"},
-        "<CHANGE>": {"up": "<CAPS>", "left": "q"},
+        "<CHANGE>": {"up": "<CAPS>", "right": "q"},
         "<SPACE>": {"up": "c"},
         "<LANGUAGE>": {"right": "a"},
         "<SETTINGS>" : {"up": "z"}

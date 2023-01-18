@@ -126,21 +126,17 @@ if __name__ == '__main__':
         move_seq = list(map(lambda d: Move.from_dict(d), move_seq_raw))
 
         rank = 1
-        for guess in recover_string(move_seq, keyboard=keyboard):
-            print('{}. {}'.format(rank, guess))
-
-            if guess == labels[seq_idx]:
+        for offset in range(0, len(move_seq)):
+            if (offset > 0) and (move_seq[offset - 1].end_sound != sounds.SAMSUNG_SELECT):
                 break
 
-            rank += 1
+            for guess in recover_string(move_seq[offset:], keyboard=keyboard):
+                print('{}. {}'.format(rank, guess))
 
-        for guess in recover_string(move_seq[1:], keyboard=keyboard):
-            print('{}. {}'.format(rank, guess))
+                if guess == labels[seq_idx]:
+                    break
 
-            if guess == labels[seq_idx]:
-                break
-
-            rank += 1
+                rank += 1
 
         print('==========')
 
