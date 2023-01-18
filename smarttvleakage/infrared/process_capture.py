@@ -126,8 +126,10 @@ def create_instance_move_sequences(audio: np.ndarray, sound_ranges: List[SoundRa
     result: List[List[Move]] = []
     transformed = transform_audio_signal(audio)
 
+    split_times_extended = split_times + [len(audio)]
+
     prev_time = 0
-    for split_time in split_times:
+    for split_time in split_times_extended:
         # Convert to seconds
         split_time_sec = int(split_time / sample_rate)
         prev_time_sec = int(prev_time / sample_rate)
@@ -176,10 +178,6 @@ def create_move_sequence(audio_times: List[int], audio_heights: List[int], remot
     mask = (time_diffs < TIME_THRESHOLD).astype(time_diffs.dtype)
     time_diffs += (1.0 - mask) * BIG_NUMBER
 
-    #biadj_matrix = csr_matrix(time_diffs)
-    #row_idx, col_idx = min_weight_full_bipartite_matching(biadj_matrix)
-    #row_idx_list = row_idx.astype(int).tolist()
-
     # Perform a matching in a greedy fashion
     match_indices: List[int] = []
 
@@ -195,28 +193,21 @@ def create_move_sequence(audio_times: List[int], audio_heights: List[int], remot
         else:
             match_indices.append(-1)
 
-    #match_indices: List[int] = []
-    #for audio_idx in range(len(audio_times)):
-    #    try:
-    #        match_idx = row_idx_list.index(audio_idx)
-    #        match_indices.append(col_idx[match_idx])
-    #    except ValueError:
-    #        match_indices.append(-1)
-
     directions: List[Direction] = []
     moves: List[Move] = []
 
     for audio_idx, audio_time in enumerate(audio_times):
         # If we have matched against a remote press, then use the corresponding direction
         remote_idx = match_indices[audio_idx]
+        audio_height = audio_heights[audio_idx]
 
         if remote_idx != -1:
             remote_key = remote_presses[remote_idx].key
         else:
             remote_key = RemoteKey.UNKNOWN
 
-        if remote_key == RemoteKey.SELECT:
-            end_sound = sounds.SAMSUNG_KEY_SELECT if (audio_heights[audio_idx] < 5.0) else sounds.SAMSUNG_SELECT
+        if (remote_key == RemoteKey.SELECT) or (audio_height < 3.0) or (audio_height > 7.0):
+            end_sound = sounds.SAMSUNG_KEY_SELECT if (audio_height < 5.0) else sounds.SAMSUNG_SELECT
 
             move = Move(num_moves=len(directions),
                         directions=directions,
@@ -272,12 +263,5 @@ if __name__ == '__main__':
 
         for split_point in split_times:
             ax.axvline(split_point, color='red')
-
-        #for sound_range in sound_ranges:
-        #    ax.axvline(sound_range.start, color='orange')
-        #    ax.axvline(sound_range.end, color='red')
-
-        #for remote_press in remote_presses:
-        #    ax.axvline(remote_press.time * sample_rate, color='black')
 
         plt.show()

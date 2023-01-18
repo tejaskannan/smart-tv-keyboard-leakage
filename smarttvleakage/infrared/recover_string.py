@@ -67,7 +67,11 @@ def recover_string(move_seq: List[Move], keyboard: MultiKeyboardGraph) -> Iterab
         current_state = search_frontier.pop()  # Get the first state on the queue
 
         if len(current_state.current_keys) == (len(move_seq) - 1):
-            yield get_string_from_keys(current_state.current_keys)
+            current_string = get_string_from_keys(current_state.current_keys)
+
+            if len(current_string) > 0:
+                yield current_string
+
             continue
 
         move = move_seq[current_state.move_idx]
@@ -120,7 +124,7 @@ if __name__ == '__main__':
     labels_path = os.path.join(folder, file_name.replace('.json', '_labels.json'))
     labels = read_json(labels_path)
 
-    #assert len(labels) == len(move_sequences), 'Found {} labels and {} move sequences.'.format(len(labels), len(move_sequences))
+    assert len(labels) == len(move_sequences), 'Found {} labels and {} move sequences.'.format(len(labels), len(move_sequences))
 
     for seq_idx, move_seq_raw in enumerate(move_sequences):
         move_seq = list(map(lambda d: Move.from_dict(d), move_seq_raw))
