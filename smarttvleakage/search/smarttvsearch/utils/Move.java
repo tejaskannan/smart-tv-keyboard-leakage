@@ -8,8 +8,10 @@ public class Move {
     private int numMoves;
     private Direction[] directions;
     private SmartTVSound endSound;
+    private int startTime;
+    private int endTime;
 
-    public Move(int numMoves, Direction[] directions, SmartTVSound endSound) {
+    public Move(int numMoves, Direction[] directions, SmartTVSound endSound, int startTime, int endTime) {
         if (numMoves < 0) {
             throw new IllegalArgumentException("Most provide a non-negative number of moves.");
         }
@@ -21,9 +23,11 @@ public class Move {
         this.numMoves = numMoves;
         this.directions = directions;
         this.endSound = endSound;
+        this.startTime = startTime;
+        this.endTime = endTime;
     }
 
-    public Move(int numMoves, SmartTVSound endSound) {
+    public Move(int numMoves, SmartTVSound endSound, int startTime, int endTime) {
         if (numMoves < 0) {
             throw new IllegalArgumentException("Most provide a non-negative number of moves.");
         }
@@ -36,10 +40,32 @@ public class Move {
         this.numMoves = numMoves;
         this.directions = directions;
         this.endSound = endSound;
+        this.startTime = startTime;
+        this.endTime = endTime;
     }
 
     public int getNumMoves() {
         return this.numMoves;
+    }
+
+    public int getStartTime() {
+        return this.startTime;
+    }
+
+    public int getEndTime() {
+        return this.endTime;
+    }
+
+    public double getAvgTimePerMove() {
+        if (this.getNumMoves() == 0) {
+            return 0.0;
+        }
+
+        return ((double) (this.getEndTime() - this.getStartTime())) / ((double) this.getNumMoves());
+    }
+
+    public Direction[] getDirections() {
+        return this.directions;
     }
 
     public Direction getDirection(int moveIdx) {

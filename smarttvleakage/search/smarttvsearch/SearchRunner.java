@@ -7,6 +7,7 @@ import org.json.JSONException;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.prior.LanguagePriorFactory;
 import smarttvsearch.keyboard.MultiKeyboard;
+import smarttvsearch.search.Search;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.FileUtils;
 import smarttvsearch.utils.Move;
@@ -14,7 +15,10 @@ import smarttvsearch.utils.SmartTVType;
 import smarttvsearch.utils.sounds.SmartTVSound;
 import smarttvsearch.utils.sounds.SamsungSound;
 
+
 public class SearchRunner {
+
+    private static final int MAX_RANK = 10;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -47,6 +51,8 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
 
+            LanguagePrior cvvPrior = LanguagePriorFactory.makePrior("numeric", null);
+
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
@@ -59,10 +65,29 @@ public class SearchRunner {
 
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
+
+                // Recover each field
+                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), labelsJson.getString("security_code"), MAX_RANK);
+                break;
             }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
         }
+    }
+
+    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, String target, int maxRank) {
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey);
+
+        for (int rank = 1; rank <= maxRank; rank++) {
+            String guess = searcher.next();
+            System.out.printf("%d. %s\n", rank, guess);
+
+            if (guess.equals(target)) {
+                return rank;
+            }
+        }
+
+        return -1;
     }
 
     private static Move[] parseMoveSeq(JSONArray jsonMoveSeq, SmartTVType tvType) {
@@ -77,6 +102,8 @@ public class SearchRunner {
 
     private static Move parseMove(JSONObject jsonMove, SmartTVType tvType) {
         int numMoves = jsonMove.getInt("num_moves");
+        int startTime = jsonMove.getInt("start_time");
+        int endTime = jsonMove.getInt("end_time");
 
         SmartTVSound endSound;
         if (tvType == SmartTVType.SAMSUNG) {
@@ -93,9 +120,9 @@ public class SearchRunner {
                 directions[idx] = Direction.valueOf(directionsArray.getString(idx).toUpperCase());
             }
 
-            return new Move(numMoves, directions, endSound);
+            return new Move(numMoves, directions, endSound, startTime, endTime);
         } catch (JSONException ex) {
-            return new Move(numMoves, endSound);
+            return new Move(numMoves, endSound, startTime, endTime);
         }
     }
 

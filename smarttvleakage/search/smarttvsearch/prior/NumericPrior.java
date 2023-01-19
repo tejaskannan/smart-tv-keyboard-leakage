@@ -5,6 +5,7 @@ public class NumericPrior extends LanguagePrior {
 
     public NumericPrior(String path) {
         super(path);
+        this.totalCount = 10;
     }
 
     @Override
