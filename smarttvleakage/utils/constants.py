@@ -17,6 +17,10 @@ class Direction(Enum):
     ANY = auto()
     HORIZONTAL = auto()
     VERTICAL = auto()
+    RIGHT = auto()
+    LEFT = auto()
+    UP = auto()
+    DOWN = auto()
 
 
 CAPS = '<CAPS>'
