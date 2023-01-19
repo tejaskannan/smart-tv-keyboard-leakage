@@ -66,8 +66,12 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
+                for (Move move : cvvSeq) {
+                    System.out.println(move);
+                }
+
                 // Recover each field
-                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), labelsJson.getString("security_code"), MAX_RANK);
+                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), true, labelsJson.getString("security_code"), MAX_RANK);
                 break;
             }
         } else {
@@ -75,8 +79,8 @@ public class SearchRunner {
         }
     }
 
-    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, String target, int maxRank) {
-        Search searcher = new Search(moveSeq, keyboard, prior, startKey);
+    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, boolean doesEndWithDone, String target, int maxRank) {
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey, doesEndWithDone);
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();

@@ -79,4 +79,9 @@ public class Move {
     public SmartTVSound getEndSound() {
         return this.endSound;
     }
+
+    @Override
+    public String toString() {
+        return String.format("Move(numMoves=%d, endSound=%s)", this.getNumMoves(), this.getEndSound().getSoundName());
+    }
 }

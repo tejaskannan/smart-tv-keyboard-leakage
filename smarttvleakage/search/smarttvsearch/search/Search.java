@@ -11,6 +11,7 @@ import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.utils.search.SearchState;
 import smarttvsearch.utils.search.VisitedState;
 import smarttvsearch.utils.Move;
+import smarttvsearch.utils.SpecialKeys;
 
 
 public class Search {
@@ -19,16 +20,18 @@ public class Search {
     private MultiKeyboard keyboard;
     private LanguagePrior languagePrior;
     private String startKey;
+    private boolean doesEndWithDone;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, boolean doesEndWithDone) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
         this.startKey = startKey;
+        this.doesEndWithDone = doesEndWithDone;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
@@ -48,8 +51,10 @@ public class Search {
             // Check if we are out of moves. If so, return the string if not guessed already.
             if (moveIdx >= this.moveSeq.length) {
                 String guess = currentState.toString();
+                String lastKey = currentState.getKeys().get(moveIdx - 1);
 
-                if ((guess.length() > 0) && (!this.guessed.contains(guess)) && (this.languagePrior.isValid(guess))) {
+                if ((guess.length() > 0) && (!this.guessed.contains(guess)) && (this.languagePrior.isValid(guess)) && (!this.doesEndWithDone || lastKey.equals(SpecialKeys.DONE))) {
+                    this.guessed.add(guess);
                     return guess;
                 }
             } else {

@@ -18,6 +18,8 @@ public class KeyboardUtils {
         translation.put(SpecialKeys.UP, "");
         translation.put(SpecialKeys.DOWN, "");
         translation.put(SpecialKeys.LANGUAGE, "");
+        translation.put(SpecialKeys.DONE, "");
+        translation.put(SpecialKeys.SETTINGS, "");
         return translation;
     }
 

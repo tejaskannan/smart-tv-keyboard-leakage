@@ -16,5 +16,6 @@ public class SpecialKeys {
     public static final String LANGUAGE = "<LANGUAGE>";
     public static final String NEXT = "<NEXT>";
     public static final String CHANGE = "<CHANGE>";
+    public static final String SETTINGS = "<SETTINGS>";
 
 }
