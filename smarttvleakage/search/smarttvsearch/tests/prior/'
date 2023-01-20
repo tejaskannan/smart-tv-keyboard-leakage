@@ -30,6 +30,7 @@ public class NumericPrior extends LanguagePrior {
         }
 
         char c = key.charAt(0);
+        System.out.println(c);
         return (c >= '0') && (c <= '9');
     }
 

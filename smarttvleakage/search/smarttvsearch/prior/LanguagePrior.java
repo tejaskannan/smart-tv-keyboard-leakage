@@ -9,7 +9,7 @@ import java.util.HashMap;
 public abstract class LanguagePrior {
 
     private String path;
-    private int totalCount;
+    protected int totalCount;
     protected HashMap<String, Integer> dictionary;
 
     public LanguagePrior(String path) {

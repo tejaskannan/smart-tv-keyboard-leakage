@@ -71,7 +71,7 @@ public class SearchRunner {
                 }
 
                 // Recover each field
-                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), true, labelsJson.getString("security_code"), MAX_RANK);
+                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, labelsJson.getString("security_code"), MAX_RANK);
                 break;
             }
         } else {
@@ -79,8 +79,8 @@ public class SearchRunner {
         }
     }
 
-    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, boolean doesEndWithDone, String target, int maxRank) {
-        Search searcher = new Search(moveSeq, keyboard, prior, startKey, doesEndWithDone);
+    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey, tvType);
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();

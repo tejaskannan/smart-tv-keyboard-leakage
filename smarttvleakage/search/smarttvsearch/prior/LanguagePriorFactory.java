@@ -13,7 +13,7 @@ public class LanguagePriorFactory {
         LanguagePrior result = null;
 
         if (name.equals("numeric")) {
-            result = new NumericPrior(path);
+            result = new NumericPrior();
         } else if (name.equals("ngram")) {
             result = new NGramPrior(path);
         } else {
