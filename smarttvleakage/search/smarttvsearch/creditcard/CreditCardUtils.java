@@ -18,13 +18,9 @@ public class CreditCardUtils {
 
             digit += (shouldDouble * digit);
 
-            //System.out.printf("%d ", digit);
-
             totalSum += (digit / 10) + (digit % 10);
             shouldDouble ^= 1;
         }
-
-        //System.out.println();
 
         return (totalSum % 10) == 0;
     }

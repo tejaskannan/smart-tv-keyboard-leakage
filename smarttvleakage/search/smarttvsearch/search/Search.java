@@ -2,15 +2,18 @@ package smarttvsearch.search;
 
 import java.util.PriorityQueue;
 import java.util.List;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.ArrayList;
 
 import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.prior.LanguagePrior;
+import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.utils.search.SearchState;
 import smarttvsearch.utils.search.VisitedState;
 import smarttvsearch.utils.Move;
+import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.SpecialKeys;
 import smarttvsearch.utils.SmartTVType;
 import smarttvsearch.utils.sounds.SamsungSound;
@@ -22,17 +25,19 @@ public class Search {
     private MultiKeyboard keyboard;
     private LanguagePrior languagePrior;
     private String startKey;
+    private SuboptimalMoveModel suboptimalModel;
     private boolean doesEndWithDone;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SmartTVType tvType) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, SmartTVType tvType) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
         this.startKey = startKey;
+        this.suboptimalModel = suboptimalModel;
         this.doesEndWithDone = doesEndWithDone;
 
         this.frontier = new PriorityQueue<SearchState>();
@@ -74,14 +79,47 @@ public class Search {
                 String currentKey = currentState.getCurrentKey();
         
                 // Get all neighboring keys for this move. TODO: handle possible suboptimal moves
-                Set<String> neighbors = this.keyboard.getKeysForDistanceCumulative(currentKey, move.getNumMoves(), true, true, move.getDirections(), currentState.getKeyboardName());
+                
+                int numMoves = move.getNumMoves();
+                int numSuboptimal = this.suboptimalModel.getLimit(moveIdx);
+                HashMap<String, Double> neighborKeys = new HashMap<String, Double>();  // Neighbor -> Score factor
+
+                for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
+                    int adjustedNumMoves = numMoves + offset;
+                    if (adjustedNumMoves < 0) {
+                        continue;
+                    }
+
+                    Direction[] directions;
+
+                    if (offset == 0) {
+                        directions = move.getDirections();
+                    } else {
+                        directions = new Direction[adjustedNumMoves];
+                        for (int dirIdx = 0; dirIdx < adjustedNumMoves; dirIdx++) {
+                            directions[dirIdx] = Direction.ANY;
+                        }
+                    }
+
+                    Set<String> neighbors = this.keyboard.getKeysForDistanceCumulative(currentKey, adjustedNumMoves, true, true, directions, currentState.getKeyboardName());
+                    double scoreFactor = this.suboptimalModel.getScoreFactor(offset);
+   
+                    for (String neighbor : neighbors) {
+                        Double prevFactor = neighborKeys.get(neighbor);
+
+                        if ((prevFactor == null) || (scoreFactor < prevFactor)) {
+                            neighborKeys.put(neighbor, scoreFactor);
+                        }
+                    }
+                }
+                
                 int nextMoveIdx = moveIdx + 1;
 
-                for (String neighborKey : neighbors) {
+                for (String neighborKey : neighborKeys.keySet()) {
                     if (!this.isValidKey(neighborKey, nextMoveIdx)) {
                         continue;  // Do not add invalid keys to the queue
                     }
-                   
+
                     // Make the candidate search state
                     List<String> nextKeys = new ArrayList<String>(currentState.getKeys());
                     nextKeys.add(neighborKey);
@@ -97,6 +135,7 @@ public class Search {
 
                         if (incrementalCount > 0) {
                             double incrementalScore = this.languagePrior.normalizeCount(incrementalCount);
+                            incrementalScore *= neighborKeys.get(neighborKey);
                             double score = currentState.getScore() - Math.log(incrementalScore);
 
                             candidateState.setScore(score);

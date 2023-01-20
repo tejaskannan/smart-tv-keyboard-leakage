@@ -8,6 +8,8 @@ import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.prior.LanguagePriorFactory;
 import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.search.Search;
+import smarttvsearch.suboptimal.SuboptimalMoveModel;
+import smarttvsearch.suboptimal.SuboptimalMoveFactory;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.FileUtils;
 import smarttvsearch.utils.Move;
@@ -51,6 +53,7 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
 
+            LanguagePrior ccnPrior = LanguagePriorFactory.makePrior("credit_card", null);
             LanguagePrior cvvPrior = LanguagePriorFactory.makePrior("numeric", null);
             LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
             LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
@@ -69,9 +72,10 @@ public class SearchRunner {
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
                 // Recover each field
-                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, labelsJson.getString("security_code"), MAX_RANK);
-                int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, labelsJson.getString("exp_month"), MAX_RANK);
-                int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, labelsJson.getString("exp_year"), MAX_RANK);
+                int ccnRank = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, "credit_card", labelsJson.getString("credit_card"), MAX_RANK);
+                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("security_code"), MAX_RANK);
+                int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_month"), MAX_RANK);
+                int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_year"), MAX_RANK);
 
                 break;
             }
@@ -80,8 +84,9 @@ public class SearchRunner {
         }
     }
 
-    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
-        Search searcher = new Search(moveSeq, keyboard, prior, startKey, tvType);
+    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, String target, int maxRank) {
+        SuboptimalMoveModel suboptimalModel = SuboptimalMoveFactory.make(suboptimalModelName, moveSeq);
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType);
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();

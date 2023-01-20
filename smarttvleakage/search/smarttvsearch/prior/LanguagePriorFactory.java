@@ -5,6 +5,7 @@ import smarttvsearch.prior.NGramPrior;
 import smarttvsearch.prior.NumericPrior;
 import smarttvsearch.prior.MonthPrior;
 import smarttvsearch.prior.YearPrior;
+import smarttvsearch.prior.CreditCardPrior;
 
 
 public class LanguagePriorFactory {
@@ -22,6 +23,8 @@ public class LanguagePriorFactory {
             result = new MonthPrior();  
         } else if (name.equals("year")) {
             result = new YearPrior();  
+        } else if (name.equals("credit_card")) {
+            result = new CreditCardPrior();  
         } else {
             throw new IllegalArgumentException("No prior with name: " + name);
         }
