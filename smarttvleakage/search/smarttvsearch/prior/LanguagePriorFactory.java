@@ -3,6 +3,8 @@ package smarttvsearch.prior;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.prior.NGramPrior;
 import smarttvsearch.prior.NumericPrior;
+import smarttvsearch.prior.MonthPrior;
+import smarttvsearch.prior.YearPrior;
 
 
 public class LanguagePriorFactory {
@@ -16,6 +18,10 @@ public class LanguagePriorFactory {
             result = new NumericPrior();
         } else if (name.equals("ngram")) {
             result = new NGramPrior(path);
+        } else if (name.equals("month")) {
+            result = new MonthPrior();  
+        } else if (name.equals("year")) {
+            result = new YearPrior();  
         } else {
             throw new IllegalArgumentException("No prior with name: " + name);
         }

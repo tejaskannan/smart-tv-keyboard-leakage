@@ -81,7 +81,7 @@ public class Search {
                     if (!this.isValidKey(neighborKey, nextMoveIdx)) {
                         continue;  // Do not add invalid keys to the queue
                     }
-
+                   
                     // Make the candidate search state
                     List<String> nextKeys = new ArrayList<String>(currentState.getKeys());
                     nextKeys.add(neighborKey);

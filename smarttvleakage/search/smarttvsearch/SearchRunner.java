@@ -52,6 +52,8 @@ public class SearchRunner {
             JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
 
             LanguagePrior cvvPrior = LanguagePriorFactory.makePrior("numeric", null);
+            LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
+            LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
@@ -66,12 +68,11 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
-                for (Move move : cvvSeq) {
-                    System.out.println(move);
-                }
-
                 // Recover each field
                 int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, labelsJson.getString("security_code"), MAX_RANK);
+                int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, labelsJson.getString("exp_month"), MAX_RANK);
+                int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, labelsJson.getString("exp_year"), MAX_RANK);
+
                 break;
             }
         } else {
