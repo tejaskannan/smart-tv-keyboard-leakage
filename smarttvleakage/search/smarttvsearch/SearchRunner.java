@@ -20,7 +20,7 @@ import smarttvsearch.utils.sounds.SamsungSound;
 
 public class SearchRunner {
 
-    private static final int MAX_RANK = 10;
+    private static final int MAX_RANK = 25;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -57,6 +57,9 @@ public class SearchRunner {
             LanguagePrior cvvPrior = LanguagePriorFactory.makePrior("numeric", null);
             LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
             LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
+            LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", FileUtils.joinPath(priorFolder, "zip_codes.txt"));
+            
+            zipPrior.build(true);
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
@@ -76,8 +79,9 @@ public class SearchRunner {
                 int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("security_code"), MAX_RANK);
                 int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_month"), MAX_RANK);
                 int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_year"), MAX_RANK);
+                int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("zip_code"), MAX_RANK);
 
-                break;
+                System.out.println("==========");
             }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
@@ -90,10 +94,17 @@ public class SearchRunner {
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();
-            System.out.printf("%d. %s\n", rank, guess);
+
+            if (guess == null) {
+                return -1;
+            }
 
             if (guess.equals(target)) {
+                System.out.printf("%d. %s (correct)\n", rank, guess);
+
                 return rank;
+            } else {
+                System.out.printf("%d. %s\n", rank, guess);
             }
         }
 

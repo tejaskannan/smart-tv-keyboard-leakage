@@ -107,7 +107,7 @@ public class Search {
                     for (String neighbor : neighbors) {
                         Double prevFactor = neighborKeys.get(neighbor);
 
-                        if ((prevFactor == null) || (scoreFactor < prevFactor)) {
+                        if ((prevFactor == null) || (scoreFactor > prevFactor)) {
                             neighborKeys.put(neighbor, scoreFactor);
                         }
                     }

@@ -175,7 +175,21 @@ public class KeyboardTests {
         directions = new Direction[] { Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
         observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("6", 7, true, true, directions);
         this.validateKeys(observed, expected);
+
+        expected = new String[] { "<DONE>", "!", "<UP>", "<LEFT>", "<RIGHT>", "<DOWN>" };
+        directions = new Direction[] { Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
+        observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("4", 10, true, true, directions);
+        this.validateKeys(observed, expected);
     }
+
+    @Test
+    public void testSamsungStdDistShortcutsWraparoundDirections() {
+        String[] expected = new String[] { "<DONE>", "!", "<UP>", "<LEFT>", "<COM>", "<DOWN>", "z", "h", "m", "s", };
+        Direction[] directions = new Direction[] { Direction.ANY, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
+        Set<String> observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("4", 10, true, true, directions);
+        this.validateKeys(observed, expected);
+    }
+
 
     private void validateKeys(Set<String> observed, String[] expected) {
         assertEquals(expected.length, observed.size());

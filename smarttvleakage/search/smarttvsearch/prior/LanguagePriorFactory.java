@@ -6,6 +6,7 @@ import smarttvsearch.prior.NumericPrior;
 import smarttvsearch.prior.MonthPrior;
 import smarttvsearch.prior.YearPrior;
 import smarttvsearch.prior.CreditCardPrior;
+import smarttvsearch.prior.PrefixPrior;
 
 
 public class LanguagePriorFactory {
@@ -19,6 +20,8 @@ public class LanguagePriorFactory {
             result = new NumericPrior();
         } else if (name.equals("ngram")) {
             result = new NGramPrior(path);
+        } else if (name.equals("prefix")) {
+            result = new PrefixPrior(path);  
         } else if (name.equals("month")) {
             result = new MonthPrior();  
         } else if (name.equals("year")) {
