@@ -8,7 +8,8 @@ from typing import List
 from collections import deque
 from typing import Dict
 
-from smarttvleakage.audio import Move, SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, DONE_SOUNDS, SPACE_SOUNDS, CHANGE_SOUNDS, KEY_SELECT_SOUNDS
+from smarttvleakage.audio import Move
+from smarttvleakage.audio.sounds import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT, DONE_SOUNDS, SPACE_SOUNDS, CHANGE_SOUNDS, KEY_SELECT_SOUNDS
 from smarttvleakage.dictionary.dictionaries import DONE, SPACE, CHANGE, NEXT
 from smarttvleakage.utils.constants import KeyboardType, Direction
 from smarttvleakage.utils.file_utils import save_jsonl_gz

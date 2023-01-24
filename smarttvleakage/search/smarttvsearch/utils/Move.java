@@ -10,8 +10,9 @@ public class Move {
     private SmartTVSound endSound;
     private int startTime;
     private int endTime;
+    private int[] moveTimes;
 
-    public Move(int numMoves, Direction[] directions, SmartTVSound endSound, int startTime, int endTime) {
+    public Move(int numMoves, Direction[] directions, SmartTVSound endSound, int startTime, int endTime, int[] moveTimes) {
         if (numMoves < 0) {
             throw new IllegalArgumentException("Most provide a non-negative number of moves.");
         }
@@ -20,16 +21,25 @@ public class Move {
             throw new IllegalArgumentException(String.format("The number of moves (%d) must match the number of directions (%d).", numMoves, directions.length));
         }
 
+        if (moveTimes.length != numMoves) {
+            throw new IllegalArgumentException(String.format("The number of moves (%d) must match the number of directions (%d).", numMoves, moveTimes.length));
+        }
+
         this.numMoves = numMoves;
         this.directions = directions;
         this.endSound = endSound;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.moveTimes = moveTimes;
     }
 
-    public Move(int numMoves, SmartTVSound endSound, int startTime, int endTime) {
+    public Move(int numMoves, SmartTVSound endSound, int startTime, int endTime, int[] moveTimes) {
         if (numMoves < 0) {
             throw new IllegalArgumentException("Most provide a non-negative number of moves.");
+        }
+
+        if (moveTimes.length != numMoves) {
+            throw new IllegalArgumentException(String.format("The number of moves (%d) must match the number of directions (%d).", numMoves, moveTimes.length));
         }
 
         Direction[] directions = new Direction[numMoves];
@@ -42,6 +52,7 @@ public class Move {
         this.endSound = endSound;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.moveTimes = moveTimes;
     }
 
     public int getNumMoves() {
@@ -56,12 +67,21 @@ public class Move {
         return this.endTime;
     }
 
+    public int[] getMoveTimes() {
+        return this.moveTimes;
+    }
+
     public double getAvgTimePerMove() {
-        if (this.getNumMoves() == 0) {
+        if (this.getNumMoves() <= 1) {
             return 0.0;
         }
 
-        return ((double) (this.getEndTime() - this.getStartTime())) / ((double) this.getNumMoves());
+        int moveDiffSum = 0;
+        for (int idx = 1; idx < this.moveTimes.length; idx++) {
+            moveDiffSum += (this.moveTimes[idx] - this.moveTimes[idx - 1]);
+        }
+
+        return ((double) moveDiffSum) / ((double) (this.getNumMoves() - 1));
     }
 
     public Direction[] getDirections() {

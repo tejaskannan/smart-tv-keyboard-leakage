@@ -3,11 +3,15 @@ import os.path
 from typing import List
 
 import smarttvleakage.audio.sounds as sounds
-from smarttvleakage.audio.move_extractor import SamsungMoveExtractor, AppleTVMoveExtractor
+from smarttvleakage.audio import SamsungMoveExtractor, AppleTVMoveExtractor, create_spectrogram
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
 
 class SamsungMoveExtraction(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.extractor = SamsungMoveExtractor()
 
     def test_test(self):
         expected_num_moves = [4, 3, 10, 9, 2, 4, 9] 
@@ -36,15 +40,19 @@ class SamsungMoveExtraction(unittest.TestCase):
     def run_test(self, recording_path: str, expected_num_moves: List[int], expected_sounds: List[str]):
         # Read in the serialized audio (use only channel 0)
         audio = read_pickle_gz(recording_path)[:, 0]
+        target_spectrogram = create_spectrogram(audio)
 
-        move_extractor = SamsungMoveExtractor()
-        observed_moves = move_extractor.extract_moves(audio)
+        observed_moves = self.extractor.extract_moves(target_spectrogram)
         
         self.assertEqual(expected_num_moves, list(map(lambda m: m.num_moves, observed_moves)))
         self.assertEqual(expected_sounds, list(map(lambda m: m.end_sound, observed_moves)))
 
 
 class AppleTVMoveExtraction(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        cls.extractor = AppleTVMoveExtractor()
 
     def test_qwerty(self):
         expected_num_moves = [16, 6, 18, 13, 2, 5]
@@ -54,13 +62,21 @@ class AppleTVMoveExtraction(unittest.TestCase):
                       expected_num_moves=expected_num_moves,
                       expected_sounds=expected_sounds)
 
+    def test_lakers(self):
+        expected_num_moves = [11, 11, 10, 6, 13, 1]
+        expected_sounds = [sounds.APPLETV_KEYBOARD_SELECT] * len(expected_num_moves)
+        
+        self.run_test(recording_path=os.path.join('recordings', 'appletv', 'lakers.pkl.gz'),
+                      expected_num_moves=expected_num_moves,
+                      expected_sounds=expected_sounds)
+
     def run_test(self, recording_path: str, expected_num_moves: List[int], expected_sounds: List[str]):
         # Read in the serialized audio (use only channel 0)
         audio = read_pickle_gz(recording_path)[:, 0]
+        target_spectrogram = create_spectrogram(audio)
 
-        move_extractor = AppleTVMoveExtractor()
-        observed_moves = move_extractor.extract_moves(audio)
-        
+        observed_moves = self.extractor.extract_moves(target_spectrogram)
+
         self.assertEqual(expected_num_moves, list(map(lambda m: m.num_moves, observed_moves)))
         self.assertEqual(expected_sounds, list(map(lambda m: m.end_sound, observed_moves)))
 

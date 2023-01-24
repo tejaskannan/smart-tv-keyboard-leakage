@@ -1,5 +1,8 @@
 package smarttvsearch;
 
+import java.util.List;
+import java.util.ArrayList;
+
 import org.json.JSONObject;
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -10,17 +13,19 @@ import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.search.Search;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.suboptimal.SuboptimalMoveFactory;
+import smarttvsearch.suboptimal.CreditCardMoveModel;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.FileUtils;
 import smarttvsearch.utils.Move;
 import smarttvsearch.utils.SmartTVType;
+import smarttvsearch.utils.VectorUtils;
 import smarttvsearch.utils.sounds.SmartTVSound;
 import smarttvsearch.utils.sounds.SamsungSound;
 
 
 public class SearchRunner {
 
-    private static final int MAX_RANK = 25;
+    private static final int MAX_RANK = 50;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -74,8 +79,41 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
+                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
+                    System.out.printf("%d. %d\n", moveIdx + 1, ccnSeq[moveIdx].getNumMoves());
+                }
+
+                List<Integer> diffs = new ArrayList<Integer>();
+
+                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
+                    System.out.printf("%d. ", moveIdx + 1);
+
+                    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
+                    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
+
+                    if (moveDiffs != null) {
+                        diffs.addAll(moveDiffs);
+                    }
+
+                    for (int j = 1; j < moveTimes.length; j++) {
+                        int diff = moveTimes[j] - moveTimes[j - 1];
+
+                        System.out.printf("%d ", diff);
+                    }
+
+                    System.out.println();
+                }
+
+                //double avg = VectorUtils.average(diffs);
+                //double std = VectorUtils.stdDev(diffs);
+
+                //System.out.printf("Avg Diff Time: %f\n", avg);
+                //System.out.printf("Std Dev Diff Time: %f\n", std);
+                //System.out.printf("Cutoff Time: %f\n", avg + 1.2 * std);
+
                 // Recover each field
-                int ccnRank = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, "credit_card", labelsJson.getString("credit_card"), MAX_RANK);
+                //int ccnRank = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, "credit_card", labelsJson.getString("credit_card"), MAX_RANK);
+                int ccnRank = recoverCreditCard(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, labelsJson.getString("credit_card"), MAX_RANK);
                 int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("security_code"), MAX_RANK);
                 int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_month"), MAX_RANK);
                 int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_year"), MAX_RANK);
@@ -111,6 +149,53 @@ public class SearchRunner {
         return -1;
     }
 
+    private static int recoverCreditCard(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
+        double[] mistakeFactors = new double[] { 1.25, 1.0, 0.5, 0.0 };
+        //double[] mistakeFactors = new double[] { 0.5 };
+
+        // Get the move differences for the given sequence
+        List<Integer> moveDiffs = new ArrayList<Integer>();
+        for (Move move : moveSeq) {
+            List<Integer> diffs = VectorUtils.getDiffs(move.getMoveTimes());
+
+            if (diffs != null) {
+                moveDiffs.addAll(diffs);
+            }
+        }
+
+        double avgDiff = VectorUtils.average(moveDiffs);
+        double stdDiff = VectorUtils.stdDev(moveDiffs);
+
+        System.out.printf("%f %f\n", avgDiff, stdDiff);
+
+        int rank = 1;
+        for (double mistakeFactor : mistakeFactors) {
+            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, avgDiff, stdDiff, mistakeFactor);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType);
+
+            System.out.println(suboptimalModel.getCutoff());
+
+            while (rank <= maxRank) {
+                String guess = searcher.next();
+
+                if (guess == null) {
+                    break;
+                }
+
+                if (guess.equals(target)) {
+                    System.out.printf("%d. %s (correct)\n", rank, guess);
+                    return rank;
+                } else {
+                    System.out.printf("%d. %s\n", rank, guess);
+                }
+
+                rank += 1;
+            }
+        }
+
+        return -1;
+    }
+
     private static Move[] parseMoveSeq(JSONArray jsonMoveSeq, SmartTVType tvType) {
         Move[] moveSeq = new Move[jsonMoveSeq.length()];
 
@@ -133,6 +218,13 @@ public class SearchRunner {
             throw new IllegalArgumentException("Cannot parse sound for tv: " + tvType.name());
         }
 
+        int[] moveTimes = new int[numMoves];
+        JSONArray jsonMoveTimes = jsonMove.getJSONArray("move_times");
+
+        for (int timeIdx = 0; timeIdx < numMoves; timeIdx++) {
+            moveTimes[timeIdx] = jsonMoveTimes.getInt(timeIdx);
+        }
+
         try {
             JSONArray directionsArray = jsonMove.getJSONArray("directions");
             Direction[] directions = new Direction[directionsArray.length()];
@@ -141,9 +233,9 @@ public class SearchRunner {
                 directions[idx] = Direction.valueOf(directionsArray.getString(idx).toUpperCase());
             }
 
-            return new Move(numMoves, directions, endSound, startTime, endTime);
+            return new Move(numMoves, directions, endSound, startTime, endTime, moveTimes);
         } catch (JSONException ex) {
-            return new Move(numMoves, endSound, startTime, endTime);
+            return new Move(numMoves, endSound, startTime, endTime, moveTimes);
         }
     }
 

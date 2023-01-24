@@ -200,6 +200,9 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         curr_start, curr_end, curr_height = peak_ranges_sorted[idx]
         prev_start, prev_end, prev_height = peak_ranges_dedup[-1]
 
+        if (prev_start >= 2300) and (prev_start < 2380):
+            print('Current Height: {}, Prev Height: {}, Factor: {}, {}'.format(prev_height, curr_height, curr_height / prev_height, prev_height / curr_height))
+
         if (((curr_height / prev_height) >= merge_peak_factor) or ((prev_height / curr_height) >= merge_peak_factor)) and ((curr_start - prev_end) <= 20):
             peak_ranges_dedup.pop(-1)
             peak_ranges_dedup.append((prev_start, curr_end, max(prev_height, curr_height)))
@@ -220,39 +223,37 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
     plt.show()
 
-
     return start_times, end_times
 
 
 def extract_move_directions(move_times: List[int]) -> Union[List[Direction], Direction]:
-    if (len(move_times) <= 4):
+    # If we have a run of 4+ times of <= 30 apart, then we consider these to be all HORIZONTAL
+    # and the remainder are ANY. This design comes from the keyboard layout.
+    min_run_length = 4
+    diff_threshold = 30
+
+    if (len(move_times) < min_run_length):
         return Direction.ANY
 
-    # List of at least length 4 diffs
-    time_diffs = [ahead - behind for ahead, behind in zip(move_times[1:], move_times[:-1])]
+    # Start with everything being direction 'ANY'
+    move_directions: List[Direction] = [Direction.ANY for _ in range(len(move_times))]
 
-    baseline_avg = np.average(time_diffs[0:-1])
-    baseline_std = np.std(time_diffs[0:-1])
-    cutoff = baseline_avg + 3 * baseline_std
+    for start_idx in range(len(move_times) - min_run_length + 1):
+        # Get the moves for this sequence
+        move_slice = move_times[start_idx:(start_idx + min_run_length)]
+        diffs = [move_slice[i] - move_slice[i - 1] for i in range(1, len(move_slice))]
+        assert len(diffs) == (min_run_length - 1), 'Expected {} diffs, found {}'.format(min_run_length - 1, len(diffs))
 
-    if (time_diffs[-1] >= cutoff) and (time_diffs[-1] < CHANGE_DIR_MAX_THRESHOLD):
-        directions = [Direction.HORIZONTAL for _  in range(len(move_times) - 1)]
-        directions.append(Direction.VERTICAL)
-        return directions
+        if all([(diff < diff_threshold) for diff in diffs]):
+            for idx in range(start_idx, start_idx + min_run_length):
+                move_directions[idx] = Direction.HORIZONTAL
 
-    if len(time_diffs) < 5:
+    assert len(move_times) == len(move_directions), 'Found a different # of direction ({}) than moves ({})'.format(len(move_directions), len(move_times))
+
+    if all([direction == Direction.ANY for direction in move_directions]):
         return Direction.ANY
 
-    baseline_avg = np.average(time_diffs[0:-2])
-    baseline_std = np.std(time_diffs[0:-2])
-    cutoff = baseline_avg + 3 * baseline_std
-
-    if (time_diffs[-1] < cutoff) and (time_diffs[-2] >= cutoff and time_diffs[-2] < CHANGE_DIR_MAX_THRESHOLD):
-        directions = [Direction.HORIZONTAL for _ in range(len(move_times) - 2)]
-        directions.extend([Direction.VERTICAL, Direction.ANY])
-        return directions
-
-    return Direction.ANY
+    return move_directions
 
 
 def create_spectrogram(signal: np.ndarray) -> np.ndarray:

@@ -132,7 +132,7 @@ def extract_credit_card_number(moves: List[Move], ccn_length: int) -> List[Move]
     return list(reversed(result))
 
 
-def extract_credit_card_sequence(move_sequence: List[Move]) -> Optional[List[CreditCardSequence]]:
+def extract_credit_card_sequence(move_sequence: List[Move], min_seq_length: int) -> Optional[List[CreditCardSequence]]:
     # Split the move sequence based on selects
     split_move_sequence: List[List[Move]] = []
     split_sequence_lengths: List[int] = []
@@ -140,14 +140,13 @@ def extract_credit_card_sequence(move_sequence: List[Move]) -> Optional[List[Cre
     current_sequence: List[Move] = []
     current_length = 0
 
-    print([m for m in move_sequence if m.start_time >= 70000])
-
     for move in move_sequence:
         current_sequence.append(move)
 
         if move.end_sound == sounds.SAMSUNG_SELECT:
-            split_move_sequence.append(current_sequence)
-            split_sequence_lengths.append(current_length)  # Don't count the final select sound
+            if current_length >= min_seq_length:
+                split_move_sequence.append(current_sequence)
+                split_sequence_lengths.append(current_length)  # Don't count the final select sound
 
             current_sequence = []
             current_length = 0
@@ -155,8 +154,6 @@ def extract_credit_card_sequence(move_sequence: List[Move]) -> Optional[List[Cre
             current_length -= 1
         else:
             current_length += 1
-
-    print(split_sequence_lengths)
 
     # Get the indices in the split move sequence that correspond the credit card information
     credit_card_indices = get_credit_card_indices(split_sequence_lengths)

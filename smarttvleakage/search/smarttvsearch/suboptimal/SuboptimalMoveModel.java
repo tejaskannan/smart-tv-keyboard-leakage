@@ -13,15 +13,11 @@ public class SuboptimalMoveModel {
         this.moveSeq = moveSeq;
         this.scoreFactor = 0.1;
     }
-
-    public double getAvgMoveTime(int moveIdx) {
-        if ((moveIdx <= 0) || (moveIdx >= this.moveSeq.length)) {
-            return 0.0;
-        }
-
-        return this.moveSeq[moveIdx].getAvgTimePerMove();
+    
+    public Move getMove(int moveIdx) {
+        return this.moveSeq[moveIdx];
     }
-
+    
     public int getLimit(int moveIdx) {
         return MAX_NUM_SUBOPTIMAL_MOVES;
     }
