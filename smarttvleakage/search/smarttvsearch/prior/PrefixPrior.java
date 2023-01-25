@@ -9,6 +9,12 @@ public class PrefixPrior extends LanguagePrior {
 
     @Override
     public int find(String word) {
+        if (word == null) {
+            return 0;
+        } else if (word.length() == 0) {
+            return this.getTotalCount();
+        }
+
         return this.dictionary.getOrDefault(word, 0);
     }
 

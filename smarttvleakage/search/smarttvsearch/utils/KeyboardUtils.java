@@ -23,6 +23,14 @@ public class KeyboardUtils {
         return translation;
     }
 
+    public static boolean isSamsungSelectKey(String key) {
+        return key.equals(SpecialKeys.LEFT) || key.equals(SpecialKeys.RIGHT) || key.equals(SpecialKeys.UP) || key.equals(SpecialKeys.DOWN) || key.equals(SpecialKeys.SPACE) || key.equals(SpecialKeys.DONE) || key.equals(SpecialKeys.CHANGE) || key.equals(SpecialKeys.NEXT) || key.equals(SpecialKeys.CAPS);
+    }
+
+    public static boolean isSamsungDeleteKey(String key) {
+        return key.equals(SpecialKeys.DELETE) || key.equals(SpecialKeys.DELETE_ALL);
+    }
+
     public static String keysToString(List<String> keys) {
         Stack<String> characters = new Stack<String>();
 
@@ -34,7 +42,7 @@ public class KeyboardUtils {
         for (int idx = 0; idx < keys.size(); idx++) {
             key = keys.get(idx);
 
-            if (key == SpecialKeys.CAPS) {
+            if (key.equals(SpecialKeys.CAPS)) {
                 if (isCapsLock) {
                     isCapsLock = false;  // Turns off caps lock
                     didPrevTurnOffCaps = true;
@@ -42,16 +50,16 @@ public class KeyboardUtils {
                     isCapsLock = true;
                     didPrevTurnOffCaps = false;
                 }
-            } else if (key == SpecialKeys.DELETE) {
+            } else if (key.equals(SpecialKeys.DELETE)) {
                 if (!characters.empty()) {
                     characters.pop();  // Delete the last character
                 }
-            } else if (key == SpecialKeys.DELETE_ALL) {
+            } else if (key.equals(SpecialKeys.DELETE_ALL)) {
                 characters.clear();
             } else {
                 character = KeyboardUtils.characterTranslation.getOrDefault(key, key);
 
-                if (isCapsLock || ((idx > 0) && (keys.get(idx - 1) == SpecialKeys.CAPS) && (!didPrevTurnOffCaps))) {
+                if (isCapsLock || ((idx > 0) && (keys.get(idx - 1).equals(SpecialKeys.CAPS)) && (!didPrevTurnOffCaps))) {
                     character = character.toUpperCase();
                 }
 

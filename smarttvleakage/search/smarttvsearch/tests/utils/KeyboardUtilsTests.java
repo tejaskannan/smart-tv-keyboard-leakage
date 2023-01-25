@@ -64,5 +64,20 @@ public class KeyboardUtilsTests {
         String result = KeyboardUtils.keysToString(keys);
         assertEquals(result, "BrocK PURdy");
     }
+
+    @Test
+    public void testBackOnly() {
+        List<String> keys = Arrays.asList("<BACK>");
+        String result = KeyboardUtils.keysToString(keys);
+        assertEquals(result, "");
+    }
+
+    @Test
+    public void testBackFirst() {
+        List<String> keys = Arrays.asList("<BACK>", "5", "6");
+        String result = KeyboardUtils.keysToString(keys);
+        assertEquals(result, "56");
+    }
+
 }
 

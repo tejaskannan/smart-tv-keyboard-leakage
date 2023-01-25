@@ -25,7 +25,7 @@ import smarttvsearch.utils.sounds.SamsungSound;
 
 public class SearchRunner {
 
-    private static final int MAX_RANK = 25;
+    private static final int MAX_RANK = 100;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -66,7 +66,7 @@ public class SearchRunner {
             
             zipPrior.build(true);
 
-            for (int idx = 1; idx < jsonMoveSequences.length() - 1; idx++) {
+            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
  
@@ -114,9 +114,9 @@ public class SearchRunner {
 
                 // Recover each field
                 int ccnRank = recoverCreditCard(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, labelsJson.getString("credit_card"), MAX_RANK);
-                //int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("security_code"), MAX_RANK);
-                //int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_month"), MAX_RANK);
-                //int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_year"), MAX_RANK);
+                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("security_code"), MAX_RANK);
+                int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_month"), MAX_RANK);
+                int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_year"), MAX_RANK);
                 int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "zip", false, true, labelsJson.getString("zip_code"), MAX_RANK);
 
                 System.out.println("==========");

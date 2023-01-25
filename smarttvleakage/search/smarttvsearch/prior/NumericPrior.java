@@ -1,5 +1,7 @@
 package smarttvsearch.prior;
 
+import smarttvsearch.utils.SpecialKeys;
+
 
 public class NumericPrior extends LanguagePrior {
 
@@ -25,6 +27,10 @@ public class NumericPrior extends LanguagePrior {
 
     @Override
     public boolean isValidKey(String key) {
+        if (key.equals(SpecialKeys.DELETE) || key.equals(SpecialKeys.DELETE_ALL) || key.equals(SpecialKeys.DONE)) {
+            return true;
+        }
+
         if (key.length() != 1) {
             return false;
         }

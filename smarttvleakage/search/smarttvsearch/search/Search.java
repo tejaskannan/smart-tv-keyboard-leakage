@@ -10,8 +10,11 @@ import java.util.ArrayList;
 import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
+import smarttvsearch.utils.sounds.SmartTVSound;
+import smarttvsearch.utils.sounds.SamsungSound;
 import smarttvsearch.utils.search.SearchState;
 import smarttvsearch.utils.search.VisitedState;
+import smarttvsearch.utils.KeyboardUtils;
 import smarttvsearch.utils.Move;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.SpecialKeys;
@@ -29,6 +32,7 @@ public class Search {
     private boolean doesEndWithDone;
     private boolean useDirections;
     private boolean shouldAccumulateScore;
+    private SmartTVType tvType;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
@@ -42,6 +46,7 @@ public class Search {
         this.suboptimalModel = suboptimalModel;
         this.useDirections = useDirections;
         this.shouldAccumulateScore = shouldAccumulateScore;
+        this.tvType = tvType;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
@@ -117,7 +122,7 @@ public class Search {
                 int nextMoveIdx = moveIdx + 1;
 
                 for (String neighborKey : neighborKeys.keySet()) {
-                    if (!this.isValidKey(neighborKey, nextMoveIdx)) {
+                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound())) {
                         continue;  // Do not add invalid keys to the queue
                     }
 
@@ -155,9 +160,19 @@ public class Search {
         return null;
     }
 
-    private boolean isValidKey(String key, int nextMoveIdx) {
+    private boolean isValidKey(String key, int nextMoveIdx, SmartTVSound endSound) {
         if (this.isFinished(nextMoveIdx) && this.doesEndWithDone) {
             return key.equals(SpecialKeys.DONE);
+        } else if (this.tvType == SmartTVType.SAMSUNG) {
+            SamsungSound endSamsungSound = (SamsungSound) endSound;
+
+            if (endSamsungSound.isSelect()) {
+                return KeyboardUtils.isSamsungSelectKey(key);
+            } else if (endSamsungSound.isDelete()) {
+                return KeyboardUtils.isSamsungDeleteKey(key);
+            } else {
+                return this.languagePrior.isValidKey(key) && !KeyboardUtils.isSamsungSelectKey(key) && !KeyboardUtils.isSamsungDeleteKey(key);
+            }
         } else {
             return this.languagePrior.isValidKey(key);
         }
