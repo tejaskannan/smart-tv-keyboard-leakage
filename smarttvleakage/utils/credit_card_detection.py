@@ -151,7 +151,7 @@ def extract_credit_card_sequence(move_sequence: List[Move], min_seq_length: int)
             current_sequence = []
             current_length = 0
         elif move.end_sound == sounds.SAMSUNG_DELETE:
-            current_length -= 1
+            current_length = max(current_length - 1, 0)
         else:
             current_length += 1
 

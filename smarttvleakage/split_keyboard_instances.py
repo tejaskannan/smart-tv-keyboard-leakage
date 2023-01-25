@@ -49,13 +49,13 @@ def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> 
 
     for idx in range(1, len(move_sequence)):
         time_diff = time_diffs[idx - 1]
-    
+
         if time_diff >= cutoff_time:
             if len(current_split) >= min_num_selections:
                 split_sequence.append(current_split)
 
             current_split = []
-        
+
         current_split.append(move_sequence[idx])
 
     if (len(current_split) > 0) and (len(current_split) >= min_num_selections):
