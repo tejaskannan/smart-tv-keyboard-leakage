@@ -9,8 +9,8 @@
         "7": {"left": "6", "right": "8", "down": "u"},
         "8": {"left": "7", "right": "9", "down": "i"},
         "9": {"left": "8", "right": "0", "down": "o"},
-        "0": {"left": "9", "right": "<BACK>", "down": "p"},
-        "<BACK>": {"left": "0", "down": "^", "right": "<DELETEALL>"},
+        "0": {"left": "9", "down": "p"},
+        "<BACK>": { "left": "0", "down": "^", "right": "<DELETEALL>"},
         "<DELETEALL>": {"left": "<BACK>", "down": "<RETURN>"},
         "<RETURN>": {"up": "<DELETEALL>", "down": "<DONE>", "left": "*"},
         "<DONE>": {"up": "<RETURN>", "down": "<CANCEL>", "left": "!"},
@@ -63,18 +63,24 @@
         "<LANGUAGE>": {"right": "a"},
         "<SETTINGS>" : {"up": "z"}
     },
-    "shortcuts": [{
-        "<CHANGE>": {"down": "<LANGUAGE>"},
-        "<LANGUAGE>": {"up": "<CHANGE>"},
-        "<SETTINGS>": {"left": "<LANGUAGE>", "right": "<SPACE>"},
-        "v": {"down": "<SPACE>"},
-        "b": {"down": "<SPACE>"},
-        "n": {"down": "<SPACE>"},
-        "<SPACE>": {"right": "<WWW>", "left": "<SETTINGS>"},
-        "<WWW>": {"left": "<SPACE>"},
-        "-": {"right": "<DONE>"},
-        "*": {"right": "<BACK>"}
-    }],
+    "shortcuts": [
+        {
+            "0": { "right": "<BACK>" }
+        },
+        {
+            "0": { "right": "<BACK>" },
+            "<CHANGE>": {"down": "<LANGUAGE>"},
+            "<LANGUAGE>": {"up": "<CHANGE>"},
+            "<SETTINGS>": {"left": "<LANGUAGE>", "right": "<SPACE>"},
+            "v": {"down": "<SPACE>"},
+            "b": {"down": "<SPACE>"},
+            "n": {"down": "<SPACE>"},
+            "<SPACE>": {"right": "<WWW>", "left": "<SETTINGS>"},
+            "<WWW>": {"left": "<SPACE>"},
+            "-": {"right": "<DONE>"},
+            "*": {"right": "<BACK>"}
+        }
+    ],
     "wraparound": {
         "<LANGUAGE>": {"left": "<DONE>"},
         "<CHANGE>": {"left": "<RETURN>"},

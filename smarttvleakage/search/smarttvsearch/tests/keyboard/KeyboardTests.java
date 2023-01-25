@@ -20,73 +20,73 @@ public class KeyboardTests {
     @Test
     public void testSamsungStdNeighborsBasic() {
         String[] expected = new String[] { "<CHANGE>", "w", "1", "a" };
-        Set<String> observed = this.samsungKeyboardStd.getNeighbors("q", false, false, Direction.ANY);
+        Set<String> observed = this.samsungKeyboardStd.getNeighbors("q", false, -1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "u", "k", "m", "h" };
-        observed = this.samsungKeyboardStd.getNeighbors("j", false, false, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("j", false, -1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "!", "<UP>", "<RIGHT>" };
-        observed = this.samsungKeyboardStd.getNeighbors("-", false, false, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("-", false, -1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "f", "c", "b" };
-        observed = this.samsungKeyboardStd.getNeighbors("v", false, false, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("v", false, -1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "<RETURN>", "<CANCEL>", "!" };
-        observed = this.samsungKeyboardStd.getNeighbors("<DONE>", false, false, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("<DONE>", false, -1, Direction.ANY);
         this.validateKeys(observed, expected);
     }
 
     @Test
     public void testSamsungStdNeighborsShortcuts() {
         String[] expected = new String[] { "<CHANGE>", "w", "1", "a" };
-        Set<String> observed = this.samsungKeyboardStd.getNeighbors("q", false, true, Direction.ANY);
+        Set<String> observed = this.samsungKeyboardStd.getNeighbors("q", false, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "u", "k", "m", "h" };
-        observed = this.samsungKeyboardStd.getNeighbors("j", false, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("j", false, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "!", "<UP>", "<RIGHT>", "<DONE>" };
-        observed = this.samsungKeyboardStd.getNeighbors("-", false, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("-", false, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "f", "c", "b", "<SPACE>" };
-        observed = this.samsungKeyboardStd.getNeighbors("v", false, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("v", false, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "<RETURN>", "<CANCEL>", "!" };
-        observed = this.samsungKeyboardStd.getNeighbors("<DONE>", false, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("<DONE>", false, 1, Direction.ANY);
         this.validateKeys(observed, expected);
     }
 
     @Test
     public void testSamsungStdNeighborsShortcutsAndWraparound() {
         String[] expected = new String[] { "<CHANGE>", "w", "1", "a" };
-        Set<String> observed = this.samsungKeyboardStd.getNeighbors("q", true, true, Direction.ANY);
+        Set<String> observed = this.samsungKeyboardStd.getNeighbors("q", true, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "u", "k", "m", "h" };
-        observed = this.samsungKeyboardStd.getNeighbors("j", true, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("j", true, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "!", "<UP>", "<RIGHT>", "<DONE>" };
-        observed = this.samsungKeyboardStd.getNeighbors("-", true, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("-", true, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "f", "c", "b", "<SPACE>" };
-        observed = this.samsungKeyboardStd.getNeighbors("v", true, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("v", true, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "<RETURN>", "<CANCEL>", "!", "<LANGUAGE>" };
-        observed = this.samsungKeyboardStd.getNeighbors("<DONE>", true, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("<DONE>", true, 1, Direction.ANY);
         this.validateKeys(observed, expected);
 
         expected = new String[] { "<CAPS>", "q", "<LANGUAGE>", "<RETURN>" };
-        observed = this.samsungKeyboardStd.getNeighbors("<CHANGE>", true, true, Direction.ANY);
+        observed = this.samsungKeyboardStd.getNeighbors("<CHANGE>", true, 1, Direction.ANY);
         this.validateKeys(observed, expected);
     }
 
@@ -171,25 +171,38 @@ public class KeyboardTests {
         observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("<DONE>", 5, true, true, directions);
         this.validateKeys(observed, expected);
 
-        expected = new String[] { "<RETURN>", "*", "@", "?", "/", "<CHANGE>", "a", "x", "<SPACE>", "<DONE>" };
+        expected = new String[] { "<RETURN>", "*", "@", "?", "/", "<CHANGE>", "a", "x", "<SPACE>", "<DONE>", "<BACK>", "<DELETEALL>" };
         directions = new Direction[] { Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
         observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("6", 7, true, true, directions);
         this.validateKeys(observed, expected);
 
-        expected = new String[] { "<DONE>", "!", "<UP>", "<LEFT>", "<RIGHT>", "<DOWN>" };
+        expected = new String[] { "<DONE>", "!", "<UP>", "<LEFT>", "<RIGHT>", "<DOWN>", "<DELETEALL>", "<RETURN>" };
         directions = new Direction[] { Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
         observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("4", 10, true, true, directions);
         this.validateKeys(observed, expected);
     }
 
     @Test
-    public void testSamsungStdDistShortcutsWraparoundDirections() {
-        String[] expected = new String[] { "<DONE>", "!", "<UP>", "<LEFT>", "<COM>", "<DOWN>", "z", "h", "m", "s", };
+    public void testSamsungStdDistShortcutsWraparound4() {
+        String[] expected = new String[] { "<DONE>", "!", "<UP>", "<LEFT>", "<COM>", "<DOWN>", "z", "h", "m", "s", "<DELETEALL>", "<RETURN>" };
         Direction[] directions = new Direction[] { Direction.ANY, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.HORIZONTAL, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
         Set<String> observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("4", 10, true, true, directions);
         this.validateKeys(observed, expected);
     }
 
+    @Test
+    public void testSamsungStdDistShortcutsWraparound2() {
+        String[] expected = new String[] { "<DONE>", "-", "<DOWN>", "<CANCEL>" };
+
+        int numMoves = 13;
+        Direction[] directions = new Direction[numMoves];
+        for (int idx = 0; idx < numMoves; idx++) {
+            directions[idx] = Direction.ANY;
+        }
+
+        Set<String> observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("2", numMoves, true, true, directions);
+        this.validateKeys(observed, expected);
+    }
 
     private void validateKeys(Set<String> observed, String[] expected) {
         assertEquals(expected.length, observed.size());

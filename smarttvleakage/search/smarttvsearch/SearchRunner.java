@@ -25,7 +25,7 @@ import smarttvsearch.utils.sounds.SamsungSound;
 
 public class SearchRunner {
 
-    private static final int MAX_RANK = 50;
+    private static final int MAX_RANK = 25;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -66,7 +66,7 @@ public class SearchRunner {
             
             zipPrior.build(true);
 
-            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
+            for (int idx = 1; idx < jsonMoveSequences.length() - 1; idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
  
@@ -82,6 +82,7 @@ public class SearchRunner {
                 for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
                     System.out.printf("%d. %d\n", moveIdx + 1, ccnSeq[moveIdx].getNumMoves());
                 }
+                System.out.println();
 
                 List<Integer> diffs = new ArrayList<Integer>();
 
@@ -112,12 +113,11 @@ public class SearchRunner {
                 //System.out.printf("Cutoff Time: %f\n", avg + 1.2 * std);
 
                 // Recover each field
-                //int ccnRank = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, "credit_card", labelsJson.getString("credit_card"), MAX_RANK);
                 int ccnRank = recoverCreditCard(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, labelsJson.getString("credit_card"), MAX_RANK);
-                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("security_code"), MAX_RANK);
-                int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_month"), MAX_RANK);
-                int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("exp_year"), MAX_RANK);
-                int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "standard", labelsJson.getString("zip_code"), MAX_RANK);
+                //int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("security_code"), MAX_RANK);
+                //int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_month"), MAX_RANK);
+                //int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_year"), MAX_RANK);
+                int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "zip", false, true, labelsJson.getString("zip_code"), MAX_RANK);
 
                 System.out.println("==========");
             }
@@ -126,9 +126,9 @@ public class SearchRunner {
         }
     }
 
-    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, String target, int maxRank) {
+    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, boolean useDirections, boolean shouldAccumulateScore, String target, int maxRank) {
         SuboptimalMoveModel suboptimalModel = SuboptimalMoveFactory.make(suboptimalModelName, moveSeq);
-        Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType);
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType, useDirections, shouldAccumulateScore);
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();
@@ -171,7 +171,7 @@ public class SearchRunner {
         int rank = 1;
         for (double mistakeFactor : mistakeFactors) {
             CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, avgDiff, stdDiff, mistakeFactor);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType, false, true);
 
             System.out.println(suboptimalModel.getCutoff());
 

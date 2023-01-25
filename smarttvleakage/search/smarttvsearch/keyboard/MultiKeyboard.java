@@ -84,14 +84,14 @@ public class MultiKeyboard {
         return currentKeyboard;
     }
 
-    public Set<String> getNeighbors(String key, boolean useWraparound, boolean useShortcuts, Direction direction, String keyboardName) {
+    public Set<String> getNeighbors(String key, boolean useWraparound, int shortcutIdx, Direction direction, String keyboardName) {
         Keyboard keyboard = this.keyboards.get(keyboardName);
-        return keyboard.getNeighbors(key, useWraparound, useShortcuts, direction);
+        return keyboard.getNeighbors(key, useWraparound, shortcutIdx, direction);
     }
 
-    public Set<String> getKeysForDistance(String key, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions, String keyboardName) {
+    public Set<String> getKeysForDistance(String key, int distance, boolean useWraparound, int shortcutIdx, Direction[] directions, String keyboardName) {
         Keyboard keyboard = this.keyboards.get(keyboardName);
-        return keyboard.getKeysForDistance(key, distance, useWraparound, useShortcuts, directions);
+        return keyboard.getKeysForDistance(key, distance, useWraparound, shortcutIdx, directions);
     }
 
     public Set<String> getKeysForDistanceCumulative(String key, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions, String keyboardName) {

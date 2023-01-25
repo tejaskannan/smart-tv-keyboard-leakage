@@ -111,7 +111,7 @@ public class Keyboard {
         }
     }
 
-    public Set<String> getNeighbors(String key, boolean useWraparound, boolean useShortcuts, Direction direction) {
+    public Set<String> getNeighbors(String key, boolean useWraparound, int shortcutIdx, Direction direction) {
         Set<String> neighbors = new HashSet<String>();
         String[] adjacentKeys = this.adjacencyList.get(key);
 
@@ -144,15 +144,14 @@ public class Keyboard {
             }
 
             // Add neighbors from the possible list of shortcuts
-            if (useShortcuts) {
-                for (HashMap<String, String[]> shortcutMap : this.shortcutList) {
-                    shortcutKeys = shortcutMap.get(key);
+            if ((shortcutIdx >= 0) && (shortcutIdx < this.shortcutList.size())) {
+                HashMap<String, String[]> shortcutMap = this.shortcutList.get(shortcutIdx);
+                shortcutKeys = shortcutMap.get(key);
 
-                    if (shortcutKeys != null) {
-                        shortcutKey = shortcutKeys[idx];
-                        if (shortcutKey != null) {
-                            neighbors.add(shortcutKey);
-                        }
+                if (shortcutKeys != null) {
+                    shortcutKey = shortcutKeys[idx];
+                    if (shortcutKey != null) {
+                        neighbors.add(shortcutKey);
                     }
                 }
             }
@@ -161,7 +160,7 @@ public class Keyboard {
         return neighbors;
     }
 
-    public Set<String> getKeysForDistance(String startKey, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions) {
+    public Set<String> getKeysForDistance(String startKey, int distance, boolean useWraparound, int shortcutIdx, Direction[] directions) {
         LinkedList<BFSState> frontier = new LinkedList<BFSState>();
 
         BFSState initState = new BFSState(startKey, 0);
@@ -180,7 +179,7 @@ public class Keyboard {
             if (currentDist == distance) {
                 result.add(current.getKey());
             } else {
-                Set<String> neighbors = this.getNeighbors(current.getKey(), useWraparound, useShortcuts, directions[currentDist]);
+                Set<String> neighbors = this.getNeighbors(current.getKey(), useWraparound, shortcutIdx, directions[currentDist]);
 
                 for (String neighbor : neighbors) {
                     if (!visited.contains(neighbor)) {
@@ -196,18 +195,22 @@ public class Keyboard {
     }
 
     public Set<String> getKeysForDistanceCumulative(String startKey, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions) {
-        Set<String> result = this.getKeysForDistance(startKey, distance, false, false, directions);
+        Set<String> result = this.getKeysForDistance(startKey, distance, false, -1, directions);
 
         if (useWraparound) {
-            result.addAll(this.getKeysForDistance(startKey, distance, true, false, directions));
+            result.addAll(this.getKeysForDistance(startKey, distance, true, -1, directions));
         }
 
         if (useShortcuts) {
-            result.addAll(this.getKeysForDistance(startKey, distance, false, true, directions));
+            for (int shortcutIdx = 0; shortcutIdx < this.shortcutList.size(); shortcutIdx++) {
+                result.addAll(this.getKeysForDistance(startKey, distance, false, shortcutIdx, directions));
+            }
         }
 
         if (useWraparound && useShortcuts) {
-            result.addAll(this.getKeysForDistance(startKey, distance, true, true, directions));
+            for (int shortcutIdx = 0; shortcutIdx < this.shortcutList.size(); shortcutIdx++) {
+                result.addAll(this.getKeysForDistance(startKey, distance, true, shortcutIdx, directions));
+            }
         }
 
         return result;

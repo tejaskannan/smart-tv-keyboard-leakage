@@ -13,7 +13,12 @@ public class SuboptimalMoveModel {
         this.moveSeq = moveSeq;
         this.scoreFactor = 0.1;
     }
-    
+
+    public SuboptimalMoveModel(Move[] moveSeq, double scoreFactor) {
+        this.moveSeq = moveSeq;
+        this.scoreFactor = scoreFactor;
+    }
+
     public Move getMove(int moveIdx) {
         return this.moveSeq[moveIdx];
     }

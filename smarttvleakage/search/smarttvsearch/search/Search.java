@@ -27,18 +27,21 @@ public class Search {
     private String startKey;
     private SuboptimalMoveModel suboptimalModel;
     private boolean doesEndWithDone;
+    private boolean useDirections;
+    private boolean shouldAccumulateScore;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, SmartTVType tvType) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, SmartTVType tvType, boolean useDirections, boolean shouldAccumulateScore) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
         this.startKey = startKey;
         this.suboptimalModel = suboptimalModel;
-        this.doesEndWithDone = doesEndWithDone;
+        this.useDirections = useDirections;
+        this.shouldAccumulateScore = shouldAccumulateScore;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
@@ -77,9 +80,7 @@ public class Search {
                 // Get the move at this step
                 Move move = this.moveSeq[moveIdx];
                 String currentKey = currentState.getCurrentKey();
-        
-                // Get all neighboring keys for this move. TODO: handle possible suboptimal moves
-                
+
                 int numMoves = move.getNumMoves();
                 int numSuboptimal = this.suboptimalModel.getLimit(moveIdx);
                 HashMap<String, Double> neighborKeys = new HashMap<String, Double>();  // Neighbor -> Score factor
@@ -92,7 +93,7 @@ public class Search {
 
                     Direction[] directions;
 
-                    if (offset == 0) {
+                    if ((offset == 0) && this.useDirections) {
                         directions = move.getDirections();
                     } else {
                         directions = new Direction[adjustedNumMoves];
@@ -112,7 +113,7 @@ public class Search {
                         }
                     }
                 }
-                
+
                 int nextMoveIdx = moveIdx + 1;
 
                 for (String neighborKey : neighborKeys.keySet()) {
@@ -134,9 +135,13 @@ public class Search {
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
                         if (incrementalCount > 0) {
-                            double incrementalScore = this.languagePrior.normalizeCount(incrementalCount);
-                            incrementalScore *= neighborKeys.get(neighborKey);
-                            double score = currentState.getScore() - Math.log(incrementalScore);
+                            double score = this.languagePrior.normalizeCount(incrementalCount);
+                            score *= neighborKeys.get(neighborKey);
+                            score = -1 * Math.log(score);
+
+                            if (this.shouldAccumulateScore) {
+                                score = currentState.getScore() + score;
+                            }
 
                             candidateState.setScore(score);
                             this.frontier.add(candidateState);
