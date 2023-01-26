@@ -2,6 +2,7 @@ package smarttvsearch;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.HashSet;
 
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -150,7 +151,7 @@ public class SearchRunner {
     }
 
     private static int recoverCreditCard(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
-        double[] mistakeFactors = new double[] { 1.25, 1.0, 0.5, 0.0 };
+        double[] mistakeFactors = new double[] { 1.5, 1.25, 1.0, 0.5, 0.0 };
         //double[] mistakeFactors = new double[] { 0.5 };
 
         // Get the move differences for the given sequence
@@ -167,6 +168,8 @@ public class SearchRunner {
         double stdDiff = VectorUtils.stdDev(moveDiffs);
 
         System.out.printf("%f %f\n", avgDiff, stdDiff);
+
+        HashSet<String> guessed = new HashSet<String>();
 
         int rank = 1;
         for (double mistakeFactor : mistakeFactors) {
@@ -189,7 +192,10 @@ public class SearchRunner {
                     System.out.printf("%d. %s\n", rank, guess);
                 }
 
-                rank += 1;
+                if (!guessed.contains(guess)) {
+                    rank += 1;
+                    guessed.add(guess);
+                }
             }
         }
 

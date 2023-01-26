@@ -121,6 +121,11 @@ public class Search {
 
                 int nextMoveIdx = moveIdx + 1;
 
+                if (currentState.toString().equals("2599248044395")) {
+                    System.out.println(move);
+                    System.out.println(neighborKeys);
+                }
+
                 for (String neighborKey : neighborKeys.keySet()) {
                     if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound())) {
                         continue;  // Do not add invalid keys to the queue

@@ -5,7 +5,7 @@ import smarttvsearch.creditcard.CreditCardUtils;
 
 public class CreditCardPrior extends NumericPrior {
 
-    private static final String[] CC_PREFIXES = new String[] { "34", "37", "22", "4", "5" };
+    private static final String[] CC_PREFIXES = new String[] { "34", "37", "22", "23", "24", "25", "4", "5" };
 
     public CreditCardPrior() {
         super();
