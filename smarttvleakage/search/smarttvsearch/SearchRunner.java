@@ -67,7 +67,7 @@ public class SearchRunner {
             
             zipPrior.build(true);
 
-            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
+            for (int idx = 1; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
  
@@ -121,6 +121,7 @@ public class SearchRunner {
                 int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "zip", false, true, labelsJson.getString("zip_code"), MAX_RANK);
 
                 System.out.println("==========");
+                break;
             }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
@@ -151,7 +152,7 @@ public class SearchRunner {
     }
 
     private static int recoverCreditCard(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
-        double[] mistakeFactors = new double[] { 1.5, 1.25, 1.0, 0.5, 0.0 };
+        double[] mistakeFactors = new double[] { 5.0, 1.5, 1.25, 1.0, 0.5, 0.0 };
         //double[] mistakeFactors = new double[] { 0.5 };
 
         // Get the move differences for the given sequence
