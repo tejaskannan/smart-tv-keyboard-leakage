@@ -11,6 +11,8 @@ import org.json.JSONException;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.prior.LanguagePriorFactory;
 import smarttvsearch.keyboard.MultiKeyboard;
+import smarttvsearch.keyboard.KeyboardExtender;
+import smarttvsearch.keyboard.NumericKeyboardExtender;
 import smarttvsearch.search.Search;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.suboptimal.SuboptimalMoveFactory;
@@ -67,7 +69,7 @@ public class SearchRunner {
             
             zipPrior.build(true);
 
-            for (int idx = 1; idx < jsonMoveSequences.length(); idx++) {
+            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
  
@@ -121,7 +123,6 @@ public class SearchRunner {
                 int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "zip", false, true, labelsJson.getString("zip_code"), MAX_RANK);
 
                 System.out.println("==========");
-                break;
             }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
@@ -129,8 +130,9 @@ public class SearchRunner {
     }
 
     private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, boolean useDirections, boolean shouldAccumulateScore, String target, int maxRank) {
+        KeyboardExtender extender = new KeyboardExtender(keyboard);
         SuboptimalMoveModel suboptimalModel = SuboptimalMoveFactory.make(suboptimalModelName, moveSeq);
-        Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType, useDirections, shouldAccumulateScore);
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldAccumulateScore);
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();
@@ -171,11 +173,12 @@ public class SearchRunner {
         System.out.printf("%f %f\n", avgDiff, stdDiff);
 
         HashSet<String> guessed = new HashSet<String>();
+        KeyboardExtender extender = new NumericKeyboardExtender(keyboard);
 
         int rank = 1;
         for (double mistakeFactor : mistakeFactors) {
             CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, avgDiff, stdDiff, mistakeFactor);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, tvType, false, true);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, false, true);
 
             System.out.println(suboptimalModel.getCutoff());
 
@@ -186,6 +189,10 @@ public class SearchRunner {
                     break;
                 }
 
+                if (guessed.contains(guess)) {
+                    continue;
+                }
+
                 if (guess.equals(target)) {
                     System.out.printf("%d. %s (correct)\n", rank, guess);
                     return rank;
@@ -193,10 +200,8 @@ public class SearchRunner {
                     System.out.printf("%d. %s\n", rank, guess);
                 }
 
-                if (!guessed.contains(guess)) {
-                    rank += 1;
-                    guessed.add(guess);
-                }
+                rank += 1;
+                guessed.add(guess);
             }
         }
 

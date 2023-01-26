@@ -8,6 +8,7 @@ import java.util.Set;
 import java.util.ArrayList;
 
 import smarttvsearch.keyboard.MultiKeyboard;
+import smarttvsearch.keyboard.KeyboardExtender;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.utils.sounds.SmartTVSound;
@@ -29,6 +30,7 @@ public class Search {
     private LanguagePrior languagePrior;
     private String startKey;
     private SuboptimalMoveModel suboptimalModel;
+    private KeyboardExtender keyboardExtender;
     private boolean doesEndWithDone;
     private boolean useDirections;
     private boolean shouldAccumulateScore;
@@ -38,12 +40,13 @@ public class Search {
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, SmartTVType tvType, boolean useDirections, boolean shouldAccumulateScore) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldAccumulateScore) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
         this.startKey = startKey;
         this.suboptimalModel = suboptimalModel;
+        this.keyboardExtender = keyboardExtender;
         this.useDirections = useDirections;
         this.shouldAccumulateScore = shouldAccumulateScore;
         this.tvType = tvType;
@@ -109,6 +112,9 @@ public class Search {
 
                     Set<String> neighbors = this.keyboard.getKeysForDistanceCumulative(currentKey, adjustedNumMoves, true, true, directions, currentState.getKeyboardName());
                     double scoreFactor = this.suboptimalModel.getScoreFactor(offset);
+
+                    Set<String> extendedNeighbors = this.keyboardExtender.getExtendedNeighbors(currentKey, adjustedNumMoves, currentState.getKeyboardName());
+                    neighbors.addAll(extendedNeighbors);
    
                     for (String neighbor : neighbors) {
                         Double prevFactor = neighborKeys.get(neighbor);
@@ -120,11 +126,6 @@ public class Search {
                 }
 
                 int nextMoveIdx = moveIdx + 1;
-
-                if (currentState.toString().equals("2599248044395")) {
-                    System.out.println(move);
-                    System.out.println(neighborKeys);
-                }
 
                 for (String neighborKey : neighborKeys.keySet()) {
                     if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound())) {
