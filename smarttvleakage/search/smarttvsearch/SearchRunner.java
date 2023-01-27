@@ -82,38 +82,31 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
-                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
-                    System.out.printf("%d. %d\n", moveIdx + 1, ccnSeq[moveIdx].getNumMoves());
+                for (int moveIdx = 0; moveIdx < zipSeq.length; moveIdx++) {
+                    System.out.printf("%d. %d\n", moveIdx + 1, zipSeq[moveIdx].getNumMoves());
                 }
                 System.out.println();
 
                 List<Integer> diffs = new ArrayList<Integer>();
 
-                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
-                    System.out.printf("%d. ", moveIdx + 1);
+                //for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
+                //    System.out.printf("%d. ", moveIdx + 1);
 
-                    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
-                    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
+                //    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
+                //    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
 
-                    if (moveDiffs != null) {
-                        diffs.addAll(moveDiffs);
-                    }
+                //    if (moveDiffs != null) {
+                //        diffs.addAll(moveDiffs);
+                //    }
 
-                    for (int j = 1; j < moveTimes.length; j++) {
-                        int diff = moveTimes[j] - moveTimes[j - 1];
+                //    for (int j = 1; j < moveTimes.length; j++) {
+                //        int diff = moveTimes[j] - moveTimes[j - 1];
 
-                        System.out.printf("%d ", diff);
-                    }
+                //        System.out.printf("%d ", diff);
+                //    }
 
-                    System.out.println();
-                }
-
-                //double avg = VectorUtils.average(diffs);
-                //double std = VectorUtils.stdDev(diffs);
-
-                //System.out.printf("Avg Diff Time: %f\n", avg);
-                //System.out.printf("Std Dev Diff Time: %f\n", std);
-                //System.out.printf("Cutoff Time: %f\n", avg + 1.2 * std);
+                //    System.out.println();
+                //}
 
                 // Recover each field
                 int ccnRank = recoverCreditCard(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, labelsJson.getString("credit_card"), MAX_RANK);

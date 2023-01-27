@@ -13,7 +13,7 @@ public class NumericKeyboardExtender extends KeyboardExtender {
 
     @Override
     public Set<String> getExtendedNeighbors(String key, int numMoves, String keyboardName) {
-        if ((key.equals("0") || key.equals("1") || key.equals("2") || key.equals("9")) && (numMoves >= 5)) {
+        if ((key.equals("0") || key.equals("1") || key.equals("2") || key.equals("9")) && (numMoves >= 6)) {
             // Get the neighbors through a forced wraparound
             Direction[] directions = new Direction[numMoves];
             Direction direction = (key.equals("1") || key.equals("2")) ? Direction.LEFT : Direction.RIGHT;

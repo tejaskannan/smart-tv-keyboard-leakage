@@ -149,7 +149,7 @@ def is_in_peak_range(peak_time: int, peak_ranges: Set[Tuple[int, int]]) -> bool:
     return False
 
 
-def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float) -> Tuple[List[int], List[int]]:
+def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray]:
     # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
     std_energy = np.std(spect, axis=-1, keepdims=True)
@@ -171,6 +171,9 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
         forward_peak_threshold = peak_height * forward_factor
         backward_peak_threshold = peak_height * backward_factor
+
+        if (peak_time >= 16710) and (peak_time <= 16750):
+            print('Peak Time: {}, Forward Threshold: {:.5f}, Backward Threshold: {:.5f}'.format(peak_time, forward_peak_threshold, backward_peak_threshold))
 
         # Get the start and end point
         start_time = peak_time
@@ -200,10 +203,10 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         curr_start, curr_end, curr_height = peak_ranges_sorted[idx]
         prev_start, prev_end, prev_height = peak_ranges_dedup[-1]
 
-        if (prev_start >= 2300) and (prev_start < 2380):
-            print('Current Height: {}, Prev Height: {}, Factor: {}, {}'.format(prev_height, curr_height, curr_height / prev_height, prev_height / curr_height))
+        #if (prev_start >= 16700) and (prev_start < 16750):
+        #    print('Prev End: {}, Curr Start: {}, Prev Height: {}, Curr Height: {}, Factor: {}, {}'.format(prev_end, curr_start, prev_height, curr_height, curr_height / prev_height, prev_height / curr_height))
 
-        if (((curr_height / prev_height) >= merge_peak_factor) or ((prev_height / curr_height) >= merge_peak_factor)) and ((curr_start - prev_end) <= 20):
+        if ((prev_height < max_merge_height) or (curr_height < max_merge_height)) and (((curr_height / prev_height) >= merge_peak_factor) or ((prev_height / curr_height) >= merge_peak_factor)) and ((curr_start - prev_end) <= 20):
             peak_ranges_dedup.pop(-1)
             peak_ranges_dedup.append((prev_start, curr_end, max(prev_height, curr_height)))
         else:
@@ -214,6 +217,7 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
     fig, ax = plt.subplots()
     ax.plot(list(range(len(max_energy))), max_energy)
+    ax.scatter(peak_times, peak_heights, marker='o', color='green')
     
     for t in start_times:
         ax.axvline(t, color='orange')
@@ -223,7 +227,7 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
     plt.show()
 
-    return start_times, end_times
+    return start_times, end_times, max_energy
 
 
 def extract_move_directions(move_times: List[int]) -> Union[List[Direction], Direction]:
