@@ -3,8 +3,8 @@
         "threshold": 0.7,
         "time_delta": 5,
         "freq_delta": 5,
-        "min_similarity": 9.0,
-        "dedup_threshold": 28.0,
+        "min_similarity": 9.5,
+        "dedup_threshold": 26.0,
         "energy_threshold": 1.5
     },
     "key_select": {
@@ -15,6 +15,7 @@
         "freq_tol": 2,
         "min_freq": 20,
         "min_similarity": 4.6,
+        "dedup_threshold": 0.75,
         "energy_threshold": 2.5
     },
     "select": {
@@ -30,7 +31,8 @@
         "time_delta": 5,
         "freq_delta": 5,
         "min_similarity": 12.0,
-        "dedup_threshold": 0.5,
+        "dedup_threshold": 2.0,
+        "time_threshold": 75,
         "energy_threshold": 1.5
     }
 }

@@ -150,6 +150,82 @@ def is_in_peak_range(peak_time: int, peak_ranges: Set[Tuple[int, int]]) -> bool:
 
 
 def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray]:
+     # First, normalize the energy values for each frequency
+    mean_energy = np.mean(spect, axis=-1, keepdims=True)
+    std_energy = np.std(spect, axis=-1, keepdims=True)
+    max_energy = np.max((spect - mean_energy) / std_energy, axis=0)  # [T]
+
+    if smooth_window_size > 1:
+        smooth_filter = np.ones(shape=(smooth_window_size, ), dtype=max_energy.dtype) / float(smooth_window_size)
+        max_energy = convolve(max_energy, smooth_filter, mode='full')  # [T]
+
+    peak_ranges: Set[Tuple[int, int, int]] = set()
+
+    raw_peak_times, peak_properties = find_peaks(max_energy, height=peak_height, distance=peak_distance, prominence=(peak_prominence, None))
+    raw_peak_heights = peak_properties['peak_heights']
+
+    if len(raw_peak_times) == 0:
+        return [], [], max_energy
+
+    # Filter out peaks which are close to their previous peaks (within 20 steps) and not within 10% of their height
+    peak_times: List[int] = [raw_peak_times[0]]
+    peak_heights: List[int] = [raw_peak_heights[0]]
+
+    for idx in range(1, len(raw_peak_times)):
+        curr_peak_time, curr_peak_height = raw_peak_times[idx], raw_peak_heights[idx]
+        prev_peak_time, prev_peak_height = raw_peak_times[idx - 1], raw_peak_heights[idx - 1]
+
+        diff_factor = max(curr_peak_height, prev_peak_height) / min(curr_peak_height, prev_peak_height)
+
+        if (curr_peak_time >= 43600) and (curr_peak_time <= 43775) and ((curr_peak_time - prev_peak_time) <= 15):
+            print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height)))
+
+        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height):
+            peak_times.append(curr_peak_time)
+            peak_heights.append(curr_peak_height)
+
+    # Create the time ranges for each sound based on the peaks
+    start_times: List[int] = []
+    end_times: List[int] = []
+
+    hard_threshold = 1.18
+
+    for peak_idx, (peak_time, peak_height) in enumerate(zip(peak_times, peak_heights)):
+        prev_time = peak_times[peak_idx - 1] if peak_idx > 0 else 0
+        start_time = np.argmin(max_energy[prev_time:peak_time]) + prev_time
+
+        mask = (max_energy[start_time:peak_time] < hard_threshold).astype(int)
+        if np.any(mask == 1):
+            start_time = max(start_time, np.argmax(np.arange(start_time, peak_time) * mask) + start_time)
+
+        next_time = peak_times[peak_idx + 1] if peak_idx < (len(peak_times) - 1) else len(max_energy) - 1
+        end_time = np.argmin(max_energy[peak_time:next_time]) + peak_time
+
+        mask = (max_energy[peak_time:end_time] < hard_threshold).astype(int)
+
+        if np.any(mask == 1):
+            mask = (1 - mask) * BIG_NUMBER
+            end_time = min(end_time, np.argmin(np.arange(peak_time, end_time) + mask) + peak_time)
+
+        start_times.append(start_time)
+        end_times.append(end_time)
+
+    fig, ax = plt.subplots()
+    ax.plot(list(range(len(max_energy))), max_energy)
+    ax.scatter(peak_times, peak_heights, marker='o', color='green')
+    
+    for t in start_times:
+        ax.axvline(t, color='orange')
+
+    for t in end_times:
+        ax.axvline(t, color='red')
+
+    plt.show()
+
+    return start_times, end_times, max_energy
+
+
+def get_sound_instances_old(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray]:
     # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
     std_energy = np.std(spect, axis=-1, keepdims=True)
@@ -165,15 +241,12 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
     peak_heights = peak_properties['peak_heights']
     prev_end = 1
 
-    for peak_time, peak_height in zip(peak_times, peak_heights):
+    for peak_idx, (peak_time, peak_height) in enumerate(zip(peak_times, peak_heights)):
         if is_in_peak_range(peak_time, peak_ranges):
             continue
 
         forward_peak_threshold = peak_height * forward_factor
         backward_peak_threshold = peak_height * backward_factor
-
-        if (peak_time >= 16710) and (peak_time <= 16750):
-            print('Peak Time: {}, Forward Threshold: {:.5f}, Backward Threshold: {:.5f}'.format(peak_time, forward_peak_threshold, backward_peak_threshold))
 
         # Get the start and end point
         start_time = peak_time
@@ -186,8 +259,12 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         while (end_time < (len(max_energy) - 1)) and (((max_energy[end_time] + tolerance) > max_energy[end_time + 1]) or (max_energy[end_time] > forward_peak_threshold)):
             end_time += 1
 
-        # Add the range to the result set
         if (end_time - start_time) >= 3:
+            # If the next peak is of similar height and we have gone beyond this point, split at the local minimum between the two peaks
+            if (peak_idx < (len(peak_times) - 1)) and (end_time >= peak_times[peak_idx + 1]) and (((peak_heights[peak_idx + 1] / peak_height) < merge_peak_factor) or ((peak_height / peak_heights[peak_idx + 1]) < merge_peak_factor)):
+                next_peak_time = peak_times[peak_idx + 1]
+                end_time = np.argmin(max_energy[peak_time:next_peak_time]) + peak_time
+    
             peak_ranges.add((start_time, end_time, peak_height))
             prev_end = end_time
 

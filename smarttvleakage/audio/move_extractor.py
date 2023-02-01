@@ -35,6 +35,7 @@ START_TIME = 'start_time'
 END_TIME = 'end_time'
 DEDUP_THRESHOLD = 'dedup_threshold'
 ENERGY_THRESHOLD = 'energy_threshold'
+TIME_THRESHOLD = 'time_threshold'
 Constellation = namedtuple('Constellation', ['peak_times', 'peak_freqs', 'spectrogram'])
 
 
@@ -133,7 +134,7 @@ class MoveExtractor:
     def update_num_moves(self, sound: str, num_moves: int, move_times: List[int], start_time: int, end_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
         raise NotImplementedError()
 
-    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, similarity_scores: Dict[str, float]) -> str:
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, similarity_scores: Dict[str, float], max_segment_energy: float) -> str:
         return sound, similarity_scores[sound]
 
     def clean_move_sequence(self, move_seq: List[Move]) -> List[Move]:
@@ -221,6 +222,7 @@ class MoveExtractor:
         move_times: List[int] = []
         current_num_moves = 0
         move_start_time, move_end_time = 0, 0
+        prev_time = 0
 
         #fig, ax = plt.subplots()
         #ax.imshow(clipped_target_spectrogram, cmap='gray_r')
@@ -240,6 +242,7 @@ class MoveExtractor:
             # Extract the target spectrogram during this window
             target_segment = target_spectrogram[0:self.spectrogram_freq_max, start_time:end_time]
             max_segment_energy = np.max(max_energy[start_time:end_time])
+            peak_time = np.argmax(max_energy[start_time:end_time]) + start_time
 
             best_sim = 0.0
             best_sound = None
@@ -260,7 +263,7 @@ class MoveExtractor:
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
                 #should_plot = (start_time > 975) and (sound == sounds.APPLETV_KEYBOARD_SELECT)
-                #should_plot = (start_time >= 81000) and (start_time <= 82000) and (sound in (sounds.SAMSUNG_MOVE, sounds.SAMSUNG_DELETE))
+                #should_plot = (start_time >= 59370) and (start_time <= 59600) and (sound in (sounds.SAMSUNG_MOVE, sounds.SAMSUNG_DELETE))
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -291,7 +294,12 @@ class MoveExtractor:
             #print('----------')
 
             # Handle TV-specific tie-breakers
-            best_sound, best_sim = self.handle_matched_sound(sound=best_sound, target_segment=normalized_spectrogram, time=start_time, similarity_scores=similarity_scores)
+            best_sound, best_sim = self.handle_matched_sound(sound=best_sound,
+                                                             target_segment=normalized_spectrogram,
+                                                             time=peak_time,
+                                                             prev_time=prev_time,
+                                                             similarity_scores=similarity_scores,
+                                                             max_segment_energy=max_segment_energy)
 
             # Skip sounds are are poor matches with all references
             if (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
@@ -311,6 +319,9 @@ class MoveExtractor:
                                                                            start_time=move_start_time,
                                                                            current_time=current_time,
                                                                            current_results=results)
+
+            prev_time = peak_time
+
         return self.clean_move_sequence(results)
 
 
@@ -380,7 +391,7 @@ class AppleTVMoveExtractor(MoveExtractor):
 
         return current_results, num_moves, move_times
 
-    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, simlarity_scores: Dict[str, float]) -> Tuple[str, float]:
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, simlarity_scores: Dict[str, float], max_segment_energy: float) -> Tuple[str, float]:
         if (sound != sounds.APPLETV_KEYBOARD_MOVE):
             return sound, similarity_scores[sound]
 
@@ -499,15 +510,15 @@ class SamsungMoveExtractor(MoveExtractor):
 
     @property
     def detection_factor(self) -> float:
-        return 0.96  # 0.9
+        return 0.9  # 0.9
 
     @property
     def detection_tolerance(self) -> float:
-        return 0.02
+        return 0.07
 
     @property
     def detection_peak_height(self) -> float:
-        return 1.8
+        return 1.75
 
     @property
     def detection_peak_distance(self) -> int:
@@ -529,26 +540,36 @@ class SamsungMoveExtractor(MoveExtractor):
     def smooth_detection_window_size(self) -> int:
         return 8
 
-    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, similarity_scores: Dict[str, float]) -> Tuple[str, float]:
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, similarity_scores: Dict[str, float], max_segment_energy: np.ndarray) -> Tuple[str, float]:
         best_sim = similarity_scores[sound]
 
         if (sound == sounds.SAMSUNG_SELECT):
             # Deduplicate with key selection using an alternative threshold
             key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
-            sim_buffer = self._config[sounds.SAMSUNG_SELECT][DEDUP_THRESHOLD]
+            # sim_buffer = self._config[sounds.SAMSUNG_SELECT][DEDUP_THRESHOLD]
 
-            if (key_select_sim + sim_buffer) > best_sim:
+            if (max_segment_energy < self._config[sounds.SAMSUNG_SELECT][ENERGY_THRESHOLD]) and (key_select_sim > self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]):
                 return sounds.SAMSUNG_KEY_SELECT, key_select_sim
         elif (sound == sounds.SAMSUNG_MOVE):
             select_sim = similarity_scores[sounds.SAMSUNG_SELECT]
+            key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
+            key_select_buffer = self._config[sounds.SAMSUNG_KEY_SELECT][DEDUP_THRESHOLD]
 
-            if (best_sim < self._config[sound][MIN_SIMILARITY]) and (select_sim >= self._config[sounds.SAMSUNG_SELECT][MIN_SIMILARITY]):
+            if (best_sim < self._config[sound][MIN_SIMILARITY]) and (key_select_sim >= self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]) and ((key_select_sim + key_select_buffer) >= best_sim):
+                return sounds.SAMSUNG_KEY_SELECT, key_select_sim
+            elif (best_sim < self._config[sound][MIN_SIMILARITY]) and (select_sim >= self._config[sounds.SAMSUNG_SELECT][MIN_SIMILARITY]):
                 return sounds.SAMSUNG_SELECT, select_sim
         elif (sound == sounds.SAMSUNG_DELETE):
             move_sim = similarity_scores[sounds.SAMSUNG_MOVE]
             move_threshold = self._config[sounds.SAMSUNG_MOVE][DEDUP_THRESHOLD]
 
-            if move_sim > move_threshold:
+            delete_buffer = self._config[sounds.SAMSUNG_DELETE][DEDUP_THRESHOLD]
+            time_buffer = self._config[sounds.SAMSUNG_DELETE][TIME_THRESHOLD]
+
+            #if (time >= 42530) and (time <= 42550):
+            #print('Current Time: {}, Prev Time: {}, Diff: {}, Move Sim: {:.4f}, Best Sim: {:.4f}'.format(time, prev_time, time - prev_time, move_sim, best_sim))
+
+            if (move_sim > move_threshold) or ((move_sim + delete_buffer) > best_sim) or ((time - prev_time) <= time_buffer):
                 return sounds.SAMSUNG_MOVE, move_sim
 
         return sound, similarity_scores[sound]
