@@ -157,7 +157,7 @@ def extract_credit_card_sequence(move_sequence: List[Move], min_seq_length: int)
 
     print(split_sequence_lengths)
 
-    for move in split_move_sequence[-5]:
+    for move in split_move_sequence[13]:
         print(move)
 
     # Get the indices in the split move sequence that correspond the credit card information

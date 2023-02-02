@@ -4,6 +4,7 @@ from scipy.signal import spectrogram, find_peaks, convolve
 from typing import List, Tuple, Set, Union
 
 from smarttvleakage.utils.constants import BIG_NUMBER, SMALL_NUMBER, Direction
+from smarttvleakage.audio.constellations import compute_constellation_map
 
 
 CHANGE_DIR_MAX_THRESHOLD = 150  # Very long delays may be a user just pausing, so we filter them out
@@ -149,6 +150,37 @@ def is_in_peak_range(peak_time: int, peak_ranges: Set[Tuple[int, int]]) -> bool:
     return False
 
 
+def dedup_samsung_move_delete(normalized_spectrogram: np.ndarray, freq_delta: int, time_delta: int, peak_threshold: float, mask_threshold: float, should_plot: bool) -> bool:
+    # Compute the constellation map of the given spectrogram
+    time_peaks, freq_peaks = compute_constellation_map(normalized_spectrogram, freq_delta=freq_delta, time_delta=time_delta, threshold=peak_threshold)
+
+    # Get the highest peak time
+    peak_heights = [normalized_spectrogram[freq, time] for freq, time in zip(freq_peaks, time_peaks)]
+    highest_idx = np.argmax(peak_heights)
+    highest_time, highest_freq = time_peaks[highest_idx], freq_peaks[highest_idx]
+
+    # Mask the spectrogram based on the threshold
+    binary_spectrogram = (normalized_spectrogram > mask_threshold).astype(normalized_spectrogram.dtype)
+
+    # Get the number of `high` elements on either side of the highest peak time
+    min_freq, max_freq = max(highest_freq - freq_delta, 0), (highest_freq + freq_delta + 1)
+    num_before = np.sum(binary_spectrogram[min_freq:max_freq, 0:highest_time])
+    num_after = np.sum(binary_spectrogram[min_freq:max_freq, (highest_time + 1):])
+
+    if should_plot:
+        print('Before: {}, After: {}'.format(num_before, num_after))
+
+        fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
+        ax0.imshow(normalized_spectrogram, cmap='gray_r')
+        ax0.scatter(time_peaks, freq_peaks, marker='o', color='red')
+
+        ax1.imshow(binary_spectrogram[min_freq:max_freq, :], cmap='gray_r')
+
+        plt.show()
+
+    return num_after > num_before
+
+
 def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray]:
      # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
@@ -177,10 +209,18 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
         diff_factor = max(curr_peak_height, prev_peak_height) / min(curr_peak_height, prev_peak_height)
 
-        if (curr_peak_time >= 43600) and (curr_peak_time <= 43775) and ((curr_peak_time - prev_peak_time) <= 15):
-            print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height)))
+        min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
+        valley_diff = min(curr_peak_height, prev_peak_height) - min_in_between
 
-        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height):
+        # C #2 -> 44440, 44770
+        # D #1 -> 20650, 20900
+        # D #3 -> 71500, 71800
+
+        if (curr_peak_time >= 44440) and (curr_peak_time <= 44770) and ((curr_peak_time - prev_peak_time) <= 15):
+            min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
+            print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}, Min Btwn: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height), min(curr_peak_height, prev_peak_height) - min_in_between))
+
+        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or (valley_diff >= 0.15):
             peak_times.append(curr_peak_time)
             peak_heights.append(curr_peak_height)
 

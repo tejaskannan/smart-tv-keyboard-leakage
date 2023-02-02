@@ -10,7 +10,7 @@ import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.audio_extractor import SmartTVAudio
 from smarttvleakage.audio.data_types import Move
 from smarttvleakage.audio.utils import get_sound_instances, create_spectrogram, extract_move_directions
-from smarttvleakage.audio.utils import perform_match_spectrograms
+from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete
 from smarttvleakage.audio.constellations import compute_constellation_map
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
 from smarttvleakage.utils.constants import SmartTVType, Direction, BIG_NUMBER, SMALL_NUMBER
@@ -263,7 +263,7 @@ class MoveExtractor:
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
                 #should_plot = (start_time > 975) and (sound == sounds.APPLETV_KEYBOARD_SELECT)
-                #should_plot = (start_time >= 59370) and (start_time <= 59600) and (sound in (sounds.SAMSUNG_MOVE, sounds.SAMSUNG_DELETE))
+                #should_plot = (start_time >= 45990) and (start_time <= 46100) and (sound in (sounds.SAMSUNG_MOVE, sounds.SAMSUNG_DELETE))
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -566,11 +566,21 @@ class SamsungMoveExtractor(MoveExtractor):
             delete_buffer = self._config[sounds.SAMSUNG_DELETE][DEDUP_THRESHOLD]
             time_buffer = self._config[sounds.SAMSUNG_DELETE][TIME_THRESHOLD]
 
+            is_move = dedup_samsung_move_delete(normalized_spectrogram=target_segment,
+                                                freq_delta=self._config[sounds.SAMSUNG_DELETE][FREQ_DELTA],
+                                                time_delta=self._config[sounds.SAMSUNG_DELETE][TIME_DELTA],
+                                                peak_threshold=self._config[sounds.SAMSUNG_DELETE][PEAK_THRESHOLD],
+                                                mask_threshold=self._config[sounds.SAMSUNG_DELETE][DEDUP_THRESHOLD],
+                                                should_plot=False)
+
+            if is_move:
+                return sounds.SAMSUNG_MOVE, move_sim
+
             #if (time >= 42530) and (time <= 42550):
             #print('Current Time: {}, Prev Time: {}, Diff: {}, Move Sim: {:.4f}, Best Sim: {:.4f}'.format(time, prev_time, time - prev_time, move_sim, best_sim))
 
-            if (move_sim > move_threshold) or ((move_sim + delete_buffer) > best_sim) or ((time - prev_time) <= time_buffer):
-                return sounds.SAMSUNG_MOVE, move_sim
+            #if (move_sim > move_threshold) or ((move_sim + delete_buffer) > best_sim) or ((time - prev_time) <= time_buffer):
+            #   return sounds.SAMSUNG_MOVE, move_sim
 
         return sound, similarity_scores[sound]
 
