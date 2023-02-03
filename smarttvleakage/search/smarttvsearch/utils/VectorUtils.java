@@ -49,4 +49,41 @@ public class VectorUtils {
 
         return Math.sqrt(diffSum / ((double) values.size()));
     }
+
+    public static int max(List<Integer> values) {
+        int maxVal = Integer.MIN_VALUE;
+
+        if (values == null) {
+            return maxVal;
+        }
+
+        for (int value : values) {
+            if (value > maxVal) {
+                maxVal = value;
+            }
+        }
+
+        return maxVal;
+    }
+
+    public static int[] argsortDescending(int[] values) {
+        int[] result = new int[values.length];
+
+        for (int idx0 = 0; idx0 < values.length; idx0++) {
+            result[idx0] = idx0;
+
+            for (int idx1 = idx0 - 1; idx1 >= 0; idx1--) {
+                int val0 = values[result[idx1 + 1]];
+                int val1 = values[result[idx1]];
+
+                if (val0 > val1) {
+                    int temp = result[idx1 + 1];
+                    result[idx1 + 1] = result[idx1];
+                    result[idx1] = temp;
+                }
+            }
+        }
+
+        return result;
+    }
 }

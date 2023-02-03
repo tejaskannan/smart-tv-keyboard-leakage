@@ -67,36 +67,86 @@ def perform_match_constellations_geometry(target_times: np.ndarray, target_freq:
     return matches
 
 
+def get_bounding_times(mask: np.ndarray) -> Tuple[int, int]:
+    assert len(mask.shape) == 2, 'Must provide a 2d binary matrix'
+
+    max_values = np.max(mask, axis=0)  # [T]
+
+    # Get the time of the first `1`
+    start_time = 0
+    for t in range(len(max_values)):
+        if abs(max_values[t] - 1.0) < SMALL_NUMBER:
+            start_time = t
+            break
+
+    # Get the time of the last `1`
+    end_time = len(max_values)
+    for t in reversed(range(len(max_values))):
+        if (abs(max_values[t] - 1.0)) < SMALL_NUMBER:
+            end_time = t + 1
+            break
+
+    return start_time, end_time
+
 def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram: np.ndarray, mask_threshold: float, should_plot: bool) -> float:
-    first_time_steps = first_spectrogram.shape[1]
-    second_time_steps = second_spectrogram.shape[1]
+    """
+    Measures the similarity between the two (normalized) spectrograms using an L1 distance where all
+    values below the given threshold are set to zero (to avoid matching `random` noise).
+
+    Args:
+        first_spectrogram: A [F, T0] spectrogram
+        second_spectrogram: A [F, T1] spectrogram
+        mask_threshold: The value used to mask out noise
+        should_plot: Whether to plot debugging information
+    Returns:
+        A similarity score >= 0.0
+    """
+    assert first_spectrogram.shape[0] == second_spectrogram.shape[0], 'Must provide spectrograms with the same number of frequence elements'
+
+    # First, compute the masks for both spectrograms
+    first_mask = (first_spectrogram >= mask_threshold).astype(first_spectrogram.dtype)
+    second_mask = (second_spectrogram >= mask_threshold).astype(second_spectrogram.dtype)
+
+    # Get the first and last time elements with unmasked values. We will match these `clipped` spectrograms to account
+    # for time shifting.
+    first_start, first_end = get_bounding_times(first_mask)
+    second_start, second_end = get_bounding_times(second_mask)
+
+    first_spectrogram_clipped = first_spectrogram[:, first_start:first_end]
+    second_spectrogram_clipped = second_spectrogram[:, second_start:second_end]
+
+    first_time_steps = first_spectrogram_clipped.shape[1]
+    second_time_steps = second_spectrogram_clipped.shape[1]
     time_diff = abs(first_time_steps - second_time_steps)
 
+    # Make it so the first spectrogram is always the longer of the two
     if (first_time_steps < second_time_steps):
         return perform_match_spectrograms(second_spectrogram, first_spectrogram, mask_threshold, should_plot)
 
     time_diff = first_time_steps - second_time_steps
 
     # Get the mask for the smaller (second) spectrogram
-    second_mask = (second_spectrogram >= mask_threshold).astype(second_spectrogram.dtype)
-    #masked_second = mask * second_spectrogram
+    second_mask = (second_spectrogram_clipped >= mask_threshold).astype(second_spectrogram.dtype)
 
-    #num_nonzero = np.sum(mask)
+    if should_plot:
+        fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
+        ax0.imshow(first_spectrogram_clipped, cmap='gray_r')
+        ax1.imshow(second_spectrogram_clipped, cmap='gray_r')
+        plt.show()
 
     # Track the spectrogram similarity
     similarity = 0.0
 
-    #print('Target time steps: {}, Ref time steps: {}'.format(target_time_steps, ref_time_steps))
-
     for offset in range(time_diff + 1):
-        clipped_first = first_spectrogram[:, offset:(offset + second_time_steps)]
+        first_segment = first_spectrogram_clipped[:, offset:(offset + second_time_steps)]
 
-        first_mask = (clipped_first >= mask_threshold).astype(clipped_first.dtype)
+        # Compute the mask using an aggregate of the two spectrograms
+        first_mask = (first_segment >= mask_threshold).astype(first_segment.dtype)
         mask = np.clip(first_mask + second_mask, a_min=0.0, a_max=1.0)
         num_nonzero = np.sum(mask)
 
-        masked_first = clipped_first * mask
-        masked_second = second_spectrogram * mask
+        masked_first = first_segment * mask
+        masked_second = second_spectrogram_clipped * mask
         diff = np.abs(masked_first - masked_second)
         dist = max(np.sum(diff / num_nonzero), SMALL_NUMBER)
         similarity = max(similarity, 1.0 / dist)
@@ -216,11 +266,11 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         # D #1 -> 20650, 20900
         # D #3 -> 71500, 71800
 
-        if (curr_peak_time >= 44440) and (curr_peak_time <= 44770) and ((curr_peak_time - prev_peak_time) <= 15):
+        if (curr_peak_time >= 74360) and (curr_peak_time <= 74380) and ((curr_peak_time - prev_peak_time) <= 15):
             min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
             print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}, Min Btwn: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height), min(curr_peak_height, prev_peak_height) - min_in_between))
 
-        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or (valley_diff >= 0.15):
+        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or ((valley_diff >= 0.15) and (diff_factor <= 1.10)):
             peak_times.append(curr_peak_time)
             peak_heights.append(curr_peak_height)
 

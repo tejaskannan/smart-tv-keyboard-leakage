@@ -8,6 +8,7 @@ import org.json.JSONObject;
 import org.json.JSONArray;
 import org.json.JSONException;
 
+import smarttvsearch.creditcard.CreditCardDetails;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.prior.LanguagePriorFactory;
 import smarttvsearch.keyboard.MultiKeyboard;
@@ -28,7 +29,10 @@ import smarttvsearch.utils.sounds.SamsungSound;
 
 public class SearchRunner {
 
-    private static final int MAX_RANK = 100;
+    private static final int MAX_CCN_RANK = 100;
+    private static final int MAX_EXPIRY_RANK = 5;
+    private static final int MAX_CVV_RANK = 25;
+    private static final int MAX_ZIP_RANK = 25;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -66,7 +70,7 @@ public class SearchRunner {
             LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
             LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
             LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", FileUtils.joinPath(priorFolder, "zip_codes.txt"));
-            
+ 
             zipPrior.build(true);
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
@@ -82,39 +86,43 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
-                for (int moveIdx = 0; moveIdx < zipSeq.length; moveIdx++) {
-                    System.out.printf("%d. %d\n", moveIdx + 1, zipSeq[moveIdx].getNumMoves());
+                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
+                    System.out.printf("%d. %d\n", moveIdx + 1, ccnSeq[moveIdx].getNumMoves());
                 }
                 System.out.println();
 
                 List<Integer> diffs = new ArrayList<Integer>();
 
-                //for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
-                //    System.out.printf("%d. ", moveIdx + 1);
+                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
+                    System.out.printf("%d. ", moveIdx + 1);
 
-                //    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
-                //    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
+                    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
+                    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
 
-                //    if (moveDiffs != null) {
-                //        diffs.addAll(moveDiffs);
-                //    }
+                    if (moveDiffs != null) {
+                        diffs.addAll(moveDiffs);
+                    }
 
-                //    for (int j = 1; j < moveTimes.length; j++) {
-                //        int diff = moveTimes[j] - moveTimes[j - 1];
+                    for (int j = 1; j < moveTimes.length; j++) {
+                        int diff = moveTimes[j] - moveTimes[j - 1];
 
-                //        System.out.printf("%d ", diff);
-                //    }
+                        System.out.printf("%d ", diff);
+                    }
 
-                //    System.out.println();
-                //}
+                    System.out.println();
+                }
 
                 // Recover each field
-                int ccnRank = recoverCreditCard(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, labelsJson.getString("credit_card"), MAX_RANK);
-                int cvvRank = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("security_code"), MAX_RANK);
-                int monthRank = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_month"), MAX_RANK);
-                int yearRank = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_year"), MAX_RANK);
-                int zipRank = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "zip", false, true, labelsJson.getString("zip_code"), MAX_RANK);
+                List<String> ccnGuesses = recoverCreditCard(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, labelsJson.getString("credit_card"), MAX_CCN_RANK);
+                List<String> cvvGuesses = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("security_code"), MAX_CVV_RANK);
+                List<String> monthGuesses = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_month"), MAX_EXPIRY_RANK);
+                List<String> yearGuesses = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, "standard", false, true, labelsJson.getString("exp_year"), MAX_EXPIRY_RANK);
+                List<String> zipGuesses = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, "zip", false, true, labelsJson.getString("zip_code"), MAX_ZIP_RANK);
 
+                CreditCardDetails truth = new CreditCardDetails(labelsJson.getString("credit_card"), labelsJson.getString("security_code"), labelsJson.getString("exp_month"), labelsJson.getString("exp_year"), labelsJson.getString("zip_code"));
+                int rank = guessCreditCards(ccnGuesses, cvvGuesses, monthGuesses, yearGuesses, zipGuesses, truth);
+
+                System.out.printf("Overall Rank: %d\n", rank);
                 System.out.println("==========");
             }
         } else {
@@ -122,58 +130,42 @@ public class SearchRunner {
         }
     }
 
-    private static int recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, boolean useDirections, boolean shouldAccumulateScore, String target, int maxRank) {
+    private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, boolean useDirections, boolean shouldAccumulateScore, String target, int maxRank) {
         KeyboardExtender extender = new KeyboardExtender(keyboard);
         SuboptimalMoveModel suboptimalModel = SuboptimalMoveFactory.make(suboptimalModelName, moveSeq);
         Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldAccumulateScore);
+
+        List<String> result = new ArrayList<String>();
 
         for (int rank = 1; rank <= maxRank; rank++) {
             String guess = searcher.next();
 
             if (guess == null) {
-                return -1;
+                break;
             }
+
+            result.add(guess);
 
             if (guess.equals(target)) {
                 System.out.printf("%d. %s (correct)\n", rank, guess);
-
-                return rank;
             } else {
                 System.out.printf("%d. %s\n", rank, guess);
             }
         }
 
-        return -1;
+        return result;
     }
 
-    private static int recoverCreditCard(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
-        double[] mistakeFactors = new double[] { 5.0, 1.5, 1.25, 1.0, 0.5, 0.0 };
-        //double[] mistakeFactors = new double[] { 0.5 };
-
-        // Get the move differences for the given sequence
-        List<Integer> moveDiffs = new ArrayList<Integer>();
-        for (Move move : moveSeq) {
-            List<Integer> diffs = VectorUtils.getDiffs(move.getMoveTimes());
-
-            if (diffs != null) {
-                moveDiffs.addAll(diffs);
-            }
-        }
-
-        double avgDiff = VectorUtils.average(moveDiffs);
-        double stdDiff = VectorUtils.stdDev(moveDiffs);
-
-        System.out.printf("%f %f\n", avgDiff, stdDiff);
-
+    private static List<String> recoverCreditCard(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String target, int maxRank) {
         HashSet<String> guessed = new HashSet<String>();
         KeyboardExtender extender = new NumericKeyboardExtender(keyboard);
 
-        int rank = 1;
-        for (double mistakeFactor : mistakeFactors) {
-            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, avgDiff, stdDiff, mistakeFactor);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, false, true);
+        List<String> result = new ArrayList<String>();
 
-            System.out.println(suboptimalModel.getCutoff());
+        int rank = 1;
+        for (int numSuboptimal = 0; numSuboptimal < moveSeq.length; numSuboptimal++) {
+            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, false, true);
 
             while (rank <= maxRank) {
                 String guess = searcher.next();
@@ -186,15 +178,74 @@ public class SearchRunner {
                     continue;
                 }
 
+                result.add(guess);
+
                 if (guess.equals(target)) {
                     System.out.printf("%d. %s (correct)\n", rank, guess);
-                    return rank;
                 } else {
                     System.out.printf("%d. %s\n", rank, guess);
                 }
 
                 rank += 1;
                 guessed.add(guess);
+            }
+        }
+
+        return result;
+    }
+
+    private static int guessCreditCards(List<String> ccnGuesses, List<String> cvvGuesses, List<String> monthGuesses, List<String> yearGuesses, List<String> zipCodeGuesses, CreditCardDetails groundTruth) {
+        // First, iterate through first 25 CCNs, first 5 CVVs, first 5 ZIPs, and first 2 months / years
+        int ccnLimit = Math.min(25, ccnGuesses.size());
+        int cvvLimit = Math.min(5, cvvGuesses.size());
+        int zipLimit = Math.min(5, zipCodeGuesses.size());
+        int monthLimit = Math.min(2, monthGuesses.size());
+        int yearLimit = Math.min(2, yearGuesses.size());
+
+        int rank = 1;
+        CreditCardDetails guess;
+        HashSet<CreditCardDetails> guesses = new HashSet<CreditCardDetails>();
+
+        for (int yearIdx = 0; yearIdx < yearLimit; yearIdx++) {
+            for (int monthIdx = 0; monthIdx < monthLimit; monthIdx++) {
+                for (int zipIdx = 0; zipIdx < zipLimit; zipIdx++) {
+                    for (int cvvIdx = 0; cvvIdx < cvvLimit; cvvIdx++) {
+                        for (int ccnIdx = 0; ccnIdx < ccnLimit; ccnIdx++) {
+                            guess = new CreditCardDetails(ccnGuesses.get(ccnIdx), cvvGuesses.get(cvvIdx), monthGuesses.get(monthIdx), yearGuesses.get(yearIdx), zipCodeGuesses.get(zipIdx));
+
+                            if (guess.equals(groundTruth)) {
+                                return rank;
+                            }
+
+                            guesses.add(guess);
+                            rank += 1;
+                        }
+                    }
+                } 
+            }
+        }
+
+        // Second, search over the entire element set in a sequential manner, avoiding the same guess twice
+        for (int yearIdx = 0; yearIdx < yearGuesses.size(); yearIdx++) {
+            for (int monthIdx = 0; monthIdx < monthGuesses.size(); monthIdx++) {
+                for (int zipIdx = 0; zipIdx < zipCodeGuesses.size(); zipIdx++) {
+                    for (int cvvIdx = 0; cvvIdx < cvvGuesses.size(); cvvIdx++) {
+                        for (int ccnIdx = 0; ccnIdx < ccnGuesses.size(); ccnIdx++) {
+                            guess = new CreditCardDetails(ccnGuesses.get(ccnIdx), cvvGuesses.get(cvvIdx), monthGuesses.get(monthIdx), yearGuesses.get(yearIdx), zipCodeGuesses.get(zipIdx));
+
+                            if (guesses.contains(guess)) {
+                                continue;
+                            }
+
+                            if (guess.equals(groundTruth)) {
+                                return rank;
+                            }
+
+                            rank += 1;
+                            guesses.add(guess);
+                        }
+                    }
+                } 
             }
         }
 

@@ -8,33 +8,31 @@ import smarttvsearch.utils.VectorUtils;
 
 public class CreditCardMoveModel extends SuboptimalMoveModel {
 
-    private static final double SUBOPTIMAL_MOVE_CUTOFF = 75.0;
-    private static double avgDiff;
-    private static double stdDiff;
-    private static double mistakeFactor;
+    private int numSuboptimal;
+    private int[] sortedIndices;
 
-    public CreditCardMoveModel(Move[] moveSeq, double avgDiff, double stdDiff, double mistakeFactor) {
+    public CreditCardMoveModel(Move[] moveSeq, int numSuboptimal) {
         super(moveSeq);
         this.scoreFactor = 0.75;
-        this.avgDiff = avgDiff;
-        this.stdDiff = stdDiff;
-        this.mistakeFactor = mistakeFactor;
+        this.numSuboptimal = numSuboptimal;
+
+        // Sort the move sequences in descending order of average delay per move in a single sequence element
+        int[] maxDelays = new int[moveSeq.length];
+        for (int moveIdx = 0; moveIdx < moveSeq.length; moveIdx++) {
+            List<Integer> diffs = VectorUtils.getDiffs(moveSeq[moveIdx].getMoveTimes());
+            maxDelays[moveIdx] = VectorUtils.max(diffs);
+        }
+
+        this.sortedIndices = VectorUtils.argsortDescending(maxDelays);
     }
 
-    public double getCutoff() {
-        return this.avgDiff + this.mistakeFactor * this.stdDiff;
+    public int getNumSuboptimal() {
+        return this.numSuboptimal;
     }
 
     public int getLimit(int moveIdx) {
-        Move move = this.getMove(moveIdx);
-        List<Integer> moveTimeDiffs = VectorUtils.getDiffs(move.getMoveTimes());
-
-        if (moveTimeDiffs == null) {
-            return 0;
-        }
-
-        for (int idx = 0; idx < moveTimeDiffs.size(); idx++) {
-            if (((double) moveTimeDiffs.get(idx)) >= this.getCutoff()) {
+        for (int idx = 0; idx < this.getNumSuboptimal(); idx++) {
+            if (this.sortedIndices[idx] == moveIdx) {
                 return SuboptimalMoveModel.MAX_NUM_SUBOPTIMAL_MOVES;
             }
         }

@@ -1,25 +1,26 @@
 {
     "move": {
-        "threshold": 0.7,
+        "threshold": 0.85,
         "time_delta": 5,
         "freq_delta": 5,
         "min_similarity": 9.5,
-        "dedup_threshold": 26.0,
+        "dedup_threshold": 16.0,
+        "dedup_buffer": 3.0,
         "energy_threshold": 1.5
     },
     "key_select": {
-        "threshold": 0.7,
+        "threshold": 0.85,
         "time_delta": 5,
         "freq_delta": 5,
         "time_tol": 2,
         "freq_tol": 2,
         "min_freq": 20,
-        "min_similarity": 4.6,
+        "min_similarity": 4.0,
         "dedup_threshold": 0.75,
         "energy_threshold": 2.5
     },
     "select": {
-        "threshold": 0.7,
+        "threshold": 0.85,
         "time_delta": 5,
         "freq_delta": 5,
         "min_similarity": 5.0,
@@ -27,11 +28,11 @@
         "energy_threshold": 3.5
     },
     "delete": {
-        "threshold": 0.7,
+        "threshold": 0.85,
         "time_delta": 5,
         "freq_delta": 5,
         "min_similarity": 12.0,
-        "dedup_threshold": 2.0,
+        "dedup_threshold": 35.0,
         "time_threshold": 75,
         "energy_threshold": 1.5
     }
