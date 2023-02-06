@@ -22,7 +22,7 @@ from smarttvleakage.suggestions_model.msfd_math import combine_confidences, norm
 
 from smarttvleakage.dictionary.rainbow import PasswordRainbow
 from smarttvleakage.audio.move_extractor import Move
-from smarttvleakage.audio.constants import SAMSUNG_DELETE, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
+from smarttvleakage.audio.sounds import SAMSUNG_DELETE, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT
 
 from smarttvleakage.dictionary.dictionaries import NgramDictionary
 
@@ -100,9 +100,6 @@ def make_df(bins_dist : List[int], weighted : int,
     df = pd.DataFrame(data = data, columns = column_titles)
     print(df)
     return df
-
-
-
 
 def id_to_weight(id : int) -> str:
     """Describes a weight ID"""
@@ -272,8 +269,176 @@ if __name__ == "__main__":
     # 2 - test with ms as CL arg
     # 3?
  
-    test = 3
+    test = 4
 
+
+
+    if test == 5:
+        print("test 5")
+
+        model = read_pickle_gz(args.model_path)
+        print("building test dicts")
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 500)
+        print("test dicts built")
+        db_path = "rockyou-samsung-updated.db"
+        db = PasswordRainbow(db_path)
+
+        ac = .26
+        nc = .32
+        peak = 30
+
+
+        results = {}
+        print("classifying autos")
+        for key, val in ms_dict_auto_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db, val, bins=3, weight=3,
+                peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            results[(key, "auto")] = pred
+        print("classifying nons")
+        for key, val in ms_dict_non_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db, val, bins=3, weight=3,
+                peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            results[(key, "non")] = pred
+        print("classifying phpbbs")
+        for key, val in ms_dict_phpbb_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db, val, bins=3, weight=3,
+                peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            results[(key, "phpbb")] = pred
+        print("classified")
+
+        gt = ([], [])
+        preds = ([], [])
+        cm_data = [[0, 0, 0], [0, 0, 0]]
+        for key, pred in results.items():
+            if key[1] == "auto":
+                gt[0].append(1)
+                preds[0].append(pred)
+                cm_data[pred][0] += 1
+            elif key[1] == "non":
+                gt[0].append(0)
+                preds[0].append(pred)
+                cm_data[pred][1] += 1
+            else:
+                gt[1].append(0)
+                preds[1].append(pred)
+                cm_data[pred][2] += 1
+
+        # accuracy and f1 for english and phpbb sets
+        acc_english = accuracy_score(gt[0], preds[0])
+        f1_english = f1_score(gt[0], preds[0])
+        acc_phpbb = accuracy_score(gt[1], preds[1])
+        f1_phpbb = f1_score(gt[1], preds[1])
+        graph_texts = []
+        graph_texts.append("English Accuracy:" + str(acc_english)[:6])
+        graph_texts.append("English F1: " + str(f1_english)[:6])
+        graph_texts.append("Phpbb Accuracy: " + str(acc_phpbb)[:6])
+        graph_texts.append("Phpbb F1: " + str(f1_phpbb)[:6])
+
+        # CM
+        cm_array = np.array(cm_data)
+        inputs = ["auto", "non", "phpbb"]
+        outputs = ["non", "auto"]
+        fig, ax = plt.subplots()
+        im = ax.imshow(cm_array)
+        plt.subplots_adjust(bottom=0.3)
+        ax.set_xticks(np.arange(len(inputs)), labels=inputs, color="b")
+        ax.set_yticks(np.arange(len(outputs)), labels=outputs, color="b")
+        plt.xlabel("inputs", fontsize=16)
+        plt.ylabel("outputs", fontsize=16)
+        for i in range(len(inputs)):
+            for j in range(len(outputs)):
+                text = ax.text(i, j, cm_array[j, i], ha="center", va="center", color="w")
+        ax.set_title("suggestions classifications", fontsize=20)
+        # print textstr
+        for i, t in enumerate(graph_texts):
+            fig.text(.05, .2 - (.05 * i), t, fontsize=12)
+        #fig.tight_layout()
+        plt.show()
+
+        if args.save_path is not None:
+            fig.savefig(args.save_path)
+
+
+
+
+
+    if test == 4:
+        print("test 4")
+        
+        model = read_pickle_gz(args.model_path)
+        print("building test dicts")
+        ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
+        ms_dict_non_test = build_ms_dict(args.ms_path_non)
+        ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 500)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 100)
+        print("test dicts built")
+        db_path = "rockyou-samsung-updated.db"
+        db = PasswordRainbow(db_path)
+
+        ac = .26
+        nc = .32
+        results = {}
+        types = ["auto", "non", "rockyou", "phpbb"]
+        for ty in types:
+            results[ty] = []
+
+        lens = {}
+        lens["auto"] = len(ms_dict_auto_test)
+        lens["non"] = len(ms_dict_non_test)
+        lens["rockyou"] = len(ms_dict_rockyou_test)
+        lens["phpbb"] = len(ms_dict_phpbb_test)
+
+        peak = 30
+        total = len(
+            ms_dict_auto_test.items()) + len(
+            ms_dict_non_test.items()) + len(
+            ms_dict_rockyou_test.items()) + len(
+            ms_dict_phpbb_test.items())
+
+
+        print("classifying autos")
+        for key, val in ms_dict_auto_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db,
+                val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            if pred == 0:
+                results["auto"].append(key)
+        print("classifying nons")
+        for key, val in ms_dict_non_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db,
+                val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            if pred == 1:
+                results["non"].append(key)
+        print("classifying rockyous")
+        for key, val in ms_dict_rockyou_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db,
+                val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            if pred == 1:
+                results["rockyou"].append(key)
+        print("classifying phpbbs")
+        for key, val in ms_dict_phpbb_test.items():
+            pred = classify_ms_with_msfd_full(model, msfd, db,
+                val, bins=3, weight=3, peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+            if pred == 1:
+                results["phpbb"].append(key)
+        print("classified")
+
+
+        lines = []
+        for ty in types:
+            mistakes = results[ty]
+            acc = 1-(len(mistakes)/len(lens[ty]))
+
+            lines.append(ty + "\n")
+            lines.append("accuracy: " + str(acc) + "\n")
+            print("mistakes:\n")
+            for mistake in results[ty]:
+                lines.append(mistake)
+                lines.append(", ")
+            lines.append("\n\n")
+   
 
 
 
