@@ -93,6 +93,8 @@ public class Search {
                 int numSuboptimal = this.suboptimalModel.getLimit(moveIdx);
                 HashMap<String, Double> neighborKeys = new HashMap<String, Double>();  // Neighbor -> Score factor
 
+                boolean isFirstMoveAndZero = (moveIdx == 0) && (numMoves == 0);
+
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
                     int adjustedNumMoves = numMoves + offset;
                     if (adjustedNumMoves < 0) {
@@ -128,7 +130,7 @@ public class Search {
                 int nextMoveIdx = moveIdx + 1;
 
                 for (String neighborKey : neighborKeys.keySet()) {
-                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound())) {
+                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound()) && !isFirstMoveAndZero) {
                         continue;  // Do not add invalid keys to the queue
                     }
 
@@ -145,10 +147,10 @@ public class Search {
 
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
-                        if (incrementalCount > 0) {
+                        if ((incrementalCount > 0) || (isFirstMoveAndZero)) {
                             double score = this.languagePrior.normalizeCount(incrementalCount);
                             score *= neighborKeys.get(neighborKey);
-                            score = -1 * Math.log(score);
+                            score = -1 * Math.log(score + 1e-7);
 
                             if (this.shouldAccumulateScore) {
                                 score = currentState.getScore() + score;

@@ -11,9 +11,9 @@ public class CreditCardMoveModel extends SuboptimalMoveModel {
     private int numSuboptimal;
     private int[] sortedIndices;
 
-    public CreditCardMoveModel(Move[] moveSeq, int numSuboptimal) {
+    public CreditCardMoveModel(Move[] moveSeq, int numSuboptimal, double scoreFactor) {
         super(moveSeq);
-        this.scoreFactor = 0.75;
+        this.scoreFactor = scoreFactor;
         this.numSuboptimal = numSuboptimal;
 
         // Sort the move sequences in descending order of average delay per move in a single sequence element

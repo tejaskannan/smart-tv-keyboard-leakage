@@ -5,6 +5,7 @@
         "freq_delta": 5,
         "min_similarity": 9.5,
         "dedup_threshold": 16.0,
+        "force_threshold": 28.0,
         "dedup_buffer": 3.0,
         "energy_threshold": 1.5
     },

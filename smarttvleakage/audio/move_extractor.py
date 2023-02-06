@@ -36,6 +36,7 @@ END_TIME = 'end_time'
 DEDUP_THRESHOLD = 'dedup_threshold'
 ENERGY_THRESHOLD = 'energy_threshold'
 DEDUP_BUFFER = 'dedup_buffer'
+FORCE_THRESHOLD = 'force_threshold'
 TIME_THRESHOLD = 'time_threshold'
 Constellation = namedtuple('Constellation', ['peak_times', 'peak_freqs', 'spectrogram'])
 
@@ -263,8 +264,8 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                should_plot = (start_time >= 81060) and (start_time <= 81250) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
-                #should_plot = False
+                #should_plot = (start_time >= 95180) and (start_time <= 95450) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
+                should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
                                                         second_spectrogram=self._ref_spectrograms[sound],
@@ -306,8 +307,8 @@ class MoveExtractor:
             if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
                 continue
 
-            #if (start_time >= 70800) and (start_time <= 71050):
-            #    print('Best Sound: {}, Sim: {:.4f}'.format(best_sound, best_sim))
+            if (start_time >= 43760) and (start_time <= 43850):
+                print('Best Sound: {}, Sim: {:.4f}'.format(best_sound, best_sim))
 
             #print('Adjusted Best Sound: {}, Time: {}'.format(best_sound, start_time))
             #print('==========')
@@ -567,19 +568,16 @@ class SamsungMoveExtractor(MoveExtractor):
         elif (sound == sounds.SAMSUNG_DELETE):
             move_sim = similarity_scores[sounds.SAMSUNG_MOVE]
             move_threshold = self._config[sounds.SAMSUNG_MOVE][DEDUP_THRESHOLD]
+            force_threshold = self._config[sounds.SAMSUNG_MOVE][FORCE_THRESHOLD]
             move_buffer = self._config[sounds.SAMSUNG_MOVE][DEDUP_BUFFER]
             delete_threshold = self._config[sounds.SAMSUNG_DELETE][DEDUP_THRESHOLD]
 
             time_buffer = self._config[sounds.SAMSUNG_DELETE][TIME_THRESHOLD]
 
-            #is_move = dedup_samsung_move_delete(normalized_spectrogram=target_segment,
-            #                                    freq_delta=self._config[sounds.SAMSUNG_DELETE][FREQ_DELTA],
-            #                                    time_delta=self._config[sounds.SAMSUNG_DELETE][TIME_DELTA],
-            #                                    peak_threshold=self._config[sounds.SAMSUNG_DELETE][PEAK_THRESHOLD],
-            #                                    mask_threshold=self._config[sounds.SAMSUNG_DELETE][PEAK_THRESHOLD],
-            #                                    should_plot=False)
+            if (best_sim >= (3.0 * move_sim)):
+                return sound, best_sim
 
-            if ((time - prev_time) <= time_buffer) or ((move_sim > move_threshold) and ((best_sim < delete_threshold) or ((move_sim + move_buffer) > best_sim))):
+            if ((time - prev_time) <= time_buffer) or ((move_sim > force_threshold) and ((move_sim + 3.0 * move_buffer) > best_sim)) or ((move_sim > move_threshold) and ((best_sim < delete_threshold) or ((move_sim + move_buffer) > best_sim))):
                 return sounds.SAMSUNG_MOVE, move_sim
 
             #if (time >= 42530) and (time <= 42550):
@@ -618,19 +616,18 @@ class SamsungMoveExtractor(MoveExtractor):
         if len(move_seq) == 0:
             return []
 
-        cleaned: List[Move] = [move_seq[0]]
+        first_move = move_seq[0]
+        cleaned: List[Move] = [first_move]
         move_carry = 0
+        start_idx = 1
 
-        for move_idx in range(1, len(move_seq)):
+        for move_idx in range(start_idx, len(move_seq)):
             prev_move = cleaned[-1]
             curr_move = move_seq[move_idx]
 
             # It is impossible to go from a non-delete sound to a delete sound in 0 moves. Since `delete` sounds look similar to those of `move`
             # we merge this `delete` sound into the NEXT sequence element by adding a single move carry
             should_merge = (curr_move.num_moves == 0) and (prev_move.end_sound != sounds.SAMSUNG_DELETE) and (curr_move.end_sound == sounds.SAMSUNG_DELETE)
-
-            if (curr_move.start_time >= 50000) and (curr_move.start_time <= 51000):
-                print('Start time: {}, Should merge: {}, Move carry: {}'.format(curr_move.start_time, should_merge, move_carry))
 
             if should_merge:
                 move_carry = 1
