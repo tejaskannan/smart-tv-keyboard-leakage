@@ -9,6 +9,8 @@ import java.sql.Statement;
 import java.util.Map;
 import java.util.HashMap;
 
+import smarttvsearch.utils.SpecialKeys;
+
 
 public class NGramPrior extends LanguagePrior {
 
@@ -46,6 +48,11 @@ public class NGramPrior extends LanguagePrior {
     }
 
     @Override
+    public boolean isValidKey(String key) {
+        return !key.equals(SpecialKeys.COM) && !key.equals(SpecialKeys.WWW);
+    }
+
+    @Override
     public String[] processWord(String word) {
         return new String[] { word };
     }
@@ -62,7 +69,7 @@ public class NGramPrior extends LanguagePrior {
 
         if (this.cache.containsKey(ngram)) {
             Map<Character, Integer> ngramMap = this.cache.get(ngram);
-            return ngramMap.getOrDefault(lastChar, 1);  // Apply Laplace Smoothing
+            return ngramMap.getOrDefault(lastChar, 0) + 1;  // Apply Laplace Smoothing
         } else {
             Map<Character, Integer> ngramMap = new HashMap<Character, Integer>();
 
@@ -83,7 +90,7 @@ public class NGramPrior extends LanguagePrior {
                 }
 
                 this.cache.put(ngram, ngramMap);
-                return ngramMap.getOrDefault(lastChar, 1);  // Apply Laplace Smoothing
+                return ngramMap.getOrDefault(lastChar, 0) + 1;  // Apply Laplace Smoothing
             } catch (SQLException ex) {
                 System.out.println(ex.getMessage());
             }

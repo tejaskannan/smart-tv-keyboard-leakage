@@ -12,15 +12,14 @@ public class NGramPriorTests {
     private NGramPrior prior;
 
     public NGramPriorTests() {
-        this.prior = new NGramPrior("/local/dictionaries/passwords/rockyou.db");
+        this.prior = new NGramPrior("/local/dictionaries/passwords/phpbb.db");
         this.prior.build(false);
     }
 
     @Test
     public void testSimple() {
-        assertEquals(this.prior.find("passw"), 2798);
-        assertEquals(this.prior.find("passt"), 76);
-        System.out.println(this.prior.getTotalCount());
+        assertEquals(this.prior.find("passw"), 2799);
+        assertEquals(this.prior.find("passt"), 77);
     }
 
     @Test

@@ -24,7 +24,7 @@ public class KeyboardUtils {
     }
 
     public static boolean isSamsungSelectKey(String key) {
-        return key.equals(SpecialKeys.LEFT) || key.equals(SpecialKeys.RIGHT) || key.equals(SpecialKeys.UP) || key.equals(SpecialKeys.DOWN) || key.equals(SpecialKeys.SPACE) || key.equals(SpecialKeys.DONE) || key.equals(SpecialKeys.CHANGE) || key.equals(SpecialKeys.NEXT) || key.equals(SpecialKeys.CAPS);
+        return key.equals(SpecialKeys.LEFT) || key.equals(SpecialKeys.RIGHT) || key.equals(SpecialKeys.UP) || key.equals(SpecialKeys.DOWN) || key.equals(SpecialKeys.SPACE) || key.equals(SpecialKeys.DONE) || key.equals(SpecialKeys.CHANGE) || key.equals(SpecialKeys.NEXT) || key.equals(SpecialKeys.CAPS) || key.equals(SpecialKeys.LANGUAGE) || key.equals(SpecialKeys.SETTINGS) || key.equals(SpecialKeys.RETURN) || key.equals(SpecialKeys.CANCEL);
     }
 
     public static boolean isSamsungDeleteKey(String key) {

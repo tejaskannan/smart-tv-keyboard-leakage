@@ -16,7 +16,6 @@ import smarttvsearch.keyboard.KeyboardExtender;
 import smarttvsearch.keyboard.NumericKeyboardExtender;
 import smarttvsearch.search.Search;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
-import smarttvsearch.suboptimal.SuboptimalMoveFactory;
 import smarttvsearch.suboptimal.CreditCardMoveModel;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.FileUtils;
@@ -33,6 +32,7 @@ public class SearchRunner {
     private static final int MAX_EXPIRY_RANK = 5;
     private static final int MAX_CVV_RANK = 50;
     private static final int MAX_ZIP_RANK = 50;
+    private static final int MAX_PASSWD_RANK = 25;
 
     public static void main(String[] args) {
         if (args.length != 2) {
@@ -60,6 +60,8 @@ public class SearchRunner {
         String labelsPath = movePath.substring(0, movePath.length() - 5) + "_labels.json";
         JSONObject serializedLabels = FileUtils.readJsonObject(labelsPath);
 
+        KeyboardExtender stndExtender = new KeyboardExtender(keyboard);
+
         // Determine the recovery process based on the sequence type
         if (seqType.equals("credit_card")) {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
@@ -74,7 +76,6 @@ public class SearchRunner {
             zipPrior.build(true);
 
             KeyboardExtender numericExtender = new NumericKeyboardExtender(keyboard);
-            KeyboardExtender stndExtender = new KeyboardExtender(keyboard);
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
@@ -116,11 +117,11 @@ public class SearchRunner {
                 }
 
                 // Recover each field
-                List<String> ccnGuesses = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, numericExtender, 1e-3, MAX_CCN_RANK);
-                List<String> cvvGuesses = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, stndExtender, 0.5, MAX_CVV_RANK);
-                List<String> monthGuesses = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, stndExtender, 0.75, MAX_EXPIRY_RANK);
-                List<String> yearGuesses = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, stndExtender, 0.75, MAX_EXPIRY_RANK);
-                List<String> zipGuesses = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, false, stndExtender, 1e-3, MAX_ZIP_RANK);
+                List<String> ccnGuesses = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, numericExtender, 1e-3, 0, MAX_CCN_RANK);
+                List<String> cvvGuesses = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, stndExtender, 0.5, 0, MAX_CVV_RANK);
+                List<String> monthGuesses = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK);
+                List<String> yearGuesses = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK);
+                List<String> zipGuesses = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, false, stndExtender, 1e-3, 0, MAX_ZIP_RANK);
 
                 CreditCardDetails truth = new CreditCardDetails(labelsJson.getString("credit_card"), labelsJson.getString("security_code"), labelsJson.getString("exp_month"), labelsJson.getString("exp_year"), labelsJson.getString("zip_code"));
 
@@ -129,15 +130,70 @@ public class SearchRunner {
                 System.out.printf("Overall Rank: %d\n", rank);
                 System.out.println("==========");
             }
+        } else if (seqType.equals("standard")) {
+            JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
+            JSONArray targetStrings = serializedLabels.getJSONArray("labels");
+
+            String priorPath = FileUtils.joinPath(priorFolder, "phpbb.db");
+            LanguagePrior prior = LanguagePriorFactory.makePrior("ngram", priorPath);
+            prior.build(false);
+
+            for (int idx = 1; idx < jsonMoveSequences.length(); idx++) {
+                Move[] moveSeq = parseMoveSeq(jsonMoveSequences.getJSONArray(idx), tvType);
+
+                for (Move move : moveSeq) {
+                    System.out.println(move);
+                }
+
+                for (int moveIdx = 0; moveIdx < moveSeq.length; moveIdx++) {
+                    System.out.printf("%d. ", moveIdx + 1);
+
+                    int[] moveTimes = moveSeq[moveIdx].getMoveTimes();
+                    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
+
+                    for (int j = 1; j < moveTimes.length; j++) {
+                        int diff = moveTimes[j] - moveTimes[j - 1];
+                        System.out.printf("%d ", diff);
+                    }
+
+                    System.out.println();
+                }
+
+                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, stndExtender, 1e-2, 1, MAX_PASSWD_RANK);
+
+                int rank = 1;
+                boolean didFind = false;
+                String groundTruth = targetStrings.getString(idx);
+
+                for (String guess : guesses) {
+
+                    if (guess.equals(groundTruth)) {
+                        didFind = true;
+                        System.out.printf("%d. %s (correct)\n", rank, guess);
+                        break;
+                    } else {
+                        System.out.printf("%d. %s\n", rank, guess);
+                    }
+
+                    rank += 1;
+                }
+
+                if (didFind) {
+                    System.out.printf("Correct Rank: %d\n", rank);
+                }
+
+                System.out.println("==========");
+            }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
         }
     }
 
-    //private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, String suboptimalModelName, boolean useDirections, boolean shouldAccumulateScore, String target, int maxRank) {
+    //private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, int maxRank) {
     //    KeyboardExtender extender = new KeyboardExtender(keyboard);
-    //    SuboptimalMoveModel suboptimalModel = SuboptimalMoveFactory.make(suboptimalModelName, moveSeq);
-    //    Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldAccumulateScore);
+    //    //SuboptimalMoveModel suboptimalModel = new SuboptimalMoveModel(moveSeq);
+    //    SuboptimalMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, 1, 0.1);
+    //    Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, true, 5);
 
     //    List<String> result = new ArrayList<String>();
 
@@ -149,18 +205,12 @@ public class SearchRunner {
     //        }
 
     //        result.add(guess);
-
-    //        if (guess.equals(target)) {
-    //            System.out.printf("%d. %s (correct)\n", rank, guess);
-    //        } else {
-    //            System.out.printf("%d. %s\n", rank, guess);
-    //        }
     //    }
 
     //    return result;
     //}
 
-    private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, KeyboardExtender extender, double scoreFactor, int maxRank) {
+    private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, KeyboardExtender extender, double scoreFactor, int minCount, int maxRank) {
         HashSet<String> guessed = new HashSet<String>();
 
         List<String> result = new ArrayList<String>();
@@ -168,7 +218,7 @@ public class SearchRunner {
         int rank = 1;
         for (int numSuboptimal = 0; numSuboptimal < moveSeq.length; numSuboptimal++) {
             CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal, scoreFactor);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, true);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, true, minCount);
 
             while (rank <= maxRank) {
                 String guess = searcher.next();

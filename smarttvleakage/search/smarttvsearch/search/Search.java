@@ -16,6 +16,7 @@ import smarttvsearch.utils.sounds.SamsungSound;
 import smarttvsearch.utils.search.SearchState;
 import smarttvsearch.utils.search.VisitedState;
 import smarttvsearch.utils.KeyboardUtils;
+import smarttvsearch.utils.SpecialKeys;
 import smarttvsearch.utils.Move;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.SpecialKeys;
@@ -34,13 +35,14 @@ public class Search {
     private boolean doesEndWithDone;
     private boolean useDirections;
     private boolean shouldAccumulateScore;
+    private int minCount;
     private SmartTVType tvType;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldAccumulateScore) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldAccumulateScore, int minCount) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
@@ -50,6 +52,7 @@ public class Search {
         this.useDirections = useDirections;
         this.shouldAccumulateScore = shouldAccumulateScore;
         this.tvType = tvType;
+        this.minCount = minCount;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
@@ -147,10 +150,16 @@ public class Search {
 
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
-                        if ((incrementalCount > 0) || (isFirstMoveAndZero)) {
+                        if ((incrementalCount > this.minCount) || (isFirstMoveAndZero)) {
+
                             double score = this.languagePrior.normalizeCount(incrementalCount);
-                            score *= neighborKeys.get(neighborKey);
-                            score = -1 * Math.log(score + 1e-7);
+
+                            if ((incrementalCount <= 0) || (this.isFinished(nextMoveIdx) && (SpecialKeys.DONE.equals(neighborKey)))) {
+                                score = 0.0;
+                            } else {
+                                score *= neighborKeys.get(neighborKey);
+                                score = -1 * Math.log(score);
+                            }
 
                             if (this.shouldAccumulateScore) {
                                 score = currentState.getScore() + score;
@@ -187,11 +196,12 @@ public class Search {
     }
 
     private boolean isFinished(int moveIdx) {
-        if (this.doesEndWithDone) {
-            return moveIdx >= this.moveSeq.length;
-        } else {
-            return moveIdx > this.moveSeq.length;
-        }
+        return moveIdx >= this.moveSeq.length;
+        //if (this.doesEndWithDone) {
+        //    return moveIdx >= this.moveSeq.length;
+        //} else {
+        //    return moveIdx > this.moveSeq.length;
+        //}
     }
 
 }
