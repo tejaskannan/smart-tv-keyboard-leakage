@@ -20,6 +20,8 @@ public class KeyboardUtils {
         translation.put(SpecialKeys.LANGUAGE, "");
         translation.put(SpecialKeys.DONE, "");
         translation.put(SpecialKeys.SETTINGS, "");
+        translation.put(SpecialKeys.CHANGE, "");
+        translation.put(SpecialKeys.NEXT, "");
         return translation;
     }
 

@@ -98,4 +98,9 @@ public class MultiKeyboard {
         Keyboard keyboard = this.keyboards.get(keyboardName);
         return keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, directions);
     }
+
+    public boolean isClickable(String key, String keyboardName) {
+        Keyboard keyboard = this.keyboards.get(keyboardName);
+        return keyboard.isClickable(key);
+    }
 }

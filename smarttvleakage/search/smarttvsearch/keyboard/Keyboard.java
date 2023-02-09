@@ -18,6 +18,7 @@ public class Keyboard {
     private HashMap<String, String[]> adjacencyList;
     private HashMap<String, String[]> wraparoundMap;
     private ArrayList<HashMap<String, String[]>> shortcutList;
+    private HashSet<String> unclickableKeys;
 
     private static String[] DIRECTIONS = { Direction.LEFT.name().toLowerCase(), Direction.RIGHT.name().toLowerCase(), Direction.UP.name().toLowerCase(), Direction.DOWN.name().toLowerCase() };
     private static HashMap<Direction, int[]> DIRECTION_INDICES = createDirectionMap();
@@ -30,6 +31,7 @@ public class Keyboard {
         // Read in the JSON
         JSONObject jsonKeyboard = FileUtils.readJsonObject(path);
         JSONObject jsonAdjList = jsonKeyboard.getJSONObject("adjacency_list");
+        JSONArray jsonUnclickable = jsonKeyboard.getJSONArray("unclickable");
         
         // Read the adjacency list into a Map
         adjacencyList = new HashMap<String, String[]>();
@@ -108,6 +110,12 @@ public class Keyboard {
             }
 
             shortcutList.add(shortcutMap);
+        }
+
+        // Set the unclickable keys
+        this.unclickableKeys = new HashSet<String>();
+        for (int unclickableIdx = 0; unclickableIdx < jsonUnclickable.length(); unclickableIdx++) {
+            this.unclickableKeys.add(jsonUnclickable.getString(unclickableIdx));
         }
     }
 
@@ -214,6 +222,10 @@ public class Keyboard {
         }
 
         return result;
+    }
+
+    public boolean isClickable(String key) {
+        return !this.unclickableKeys.contains(key);
     }
 
     private static HashMap<Direction, int[]> createDirectionMap() {

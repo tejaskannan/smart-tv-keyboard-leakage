@@ -5,10 +5,14 @@ from argparse import ArgumentParser
 from enum import Enum, auto
 from typing import List, Optional, Any, Tuple, Dict
 
+import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio import make_move_extractor, Move
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence, CreditCardSequence
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_json
+
+
+MIN_LENGTH = 3
 
 
 class SequenceType(Enum):
@@ -27,7 +31,6 @@ def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> 
     credit_card_splits: Optional[List[CreditCardSequence]] = extract_credit_card_sequence(move_sequence, min_seq_length=min_num_selections)
 
     if credit_card_splits is not None:
-        print('Found {} Credit Card Info'.format(len(credit_card_splits)))
         return SequenceType.CREDIT_CARD, credit_card_splits
 
     # Get the time differences between consecutive moves
@@ -40,9 +43,10 @@ def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> 
         time_diffs.append(diff)
 
     # Get the cutoff time between moves
-    iqr_time = np.percentile(time_diffs, 75) - np.percentile(time_diffs, 25)
-    median_time = np.median(time_diffs)
-    cutoff_time = median_time + 4.0 * iqr_time
+    #iqr_time = np.percentile(time_diffs, 75) - np.percentile(time_diffs, 25)
+    #median_time = np.median(time_diffs)
+    #cutoff_time = median_time + 4.0 * iqr_time
+    cutoff_time = np.average(time_diffs) + np.std(time_diffs)
 
     split_sequence: List[List[Move]] = []
     current_split: List[Move] = [move_sequence[0]]
@@ -51,17 +55,49 @@ def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> 
         time_diff = time_diffs[idx - 1]
 
         if time_diff >= cutoff_time:
-            if len(current_split) >= min_num_selections:
-                split_sequence.append(current_split)
+            if len(current_split) >= MIN_LENGTH:
+                processed = process_split(current_split)
+                if len(processed) >= MIN_LENGTH:
+                    split_sequence.append(processed)
 
             current_split = []
 
         current_split.append(move_sequence[idx])
 
-    if (len(current_split) > 0) and (len(current_split) >= min_num_selections):
-        split_sequence.append(current_split)
+    if (len(current_split) >= MIN_LENGTH):
+        processed = process_split(current_split)
+        if len(processed) >= MIN_LENGTH:
+            split_sequence.append(processed)
+
+    for move_seq in split_sequence:
+        print('==========')
+
+        for move in move_seq:
+            print(move)
 
     return SequenceType.STANDARD, split_sequence
+
+
+def process_split(move_seq: List[Move]) -> List[Move]:
+    # Clip of leading 'select' sounds. This is a heuristic, as technically one can start on the keyboard
+    # with a selection. But more often than not, the first 'select' is the action that actually opens the keyboard up
+
+    select_idx = 0
+    while (select_idx < len(move_seq)) and (move_seq[select_idx].end_sound != sounds.SAMSUNG_SELECT):
+        select_idx += 1
+
+    start_idx = 0
+    if select_idx < len(move_seq) and ((select_idx == 0) or all((move_seq[idx].num_moves == 0) for idx in range(0, select_idx))):
+        start_idx = select_idx + 1
+
+    move_seq = move_seq[start_idx:]
+
+    # Remove the last movement if it doesn't end in a 'select'. In this case, the 'done' key was suggested, so the movement
+    # tells us nothing about the position of the prior key
+    if move_seq[-1].end_sound != sounds.SAMSUNG_SELECT:
+        move_seq = move_seq[:-1]
+
+    return move_seq
 
 
 def serialize_splits(split_seq: List[Any], tv_type: SmartTVType, seq_type: SequenceType, output_path: str):

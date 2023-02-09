@@ -134,11 +134,11 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray targetStrings = serializedLabels.getJSONArray("labels");
 
-            String priorPath = FileUtils.joinPath(priorFolder, "phpbb.db");
+            String priorPath = FileUtils.joinPath(priorFolder, "rockyou.db");
             LanguagePrior prior = LanguagePriorFactory.makePrior("ngram", priorPath);
             prior.build(false);
 
-            for (int idx = 1; idx < jsonMoveSequences.length(); idx++) {
+            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 Move[] moveSeq = parseMoveSeq(jsonMoveSequences.getJSONArray(idx), tvType);
 
                 for (Move move : moveSeq) {

@@ -81,7 +81,6 @@ public class Search {
             // Check if we are out of moves. If so, return the string if not guessed already.
             if (this.isFinished(moveIdx))  {
                 String guess = currentState.toString();
-                String lastKey = currentState.getKeys().get(moveIdx - 1);
 
                 if ((guess.length() > 0) && (!this.guessed.contains(guess)) && (this.languagePrior.isValid(guess))) {
                     this.guessed.add(guess);
@@ -133,7 +132,7 @@ public class Search {
                 int nextMoveIdx = moveIdx + 1;
 
                 for (String neighborKey : neighborKeys.keySet()) {
-                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound()) && !isFirstMoveAndZero) {
+                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound(), keyboard, currentState.getKeyboardName()) && !isFirstMoveAndZero) {
                         continue;  // Do not add invalid keys to the queue
                     }
 
@@ -150,11 +149,11 @@ public class Search {
 
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
-                        if ((incrementalCount > this.minCount) || (isFirstMoveAndZero)) {
+                        if ((incrementalCount > this.minCount) || (isFirstMoveAndZero) || (this.isChangeKey(neighborKey))) {
 
                             double score = this.languagePrior.normalizeCount(incrementalCount);
 
-                            if ((incrementalCount <= 0) || (this.isFinished(nextMoveIdx) && (SpecialKeys.DONE.equals(neighborKey)))) {
+                            if ((incrementalCount <= 0) || (this.isFinished(nextMoveIdx) && (SpecialKeys.DONE.equals(neighborKey))) || (this.isChangeKey(neighborKey))) {
                                 score = 0.0;
                             } else {
                                 score *= neighborKeys.get(neighborKey);
@@ -177,13 +176,17 @@ public class Search {
         return null;
     }
 
-    private boolean isValidKey(String key, int nextMoveIdx, SmartTVSound endSound) {
+    private boolean isValidKey(String key, int nextMoveIdx, SmartTVSound endSound, MultiKeyboard keyboard, String keyboardName) {
         if (this.isFinished(nextMoveIdx) && this.doesEndWithDone) {
             return key.equals(SpecialKeys.DONE);
+        } else if (!keyboard.isClickable(key, keyboardName)) {
+            return false;
         } else if (this.tvType == SmartTVType.SAMSUNG) {
             SamsungSound endSamsungSound = (SamsungSound) endSound;
 
-            if (endSamsungSound.isSelect()) {
+            if (SpecialKeys.DONE.equals(key)) {
+                return false;  // We are not at the end, so a DONE key makes no sense
+            } else if (endSamsungSound.isSelect()) {
                 return KeyboardUtils.isSamsungSelectKey(key);
             } else if (endSamsungSound.isDelete()) {
                 return KeyboardUtils.isSamsungDeleteKey(key);
@@ -193,6 +196,13 @@ public class Search {
         } else {
             return this.languagePrior.isValidKey(key);
         }
+    }
+
+    private boolean isChangeKey(String key) {
+        if (this.tvType == SmartTVType.SAMSUNG) {
+            return key.equals(SpecialKeys.CHANGE) || key.equals(SpecialKeys.NEXT);
+        }
+        return false;
     }
 
     private boolean isFinished(int moveIdx) {
