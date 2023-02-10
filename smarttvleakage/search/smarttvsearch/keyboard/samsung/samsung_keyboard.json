@@ -89,5 +89,5 @@
         "<RETURN>": {"right": "<CHANGE>"},
         "<DELETEALL>": {"right": "<CAPS>"}
     },
-    "unclickable": ["<LANGUAGE>", "<SETTINGS>", "<UP>", "<DOWN>", "<RETURN>", "<WWW>", "<COM>", "<LEFT>", "<RIGHT>"]
+    "unclickable": ["<LANGUAGE>", "<SETTINGS>", "<UP>", "<DOWN>", "<RETURN>", "<WWW>", "<COM>", "<LEFT>", "<RIGHT>", "<DELETEALL>"]
 }

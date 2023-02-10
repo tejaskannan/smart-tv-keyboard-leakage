@@ -149,6 +149,10 @@ public class Search {
 
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
+                        if (currentState.toString().equals("chevy_195")) {
+                            System.out.printf("%s, %d\n", neighborKey, incrementalCount);
+                        }
+
                         if ((incrementalCount > this.minCount) || (isFirstMoveAndZero) || (this.isChangeKey(neighborKey))) {
 
                             double score = this.languagePrior.normalizeCount(incrementalCount);

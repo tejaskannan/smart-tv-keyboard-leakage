@@ -1,6 +1,7 @@
 package smarttvsearch.utils;
 
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.File;
@@ -49,6 +50,26 @@ public class FileUtils {
         }
 
         return new JSONArray(jsonString);
+    }
+
+    public static void writeJsonObject(JSONObject jsonObject, String path) {
+        try {
+            FileWriter writer = new FileWriter(path);
+            writer.write(jsonObject.toString());
+            writer.close();
+        } catch (IOException ex) {
+            System.out.println(ex.getMessage());
+        }
+    }
+
+    public static void writeJsonArray(JSONArray jsonArray, String path) {
+        try {
+            FileWriter writer = new FileWriter(path);
+            writer.write(jsonArray.toString());
+            writer.close();
+        } catch (IOException ex) {
+            System.out.println(ex.getMessage());
+        }
     }
 
     public static String joinPath(String part0, String part1) {
