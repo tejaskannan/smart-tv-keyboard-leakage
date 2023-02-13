@@ -1,0 +1,39 @@
+{
+    "keyboard_move": {
+        "threshold": -85,
+        "freq_delta": 5,
+        "time_delta": 5,
+        "time_tol": 1
+    },
+    "keyboard_scroll_double": {
+        "threshold": -85,
+        "freq_delta": 5,
+        "time_delta": 3
+    },
+    "keyboard_scroll_six": {
+        "threshold": -85,
+        "freq_delta": 5,
+        "time_delta": 3
+    },
+    "toolbar_move": {
+        "threshold": -85,
+        "freq_delta": 5,
+        "time_delta": 5
+    },
+    "keyboard_select": {
+        "threshold": -85,
+        "freq_delta": 5,
+        "time_delta": 5,
+        "freq_tol": 2
+    },
+    "system_move": {
+        "threshold": -80,
+        "freq_delta": 5,
+        "time_delta": 3
+    },
+    "keyboard_delete": {
+        "threshold": -80,
+        "freq_delta": 5,
+        "time_delta": 3
+    }
+}

@@ -6,11 +6,11 @@ from argparse import ArgumentParser
 from collections import deque, namedtuple
 from matplotlib import image
 from scipy.ndimage import maximum_filter
-from scipy.signal import convolve
+from scipy.signal import convolve, correlate
 from typing import List, Tuple
 
 from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
-from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram
+from smarttvleakage.audio.move_extractor import moving_window_similarity, create_spectrogram, clip_spectrogram, binarize_spectrogram
 from smarttvleakage.utils.file_utils import read_pickle_gz
 
 # Key Select Parameters: (20, 40), threshold -75, constellation deltas (10, 10), TOL (2, 2)
@@ -44,41 +44,8 @@ TOOLBAR_MOVE_RANGES = [ThresholdRange(-60, -45, 15, 25)]
 #TIME_TOL = 2
 WINDOW_SIZE = 8
 
-PLOT_DISTANCES = True
-PLOT_TARGET = False
-
-
-def compute_masked_spectrogram(spectrogram: float, threshold_range: ThresholdRange) -> np.ndarray:
-    clipped_spectrogram = spectrogram[threshold_range.min_freq:threshold_range.max_freq, :]
-    return np.logical_and(clipped_spectrogram >= threshold_range.min_threshold, clipped_spectrogram <= threshold_range.max_threshold).astype(int)
-
-
-def moving_window_similarity(target: np.ndarray, known: np.ndarray) -> List[float]:
-    target = target.T
-    known = known.T
-
-    segment_size = known.shape[0]
-    similarity: List[float] = []
-
-    for start in range(target.shape[0]):
-        end = start + segment_size
-        target_segment = target[start:end]
-
-        if len(target_segment) < segment_size:
-            target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
-
-        #sim_score = 1.0 / np.linalg.norm(target_segment - known, ord=1)
-        if np.all(target_segment == known):
-            sim_score = 1.0
-        else:
-            sim_score = 2 * np.sum(target_segment * known) / (np.sum(target_segment) + np.sum(known))
-
-        similarity.append(sim_score)
-
-    smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
-    similarity = convolve(similarity, smooth_filter).astype(float).tolist()
-
-    return similarity
+PLOT_DISTANCES = False
+PLOT_TARGET = True
 
 
 if __name__ == '__main__':
@@ -99,7 +66,19 @@ if __name__ == '__main__':
 
     target = create_spectrogram(channel0)
     known = create_spectrogram(known_channel0)
-    threshold_ranges = KEYBOARD_SELECT_RANGES
+
+    # SAMSUNG
+    #threshold_ranges = [ThresholdRange(1.25, 1.0, 5, 50)]  # move
+    #threshold_ranges = [ThresholdRange(0.82, 1.0, 15, 50)]  # key select
+    #threshold_ranges = [ThresholdRange(0.7, 1.0, 5, 50)]  # system select
+    #threshold_ranges = [ThresholdRange(1.5, 1.0, 5, 50)]  # delete
+    #threshold_ranges = [ThresholdRange(0.75, 1.0, 0, 50)]  # double move
+
+    threshold_ranges = [ThresholdRange(-70, -38, 5, 25)]  # move
+    #threshold_ranges = [ThresholdRange(0.82, 1.0, 15, 50)]  # key select
+    #threshold_ranges = [ThresholdRange(0.7, 1.0, 5, 50)]  # system select
+    #threshold_ranges = [ThresholdRange(1.5, 1.0, 5, 50)]  # delete
+    #threshold_ranges = [ThresholdRange(0.75, 1.0, 0, 50)]  # double move
 
 #    target_times, target_freq = compute_constellation_map(target, freq_delta=FREQ_DELTA, time_delta=TIME_DELTA, threshold=THRESHOLD, freq_range=FREQ_RANGE)
 #
@@ -116,12 +95,33 @@ if __name__ == '__main__':
 #
 
     similarity_list: List[List[float]] = []
-    for threshold_range in threshold_ranges:
-        target_masked = compute_masked_spectrogram(target, threshold_range)
-        known_masked = compute_masked_spectrogram(known, threshold_range)
-        similarity_list.append(moving_window_similarity(target=target_masked, known=known_masked))
+    for threshold_range in reversed(threshold_ranges):
+        target_masked = clip_spectrogram(target, threshold_range)
+        known_masked = clip_spectrogram(known, threshold_range)
+        similarity_list.append(moving_window_similarity(target=target_masked, known=known_masked, threshold=threshold_range.min_threshold))
+
+
+    time_delta = 5  # Key sel: 10, Move: 10, Sel: 5, Del: 4
+    freq_delta = 3  # Key sel: 12, Move: 3, Sel: 3, Del: 6
+    threshold = -70  # Key sel: -71, Move: -70, Sel: -66, Del: -68
+    time_tol = 1  # Key Sel: 2, Move: 3, Sel: 3, Del: 5
+    freq_tol = 1  # Key Sel: 5, Move: 1, Sel: 1, Del: 2
+
+    target_times, target_freq = compute_constellation_map(spectrogram=target_masked, freq_delta=freq_delta, time_delta=time_delta, threshold=threshold)
+    known_times, known_freq = compute_constellation_map(spectrogram=known_masked, freq_delta=freq_delta, time_delta=time_delta, threshold=threshold)
 
     similarity = np.sum(similarity_list, axis=0)
+    #similarity = match_constellations(target_spectrogram=target_masked,
+    #                                  ref_spectrogram=known_masked,
+    #                                  time_delta=time_delta,
+    #                                  freq_delta=freq_delta,
+    #                                  threshold=threshold,
+    #                                  time_tol=time_tol,
+    #                                  freq_tol=freq_tol,
+    #                                  window_buffer=5)
+
+    #known_max, known_min = np.max(known_masked), np.min(known_masked)
+    #known_masked = (known_masked - known_min) / (known_max - known_min)
 
     if PLOT_DISTANCES:
         fig, (ax1, ax2) = plt.subplots(nrows=2, ncols=1)
@@ -133,10 +133,10 @@ if __name__ == '__main__':
 
         if PLOT_TARGET:
             ax.imshow(target_masked, cmap='gray_r')
-            #ax.scatter(target_times, target_freq, color='red', marker='o')
+            ax.scatter(target_times, target_freq, color='red', marker='o')
         else:
-            ax.imshow(known, cmap='gray_r')
-            #ax.scatter(known_times, known_freq, color='red', marker='o')
+            ax.imshow(known_masked, cmap='gray_r')
+            ax.scatter(known_times, known_freq, color='red', marker='o')
 
     plt.tight_layout()
     plt.show()

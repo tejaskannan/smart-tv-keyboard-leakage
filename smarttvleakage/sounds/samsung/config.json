@@ -1,41 +1,40 @@
 {
     "move": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 20, "min_threshold": -55, "max_threshold": -45 },
-            { "min_freq": 20, "max_freq": 40, "min_threshold": -65, "max_threshold": -55 }
-        ],
-        "match_threshold": 0.01,
-        "match_buffer": -2.0
+        "threshold": 0.85,
+        "time_delta": 5,
+        "freq_delta": 5,
+        "min_similarity": 9.5,
+        "dedup_threshold": 16.0,
+        "force_threshold": 28.0,
+        "dedup_buffer": 3.0,
+        "energy_threshold": 1.5
     },
     "key_select": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 20, "min_threshold": -60, "max_threshold": -40 },
-            { "min_freq": 20, "max_freq": 40, "min_threshold": -75, "max_threshold": -65 }
-        ],
-        "match_threshold": 0.99,
-        "match_buffer": 0.1
+        "threshold": 0.85,
+        "time_delta": 5,
+        "freq_delta": 5,
+        "time_tol": 2,
+        "freq_tol": 2,
+        "min_freq": 20,
+        "min_similarity": 4.0,
+        "dedup_threshold": 0.75,
+        "energy_threshold": 2.5
     },
     "select": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 10, "min_threshold": -60, "max_threshold": -55 },
-            { "min_freq": 10, "max_freq": 30, "min_threshold": -60, "max_threshold": -45 }
-        ],
-        "match_threshold": 0.01,
-        "match_buffer": 2.0
-    },
-    "double_move": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 10, "min_threshold": -60, "max_threshold": -55 },
-            { "min_freq": 10, "max_freq": 30, "min_threshold": -60, "max_threshold": -45 }
-        ],
-        "match_threshold": 0.75,
-        "match_buffer": 2.5
+        "threshold": 0.85,
+        "time_delta": 5,
+        "freq_delta": 5,
+        "min_similarity": 5.0,
+        "dedup_threshold": 0.8,
+        "energy_threshold": 3.5
     },
     "delete": {
-        "match_params": [
-            { "min_freq": 0, "max_freq": 30, "min_threshold": -70, "max_threshold": -45 }
-        ],
-        "match_threshold": 0.25,
-        "match_buffer": 2.5
+        "threshold": 0.85,
+        "time_delta": 5,
+        "freq_delta": 5,
+        "min_similarity": 12.0,
+        "dedup_threshold": 35.0,
+        "time_threshold": 75,
+        "energy_threshold": 1.5
     }
 }

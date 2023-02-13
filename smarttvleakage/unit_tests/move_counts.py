@@ -214,16 +214,6 @@ class SamsungGraphMoveCounts(unittest.TestCase):
         expected = ['8', 'i', 'j', ',', '<COM>', '3', 'r', 'g', 'v', '<SPACE>', '<WWW>']
         self.list_equal(neighbors, expected)
 
-    def test_done_six(self):
-        neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
-                                                          num_moves=6,
-                                                          mode=SAMSUNG_STANDARD,
-                                                          use_shortcuts=True,
-                                                          use_wraparound=True,
-                                                          directions=Direction.ANY)
-        expected = ['8', 'i', 'j', ',', '<COM>', '3', 'r', 'g', 'v', '<SPACE>', '<WWW>']
-        self.list_equal(neighbors, expected)
-
     def test_done_seven(self):
         neighbors = samsung_graph.get_keys_for_moves_from(start_key='<DONE>',
                                                           num_moves=7,
@@ -369,6 +359,16 @@ class SamsungDirectionMoveCounts(unittest.TestCase):
                                                           use_wraparound=False,
                                                           directions=[Direction.HORIZONTAL] * 5 + [Direction.VERTICAL])
         expected = ['6', 'h']
+        self.assertEqual(neighbors, expected)
+
+    def test_q_left_up(self):
+        neighbors = samsung_graph.get_keys_for_moves_from(start_key='q',
+                                                          num_moves=2,
+                                                          mode=SAMSUNG_STANDARD,
+                                                          use_shortcuts=True,
+                                                          use_wraparound=True,
+                                                          directions=[Direction.LEFT, Direction.UP])
+        expected = ['<CAPS>']
         self.assertEqual(neighbors, expected)
 
     def test_q_4h_1v(self):

@@ -1,642 +1,673 @@
-import os.path
 import numpy as np
+import os.path
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
-from collections import namedtuple, defaultdict
-from enum import Enum, auto
-from scipy.signal import spectrogram, find_peaks, convolve
-from typing import List, Dict, Tuple, DefaultDict, Union
+from collections import namedtuple
+from scipy.signal import find_peaks, convolve
+from typing import Dict, List, Set, Tuple
 
 import smarttvleakage.audio.sounds as sounds
-from smarttvleakage.utils.constants import SmartTVType, BIG_NUMBER, KeyboardType, Direction, SMALL_NUMBER
-from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, iterate_dir
-from smarttvleakage.audio.constellations import compute_constellation_map, match_constellations
-from smarttvleakage.audio.data_types import Move
-from smarttvleakage.audio.utils import filter_conflicts
 from smarttvleakage.audio.audio_extractor import SmartTVAudio
+from smarttvleakage.audio.data_types import Move
+from smarttvleakage.audio.utils import get_sound_instances, create_spectrogram, extract_move_directions
+from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete
+from smarttvleakage.audio.constellations import compute_constellation_map
+from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
+from smarttvleakage.utils.constants import SmartTVType, Direction, BIG_NUMBER, SMALL_NUMBER
 
 
-MatchParams = namedtuple('MatchParams', ['min_threshold', 'max_threshold', 'min_freq', 'max_freq'])
-SoundProfile = namedtuple('SoundProfile', ['spectrogram', 'match_params', 'match_threshold', 'match_buffer', 'min_threshold'])
+SMOOTH_FILTER_SIZE = 8
+CONSTELLATION_THRESHOLD = 0.80
+CONSTELLATION_THRESHOLD_END = 0.905
+CONSTELLATION_TIME_DIST = 10
+MOVE_FREQS = (2, 3, 4)
+#END_THRESHOLD = 0.9
 
-
-APPLETV_PASSWORD_THRESHOLD = 800
-APPLETV_MOVE_DISTANCE = 3
-APPLETV_MOVE_CONFLICT_DISTANCE = 20
-APPLETV_SCROLL_DOUBLE_CONFLICT_DISTANCE = 5
-APPLETV_SCROLL_CONFLICT_DISTANCE_FORWARD = 50
-APPLETV_SCROLL_CONFLICT_DISTANCE_BACKWARD = 15
-APPLETV_TOOLBAR_MOVE_DISTANCE = 50
-APPLETV_PROMINENCE = 0.01
-SAMSUNG_PROMINENCE = 0.0009
-MIN_DISTANCE = 12
-KEY_SELECT_DISTANCE = 25
-MIN_DOUBLE_MOVE_DISTANCE = 30
-MOVE_BINARY_THRESHOLD = -70
-WINDOW_SIZE = 8
-KEY_SELECT_MOVE_DISTANCE = 20
-SELECT_MOVE_DISTANCE = 30
-MOVE_DELETE_THRESHOLD = 315
-CHANGE_DIR_MAX_THRESHOLD = 150  # Very long delays may be a user just pausing, so we filter them out
-
-
-def extract_move_directions(move_times: List[int]) -> Union[List[Direction], Direction]:
-    if (len(move_times) <= 4):
-        return Direction.ANY
-
-    # List of at least length 4 diffs
-    time_diffs = [ahead - behind for ahead, behind in zip(move_times[1:], move_times[:-1])]
-
-    baseline_avg = np.average(time_diffs[0:-1])
-    baseline_std = np.std(time_diffs[0:-1])
-    cutoff = baseline_avg + 3 * baseline_std
-
-    if (time_diffs[-1] >= cutoff) and (time_diffs[-1] < CHANGE_DIR_MAX_THRESHOLD):
-        directions = [Direction.HORIZONTAL for _  in range(len(move_times) - 1)]
-        directions.append(Direction.VERTICAL)
-        return directions
-
-    if len(time_diffs) < 5:
-        return Direction.ANY
-
-    baseline_avg = np.average(time_diffs[0:-2])
-    baseline_std = np.std(time_diffs[0:-2])
-    cutoff = baseline_avg + 3 * baseline_std
-
-    if (time_diffs[-1] < cutoff) and (time_diffs[-2] >= cutoff and time_diffs[-2] < CHANGE_DIR_MAX_THRESHOLD):
-        directions = [Direction.HORIZONTAL for _ in range(len(move_times) - 2)]
-        directions.extend([Direction.VERTICAL, Direction.ANY])
-        return directions
-
-    return Direction.ANY
-
-
-def create_spectrogram(signal: np.ndarray) -> np.ndarray:
-    assert len(signal.shape) == 1, 'Must provide a 1d signal'
-
-    _, _, Sxx = spectrogram(signal, fs=44100, nfft=1024)
-    Pxx = 10 * np.log10(Sxx)
-
-    return Pxx  # X is frequency, Y is time
-
-
-def compute_masked_spectrogram(spectrogram: float, params: MatchParams) -> np.ndarray:
-    clipped_spectrogram = spectrogram[params.min_freq:params.max_freq, :]
-
-    #max_val, min_val = np.max(clipped_spectrogram), np.min(clipped_spectrogram)
-    #return (clipped_spectrogram - min_val) / (max_val - min_val)
-    return np.logical_and(clipped_spectrogram >= params.min_threshold, clipped_spectrogram <= params.max_threshold).astype(int)
-
-
-def moving_window_similarity(target: np.ndarray, known: np.ndarray) -> List[float]:
-    target = target.T
-    known = known.T
-
-    segment_size = known.shape[0]
-    similarity: List[float] = []
-
-    for start in range(target.shape[0]):
-        end = start + segment_size
-        target_segment = target[start:end]
-
-        if len(target_segment) < segment_size:
-            target_segment = np.pad(target_segment, pad_width=[(0, segment_size - len(target_segment)), (0, 0)], constant_values=0, mode='constant')
-
-        if np.all(target_segment == known):
-            sim_score = 1.0
-        else:
-            sim_score = 2 * np.sum(target_segment * known) / (np.sum(target_segment) + np.sum(known))
-        #sim_score = np.linalg.norm(target_segment - known, ord=1)
-
-        similarity.append(sim_score)
-
-    smooth_filter = np.ones(shape=(WINDOW_SIZE, )) / WINDOW_SIZE
-    similarity = convolve(similarity, smooth_filter).astype(float).tolist()
-
-    return similarity
+CONV_MODE = 'full'
+TIME_TOL = 'time_tol'
+FREQ_TOL = 'freq_tol'
+TIME_DELTA = 'time_delta'
+FREQ_DELTA = 'freq_delta'
+PEAK_THRESHOLD = 'threshold'
+MIN_FREQ = 'min_freq'
+MIN_SIMILARITY = 'min_similarity'
+START_TIME = 'start_time'
+END_TIME = 'end_time'
+DEDUP_THRESHOLD = 'dedup_threshold'
+ENERGY_THRESHOLD = 'energy_threshold'
+DEDUP_BUFFER = 'dedup_buffer'
+FORCE_THRESHOLD = 'force_threshold'
+TIME_THRESHOLD = 'time_threshold'
+Constellation = namedtuple('Constellation', ['peak_times', 'peak_freqs', 'spectrogram'])
 
 
 class MoveExtractor:
 
-    def __init__(self, tv_type: SmartTVType):
-        directory = os.path.dirname(__file__)
-        sound_directory = os.path.join(directory, '..', 'sounds', tv_type.name.lower())
+    def __init__(self):
+        # Read in the configurations
+        current_dir = os.path.dirname(__file__)
+        sound_folder = os.path.join(current_dir, '..', 'sounds', self.tv_type.name.lower())
+        self._config = read_json(os.path.join(sound_folder, 'config.json'))
 
-        self._known_sounds: DefaultDict[str, List[SoundProfile]] = defaultdict(list)
-        self._tv_type = tv_type
+        # Pre-compute the constellation maps for each reference sound
+        self._ref_constellation_maps: Dict[str, Constellation] = dict()
+        self._ref_spectrograms: Dict[str, np.ndarray] = dict()
 
-        # Read in the start / end indices (known beforehand)
-        config = read_json(os.path.join(sound_directory, 'config.json'))
+        for sound, sound_config in sorted(self._config.items()):
+            # Read in the saved audio for this sound
+            sound_path = os.path.join(sound_folder, '{}.pkl.gz'.format(sound))
+            audio = read_pickle_gz(sound_path)[:, 0]  # [N]
 
-        if tv_type == SmartTVType.SAMSUNG:
-            self._sound_names = sounds.SAMSUNG_SOUNDS
-        elif tv_type == SmartTVType.APPLE_TV:
-            self._sound_names = sounds.APPLETV_SOUNDS
-        else:
-            raise ValueError('Unknown TV Type: {}'.format(tv_type.name))
+            # Compute the spectrogram
+            spectrogram = create_spectrogram(audio)  # [F, T]
+            min_freq = sound_config.get(MIN_FREQ, self.spectrogram_freq_min)
 
-        for sound in self._sound_names:
+            clipped_spectrogram = spectrogram[self.spectrogram_freq_min:self.spectrogram_freq_max, :]
+            min_val, max_val = np.min(clipped_spectrogram), np.max(clipped_spectrogram)
 
-            # Read in the audio
-            path = os.path.join(sound_directory, '{}.pkl.gz'.format(sound))
-            audio = read_pickle_gz(path)
+            spectrogram = spectrogram[min_freq:self.spectrogram_freq_max, :]
+            spectrogram = (spectrogram - min_val) / (max_val - min_val)
 
-            # Compute the spectrograms
-            spectrogram = create_spectrogram(audio[:, 0])
+            if (START_TIME in sound_config) and (END_TIME in sound_config):
+                start_time, end_time = sound_config[START_TIME], sound_config[END_TIME] + 1
+                spectrogram = spectrogram[:, start_time:end_time]
 
-            # Parse the sound configuration and pre-compute the clipped spectrograms
-            for match_params_dict in config[sound]['match_params']:
-                match_params = MatchParams(min_freq=match_params_dict['min_freq'],
-                                           max_freq=match_params_dict['max_freq'],
-                                           min_threshold=match_params_dict['min_threshold'],
-                                           max_threshold=match_params_dict['max_threshold'])
+            # Compute the constellations
+            peak_times, peak_freqs = compute_constellation_map(spectrogram=spectrogram,
+                                                               freq_delta=sound_config[FREQ_DELTA],
+                                                               time_delta=sound_config[TIME_DELTA],
+                                                               threshold=CONSTELLATION_THRESHOLD)
 
-                spectrogram_clipped = compute_masked_spectrogram(spectrogram, params=match_params)
+            self._ref_constellation_maps[sound] = Constellation(peak_times=peak_times,
+                                                                peak_freqs=peak_freqs,
+                                                                spectrogram=spectrogram)
 
-                profile = SoundProfile(spectrogram=spectrogram_clipped,
-                                       match_params=match_params,
-                                       match_threshold=config[sound]['match_threshold'],
-                                       match_buffer=config[sound]['match_buffer'],
-                                       min_threshold=config[sound].get('min_threshold', 0.0))
-                self._known_sounds[sound].append(profile)
+            self._ref_spectrograms[sound] = spectrogram
 
-    def compute_spectrogram_similarity_for_sound(self, audio: np.ndarray, sound: str) -> List[float]:
-        """
-        Computes the sum of the absolute distances between the spectrogram
-        of the given audio signal and those of the known sounds in a moving-window fashion.
-
-        Args:
-            audio: A 1d audio signal
-            sound: The name of the sound to use
-        Returns:
-            An array of the moving-window distances
-        """
-        assert sound in self._sound_names, 'Unknown sound {}. The sound must be one of {}'.format(sound, self._sound_names)
-        assert len(audio.shape) == 1,  'Must provide a 1d audio signal array. Got: {}'.format(audio.shape)
-
-        # Create the spectrogram from the known signal
-        spectrogram = create_spectrogram(signal=audio)
-
-        # For each sound type, compute the moving average distances
-        similarity_lists: List[List[float]] = []
-
-        for sound_profile in self._known_sounds[sound]:
-            match_params = sound_profile.match_params
-
-            spectrogram_clipped = compute_masked_spectrogram(spectrogram, params=match_params)
-
-            spectrogram_sim = moving_window_similarity(target=spectrogram_clipped,
-                                                       known=sound_profile.spectrogram)
-            similarity_lists.append(spectrogram_sim)
-
-        return np.sum(similarity_lists, axis=0)
-
-    def find_instances_of_sound(self, audio: np.ndarray, sound: str) -> Tuple[List[int], List[float]]:
-        """
-        Finds instances of the given sound in the provided audio signal
-        by finding peaks in the spectrogram distance chart.
-
-        Args:
-            audio: A 2d audio signal where the last dimension is the channel.
-            sound: The name of the sound to find
-        Return:
-            A tuple of 3 elements:
-                (1) A list of the `times` in which the peaks occur in the distance graph
-                (2) A list of the peak values in the distance graph
-        """
-        assert sound in self._sound_names, 'Unknown sound {}. The sound must be one of {}'.format(sound, self._sound_names)
-
-        similarity = self.compute_spectrogram_similarity_for_sound(audio=audio, sound=sound)
-
-        sound_profile = self._known_sounds[sound][0]
-        threshold = sound_profile.match_threshold
-        cutoff_factor = 0.5
-
-        if (self._tv_type == SmartTVType.SAMSUNG) and (sound == sounds.SAMSUNG_KEY_SELECT):
-            distance = KEY_SELECT_DISTANCE
-            cutoff_factor = 0.6
-        elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == sounds.APPLETV_KEYBOARD_MOVE):
-            distance = APPLETV_MOVE_DISTANCE
-        elif (self._tv_type == SmartTVType.APPLE_TV) and (sound == sounds.APPLETV_TOOLBAR_MOVE):
-            distance = APPLETV_TOOLBAR_MOVE_DISTANCE
-        elif sound in (sounds.SAMSUNG_DOUBLE_MOVE, sounds.APPLETV_KEYBOARD_DOUBLE_MOVE):
-            distance = MIN_DOUBLE_MOVE_DISTANCE
-        else:
-            distance = MIN_DISTANCE
-
-        #peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2, prominence=(SOUND_PROMINENCE, None))
-        peaks, peak_properties = find_peaks(x=similarity, height=threshold, distance=2)
-
-        peak_heights = peak_properties['peak_heights']
-        avg_height = np.average(peak_heights)
-        std_height = np.std(peak_heights)
-        max_height = np.max(peak_heights) if len(peak_heights) > 0 else 0.0
-        min_height = np.min(peak_heights) if len(peak_heights) > 0 else 0.0
-
-        cutoff = cutoff_factor * (max_height - threshold) + threshold
-        adaptive_threshold = max(avg_height + sound_profile.match_buffer * std_height, cutoff)
-        adaptive_threshold = max(adaptive_threshold, sound_profile.min_threshold)
-
-        prominence = SAMSUNG_PROMINENCE if (self._tv_type == SmartTVType.SAMSUNG) else APPLETV_PROMINENCE
-        #filter_threshold = adaptive_threshold if (self._tv_type != SmartTVType.APPLE_TV) or (sound != sounds.APPLETV_KEYBOARD_MOVE) else threshold
-        filtered_peaks, filtered_peak_properties = find_peaks(x=similarity, height=adaptive_threshold, distance=distance, prominence=(prominence, None))
-        filtered_peak_heights = filtered_peak_properties['peak_heights']
-
-        print('Sound: {}, Threshold: {}, Adaptive Threshold: {}, Avg Height: {}, Std Height: {}'.format(sound, threshold, adaptive_threshold, avg_height, std_height))
-
-        return filtered_peaks, filtered_peak_heights
-
-    def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
-        """
-        Extracts the number of moves between key selections in the given audio sequence.
-
-        Args:
-            audio: A 2d aduio signal where the last dimension is the channel.
-            include_moves_to_done: Whether to include the number of moves needed to reach the `done` key
-        Returns:
-            A tuple with three elements:
-                (1) A list of moves before selections. The length of this list is the number of selections.
-                (2) Whether the system finished on an autocomplete
-                (3) The keyboard type to use
-        """
+    @property
+    def tv_type(self) -> SmartTVType:
         raise NotImplementedError()
 
+    @property
+    def spectrogram_freq_min(self) -> int:
+        raise NotImplementedError()
 
-class SamsungMoveExtractor(MoveExtractor):
+    @property
+    def spectrogram_freq_max(self) -> int:
+        raise NotImplementedError()
 
-    def __init__(self):
-        super().__init__(SmartTVType.SAMSUNG)
+    @property
+    def detection_factor(self) -> float:
+        raise NotImplementedError()
 
-    def get_next_break_sound(self, key_idx: int, key_times: List[int], sel_idx: int, sel_times: List[int], del_idx: int, del_times: List[int]) -> str:
-        # Get the next time for each sound
-        key_time = key_times[key_idx] if key_idx < len(key_times) else BIG_NUMBER
-        sel_time = sel_times[sel_idx] if sel_idx < len(sel_times) else BIG_NUMBER
-        del_time = del_times[del_idx] if del_idx < len(del_times) else BIG_NUMBER
+    @property
+    def detection_tolerance(self) -> float:
+        raise NotImplementedError()
 
-        min_time = min(key_time, min(sel_time, del_time))
-        
-        if key_time == min_time:
-            return sounds.SAMSUNG_KEY_SELECT
-        elif sel_time == min_time:
-            return sounds.SAMSUNG_SELECT
-        elif del_time == min_time:
-            return sounds.SAMSUNG_DELETE
+    @property
+    def detection_peak_height(self) -> float:
+        raise NotImplementedError()
+
+    @property
+    def detection_peak_distance(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def detection_peak_prominence(self) -> float:
+        raise NotImplementedError()
+
+    @property
+    def detection_merge_peak_factor(self) -> float:
+        raise NotImplementedError()
+
+    @property
+    def smooth_detection_window_size(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    def tv_sounds(self) -> Set[str]:
+        if self.tv_type == SmartTVType.SAMSUNG:
+            return sounds.SAMSUNG_SOUNDS
+        elif self.tv_type == SmartTVType.APPLE_TV:
+            return sounds.APPLETV_SOUNDS
         else:
-            return sounds.SAMSUNG_KEY_SELECT
+            raise ValueError('Unknown sounds for tv type: {}'.format(self.tv_type))
 
-    def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
-        """
-        Extracts the number of moves between key selections in the given audio sequence.
+    def update_num_moves(self, sound: str, num_moves: int, move_times: List[int], start_time: int, end_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
+        raise NotImplementedError()
 
-        Args:
-            audio: A 2d aduio signal where the last dimension is the channel.
-        Returns:
-            A list of moves before selections. The length of this list is the number of selections.
-        """
-        raw_key_select_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.SAMSUNG_KEY_SELECT)
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, similarity_scores: Dict[str, float], max_segment_energy: float) -> str:
+        return sound, similarity_scores[sound]
 
-        # Signals without any key selections do not interact with the keyboard
-        if len(raw_key_select_times) == 0:
-            return [], False, KeyboardType.SAMSUNG
+    def clean_move_sequence(self, move_seq: List[Move]) -> List[Move]:
+        return move_seq
 
-        # Get occurances of the other sounds
-        delete_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.SAMSUNG_DELETE)
-        raw_move_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.SAMSUNG_MOVE)
-        raw_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.SAMSUNG_DOUBLE_MOVE)
-        select_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.SAMSUNG_SELECT)
+    def num_sound_instances(self, target_spectrogram: np.ndarray, target_sound: str) -> int:
+        assert len(target_spectrogram.shape) == 2, 'Must provide a 2d spectrogram'
+        assert target_sound in self.tv_sounds, 'Sound must be in: {}'.format(self.tv_sounds)
 
-        # Filter out moves using delete and select detection
+        # Find instances of any sounds for later matching
+        clipped_target_spectrogram = target_spectrogram[self.spectrogram_freq_min:self.spectrogram_freq_max]
+        clipped_target_spectrogram[clipped_target_spectrogram < -BIG_NUMBER] = 0.0
+
+        start_times, end_times, _ = get_sound_instances(spect=clipped_target_spectrogram,
+                                                        forward_factor=self.detection_factor,
+                                                         backward_factor=self.detection_factor,
+                                                         peak_height=self.detection_peak_height,
+                                                         peak_distance=self.detection_peak_distance,
+                                                         peak_prominence=self.detection_peak_prominence,
+                                                         smooth_window_size=self.smooth_detection_window_size,
+                                                         tolerance=self.detection_tolerance,
+                                                         merge_peak_factor=self.detection_merge_peak_factor,
+                                                         max_merge_height=self.detection_max_merge_height)
+
+        num_matches = 0
+
+        for start_time, end_time in zip(start_times, end_times):
+            # Extract the target spectrogram during this window
+            target_segment = target_spectrogram[0:self.spectrogram_freq_max, start_time:end_time]
+
+            best_sim = 0.0
+            best_sound = None
+
+            # Normalize the spectrogram based on the full range (not a tighter range)
+            clipped_spectrogram = target_segment[self.spectrogram_freq_min:self.spectrogram_freq_max, :]
+            min_value, max_value = np.min(clipped_spectrogram), np.max(clipped_spectrogram)
+            normalized_spectrogram = (clipped_spectrogram - min_value) / (max_value - min_value)
+
+            for sound in sorted(self.tv_sounds):
+                # Match the sound on the spectrograms
+                sound_config = self._config[sound]
+
+                # Compute the constellation maps
+                min_freq = sound_config.get(MIN_FREQ, self.spectrogram_freq_min)
+                min_freq_diff = min_freq - self.spectrogram_freq_min
+                normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
+
+                similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
+                                                        second_spectrogram=self._ref_spectrograms[sound],
+                                                        mask_threshold=sound_config[PEAK_THRESHOLD],
+                                                        should_plot=False)
+
+                if (similarity > best_sim):
+                    best_sim = similarity
+                    best_sound = sound
+
+            # Skip sounds are are poor matches with all references
+            if best_sim < self._config[best_sound][MIN_SIMILARITY]:
+                continue
+
+            if best_sound == target_sound:
+                num_matches += 1
+
+        return num_matches
+
+    def extract_moves(self, target_spectrogram: np.ndarray) -> List[Move]:
+        assert len(target_spectrogram.shape) == 2, 'Must provide a 2d spectrogram'
+
+        # Find instances of any sounds for later matching
+        clipped_target_spectrogram = target_spectrogram[self.spectrogram_freq_min:self.spectrogram_freq_max]
+        clipped_target_spectrogram[clipped_target_spectrogram < -BIG_NUMBER] = 0.0
+
+        start_times, end_times, max_energy = get_sound_instances(spect=clipped_target_spectrogram,
+                                                                 forward_factor=self.detection_factor,
+                                                                 backward_factor=self.detection_factor,
+                                                                 peak_height=self.detection_peak_height,
+                                                                 peak_distance=self.detection_peak_distance,
+                                                                 peak_prominence=self.detection_peak_prominence,
+                                                                 smooth_window_size=self.smooth_detection_window_size,
+                                                                 tolerance=self.detection_tolerance,
+                                                                 merge_peak_factor=self.detection_merge_peak_factor,
+                                                                 max_merge_height=self.detection_max_merge_height)
+
+        results: List[Move] = []
         move_times: List[int] = []
-        for t in raw_move_times:
-            select_diff = np.abs(np.subtract(select_times, t)) if len(select_times) > 0 else BIG_NUMBER
-            delete_diff = np.abs(np.subtract(delete_times, t)) if len(delete_times) > 0 else BIG_NUMBER
+        current_num_moves = 0
+        move_start_time, move_end_time = 0, 0
+        prev_time = 0
 
-            if np.all(select_diff > sounds.SELECT_MOVE_DISTANCE) and np.all(delete_diff > sounds.SELECT_MOVE_DISTANCE):
-                move_times.append(t)
+        #fig, ax = plt.subplots()
+        #ax.imshow(clipped_target_spectrogram, cmap='gray_r')
 
-        double_move_times: List[int] = []
-        for t in raw_double_move_times:
-            select_diff = np.abs(np.subtract(select_times, t)) if len(select_times) > 0 else BIG_NUMBER
-            delete_diff = np.abs(np.subtract(delete_times, t)) if len(delete_times) > 0 else BIG_NUMBER
+        #ax1.plot(max_energy)
+        #for t0, t1 in zip(start_times, end_times):
+        #    ax1.axvline(t0, color='orange')
+        #    ax1.axvline(t1, color='red')
 
-            if np.all(select_diff > sounds.SELECT_MOVE_DISTANCE) and np.all(delete_diff > sounds.SELECT_MOVE_DISTANCE):
-                double_move_times.append(t)
+        #plt.show()
 
-        # Filter out any conflicting key and normal selects
-        key_select_times: List[int] = []
-        last_select = select_times[-1] if len(select_times) > 0 else BIG_NUMBER
+        for start_time, end_time in zip(start_times, end_times):
+            # If we haven't seen any moves, set the move start time
+            if current_num_moves == 0:
+                move_start_time = start_time
 
-        for t in raw_key_select_times:
-            select_time_diff = np.abs(np.subtract(select_times, t))
-            move_time_diff = np.abs(np.subtract(move_times, t))
+            # Extract the target spectrogram during this window
+            target_segment = target_spectrogram[0:self.spectrogram_freq_max, start_time:end_time]
+            max_segment_energy = np.max(max_energy[start_time:end_time])
+            peak_time = np.argmax(max_energy[start_time:end_time]) + start_time
 
-            if np.all(select_time_diff > sounds.KEY_SELECT_DISTANCE) and np.all(move_time_diff > sounds.KEY_SELECT_DISTANCE):
-                key_select_times.append(t)
+            best_sim = 0.0
+            best_sound = None
+            similarity_scores: Dict[str, float] = dict()
 
-        if len(key_select_times) == 0:
-            return [], False, KeyboardType.SAMSUNG
+            # Normalize the spectrogram based on the full range (not a tighter range)
+            clipped_spectrogram = target_segment[self.spectrogram_freq_min:self.spectrogram_freq_max, :]
+            min_value, max_value = np.min(clipped_spectrogram), np.max(clipped_spectrogram)
+            normalized_spectrogram = (clipped_spectrogram - min_value) / (max_value - min_value)
 
-        # The first move starts before the first key select and after the nearest select
-        first_key_time = key_select_times[0]
-        selects_before = list(filter(lambda t: t < first_key_time, select_times))
-        start_time = (selects_before[-1] + MIN_DISTANCE) if len(selects_before) > 0 else 0
+            for sound in sorted(self.tv_sounds):
+                # Match the sound on the spectrograms
+                sound_config = self._config[sound]
 
-        # Extract the number of moves between selections
-        # TODO: Handle sequences with multiple keyboard interactions
-        clipped_move_times = list(filter(lambda t: t > start_time, move_times))
-        clipped_double_move_times = list(filter(lambda t: t > start_time, double_move_times))
-        clipped_select_times = list(filter(lambda t: (t > start_time) and any(True for s in key_select_times if s > t), select_times))
-        clipped_delete_times = list(filter(lambda t: t > start_time, delete_times))
+                # Compute the constellation maps
+                min_freq = sound_config.get(MIN_FREQ, self.spectrogram_freq_min)
+                min_freq_diff = min_freq - self.spectrogram_freq_min
+                normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-        break_indices: Dict[str, int] = {
-            sounds.SAMSUNG_KEY_SELECT: 0,
-            sounds.SAMSUNG_SELECT: 0,
-            sounds.SAMSUNG_DELETE: 0
-        }
+                #should_plot = (start_time >= 95180) and (start_time <= 95450) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
+                should_plot = False
 
-        break_sound_times: Dict[str, List[int]] = {
-            sounds.SAMSUNG_KEY_SELECT: key_select_times,
-            sounds.SAMSUNG_SELECT: clipped_select_times,
-            sounds.SAMSUNG_DELETE: clipped_delete_times
-        }
+                similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
+                                                        second_spectrogram=self._ref_spectrograms[sound],
+                                                        mask_threshold=sound_config[PEAK_THRESHOLD],
+                                                        should_plot=False)
 
-        move_idx = 0
-        start_move_idx = 0
-        double_move_idx = 0
-        key_idx, sel_idx, del_idx = 0, 0, 0
-        num_moves = 0
-        last_num_moves = 0
-        result: List[int] = []
-        window_move_times: List[int] = []
+                similarity_scores[sound] = similarity  # Track the sim score for every sound
 
-        while move_idx < len(clipped_move_times):
+                if should_plot:
+                    print('Sound: {}, Similarity: {:.4f}'.format(sound, similarity))
 
-            # TODO: Fix tie-breaking bug. Only select a key select when it is the next in line.
-            break_sound = self.get_next_break_sound(key_idx=break_indices[sounds.SAMSUNG_KEY_SELECT],
-                                                    key_times=break_sound_times[sounds.SAMSUNG_KEY_SELECT],
-                                                    sel_idx=break_indices[sounds.SAMSUNG_SELECT],
-                                                    sel_times=break_sound_times[sounds.SAMSUNG_SELECT],
-                                                    del_idx=break_indices[sounds.SAMSUNG_DELETE],
-                                                    del_times=break_sound_times[sounds.SAMSUNG_DELETE])
+                    fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
 
-            sound_idx = break_indices[break_sound]
-            sound_times = break_sound_times[break_sound]
+                    ax0.imshow(normalized_target_segment, cmap='gray_r')
+                    ax1.imshow(self._ref_spectrograms[sound], cmap='gray_r')
 
-            while (sound_idx < len(sound_times)) and (clipped_move_times[move_idx] > sound_times[sound_idx]):
-                # Add the move to the running list
-                directions = extract_move_directions(window_move_times)
-                start_time = clipped_move_times[start_move_idx] if num_moves > 0 else sound_times[sound_idx]
-                result.append(Move(num_moves=num_moves, end_sound=break_sound, directions=directions, start_time=start_time, end_time=sound_times[sound_idx]))
+                    ax0.set_title('Target')
+                    ax1.set_title('Reference')
 
-                # Advance the sound index and get the next-nearest sound
-                break_indices[break_sound] += 1
+                    plt.show()
 
-                break_sound = self.get_next_break_sound(key_idx=break_indices[sounds.SAMSUNG_KEY_SELECT],
-                                                        key_times=break_sound_times[sounds.SAMSUNG_KEY_SELECT],
-                                                        sel_idx=break_indices[sounds.SAMSUNG_SELECT],
-                                                        sel_times=break_sound_times[sounds.SAMSUNG_SELECT],
-                                                        del_idx=break_indices[sounds.SAMSUNG_DELETE],
-                                                        del_times=break_sound_times[sounds.SAMSUNG_DELETE])
+                if (similarity > best_sim) and (similarity > self._config[sound][MIN_SIMILARITY]):
+                    best_sim = similarity
+                    best_sound = sound
 
-                sound_idx = break_indices[break_sound]
-                sound_times = break_sound_times[break_sound]
+            #if (start_time >= 3675) and (start_time <= 3750):
+            #    print('Best Sound: {}, Sim: {:.4f}, Time: {}'.format(best_sound, best_sim, start_time))
+            #    print('----------')
 
-                # Reset the state
-                num_moves = 0
-                start_move_idx = move_idx
-                window_move_times = []
+            # Handle TV-specific tie-breakers
+            best_sound, best_sim = self.handle_matched_sound(sound=best_sound,
+                                                             target_segment=normalized_spectrogram,
+                                                             time=peak_time,
+                                                             prev_time=prev_time,
+                                                             similarity_scores=similarity_scores,
+                                                             max_segment_energy=max_segment_energy)
 
-            window_move_times.append(clipped_move_times[move_idx])
+            # Skip sounds are are poor matches with all references
+            if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
+                continue
 
-            if (double_move_idx < len(clipped_double_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= sounds.MIN_DOUBLE_MOVE_DISTANCE):
-                last_move_time = window_move_times[-1] if len(window_move_times) > 0 else 0
-                window_move_times.append(last_move_time)  # Account for the double move
+            if (start_time >= 43760) and (start_time <= 43850):
+                print('Best Sound: {}, Sim: {:.4f}'.format(best_sound, best_sim))
 
-                move_idx += 1
-                while (move_idx < len(clipped_move_times)) and (abs(clipped_double_move_times[double_move_idx] - clipped_move_times[move_idx]) <= sounds.MIN_DOUBLE_MOVE_DISTANCE):
-                    move_idx += 1
+            #print('Adjusted Best Sound: {}, Time: {}'.format(best_sound, start_time))
+            #print('==========')
 
-                double_move_idx += 1
-                num_moves += 2
-            else:
-                num_moves += 1
-                move_idx += 1
+            # Update the results
+            current_time = int((start_time + end_time) / 2)
+            results, current_num_moves, move_times = self.update_num_moves(sound=best_sound,
+                                                                           num_moves=current_num_moves,
+                                                                           move_times=move_times,
+                                                                           start_time=move_start_time,
+                                                                           current_time=current_time,
+                                                                           current_results=results)
 
-        # Write out the last group if we haven't reached the last key
-        key_idx, key_select_times = break_indices[sounds.SAMSUNG_KEY_SELECT], break_sound_times[sounds.SAMSUNG_KEY_SELECT]
-        if key_idx < len(key_select_times):
-            directions = extract_move_directions(window_move_times)
-            start_time = clipped_move_times[start_move_idx] if num_moves > 0 else key_select_times[key_idx]
-            result.append(Move(num_moves=num_moves, end_sound=sounds.SAMSUNG_KEY_SELECT, directions=directions, start_time=start_time, end_time=key_select_times[key_idx]))
+            prev_time = peak_time
 
-        # If the last number of moves was 0 or 1, then the user leveraged the word autocomplete feature
-        # NOTE: We can also validate this based on the number of possible moves (whether it was possible to get
-        # to the top of the keyboard on this turn)
-        last_key_select = key_select_times[-1]
-        selects_after = list(filter(lambda t: t > last_key_select, select_times))
-        next_select = selects_after[0] if len(selects_after) > 0 else BIG_NUMBER
-
-        moves_between = list(filter(lambda t: (t <= next_select) and (t >= last_key_select), clipped_move_times))
-        did_use_autocomplete = (len(moves_between) == 0) and (len(selects_after) > 0)
-
-        if did_use_autocomplete and len(result) > 0:
-            return result[0:-1], did_use_autocomplete, KeyboardType.SAMSUNG
-
-        # TODO: Include the 'done' sound here and track the number of move until 'done' as a way to find the
-        # last key -> could be a good way around the randomized start key 'defense' on Samsung (APPLE TV search not suceptible)
-        if include_moves_to_done and (len(selects_after) > 0):
-            start_time = moves_between[0] if len(moves_between) > 0 else 0
-            move_to_done = Move(num_moves=len(moves_between), end_sound=sounds.SAMSUNG_SELECT, directions=Direction.ANY, start_time=start_time, end_time=next_select)
-            result.append(move_to_done)
-
-        # TODO: Include tests for the 'done' autocomplete. On passwords with >= 8 characters, 1 move can mean
-        # <Done> at the end (no special sound), so give the option to stop early (verify with recordings)
-
-        return result, did_use_autocomplete, KeyboardType.SAMSUNG
+        return self.clean_move_sequence(results)
 
 
 class AppleTVMoveExtractor(MoveExtractor):
 
-    def __init__(self):
-        super().__init__(SmartTVType.APPLE_TV)
+    @property
+    def tv_type(self) -> SmartTVType:
+        return SmartTVType.APPLE_TV
 
-    def extract_move_sequence(self, audio: np.ndarray, include_moves_to_done: bool) -> Tuple[List[Move], bool, KeyboardType]:
-        """
-        Extracts the number of moves between key selections in the given audio sequence.
+    @property
+    def spectrogram_freq_min(self) -> int:
+        return 5
 
-        Args:
-            audio: A 2d audio signal where the last dimension is the channel.
-        Returns:
-            A list of moves before selections. The length of this list is the number of selections.
-        """
-        # Get the raw keyboard select times
-        raw_keyboard_select_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_SELECT)
+    @property
+    def spectrogram_freq_max(self) -> int:
+        return 50
 
-        # Signals without any key selections do not interact with the keyboard
-        if len(raw_keyboard_select_times) == 0:
-            return [], False, KeyboardType.APPLE_TV_SEARCH
+    @property
+    def detection_factor(self) -> float:
+        return 0.9
 
-        # Get occurances of the other sounds
-        raw_keyboard_move_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_MOVE)
-        raw_system_move_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_SYSTEM_MOVE)
-        raw_keyboard_double_move_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_DOUBLE_MOVE)
-        raw_keyboard_scroll_double_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_SCROLL_DOUBLE)
-        raw_keyboard_scroll_triple_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_SCROLL_TRIPLE)
-        keyboard_scroll_six_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_SCROLL_SIX)
-        keyboard_delete_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_KEYBOARD_DELETE)
-        raw_toolbar_move_times, _ = self.find_instances_of_sound(audio=audio, sound=sounds.APPLETV_TOOLBAR_MOVE)
+    @property
+    def detection_tolerance(self) -> float:
+        return 0.1
 
-        # Filter out conflicting sounds
-        keyboard_select_times: List[int] = filter_conflicts(target_times=raw_keyboard_select_times,
-                                                            comparison_times=[keyboard_delete_times],
-                                                            forward_distance=MIN_DISTANCE,
-                                                            backward_distance=MIN_DISTANCE)
+    @property
+    def detection_peak_height(self) -> float:
+        return 1.75
 
-        toolbar_move_times: List[int] = filter_conflicts(target_times=raw_toolbar_move_times,
-                                                         comparison_times=[keyboard_select_times],
-                                                         forward_distance=APPLETV_TOOLBAR_MOVE_DISTANCE,
-                                                         backward_distance=APPLETV_TOOLBAR_MOVE_DISTANCE)
+    @property
+    def detection_peak_distance(self) -> int:
+        return 2
 
-        system_move_times: List[int] = filter_conflicts(target_times=raw_system_move_times,
-                                                        comparison_times=[keyboard_select_times, keyboard_delete_times],
-                                                        forward_distance=MIN_DISTANCE,
-                                                        backward_distance=MIN_DISTANCE)
+    @property
+    def detection_peak_prominence(self) -> int:
+        return 0.1
 
-        keyboard_double_move_times: List[int] = filter_conflicts(target_times=raw_keyboard_double_move_times,
-                                                                 comparison_times=[system_move_times],
-                                                                 forward_distance=MIN_DISTANCE,
-                                                                 backward_distance=MIN_DISTANCE)
+    @property
+    def detection_merge_peak_factor(self) -> float:
+        return 1.12
 
-        keyboard_scroll_triple_times: List[int] = filter_conflicts(target_times=raw_keyboard_scroll_triple_times,
-                                                                   comparison_times=[keyboard_scroll_six_times],
-                                                                   forward_distance=MIN_DISTANCE,
-                                                                   backward_distance=MIN_DISTANCE)
+    @property
+    def detection_max_merge_height(self) -> float:
+        return 0.0
 
-        keyboard_scroll_double_times: List[int] = filter_conflicts(target_times=raw_keyboard_scroll_double_times,
-                                                                   comparison_times=[keyboard_scroll_six_times, keyboard_scroll_triple_times],
-                                                                   forward_distance=MIN_DISTANCE,
-                                                                   backward_distance=MIN_DISTANCE)
+    @property
+    def smooth_detection_window_size(self) -> int:
+        return 0
 
-        keyboard_move_times: List[int] = filter_conflicts(target_times=raw_keyboard_move_times,
-                                                          comparison_times=[keyboard_select_times, system_move_times, keyboard_delete_times, keyboard_double_move_times],
-                                                          forward_distance=APPLETV_MOVE_CONFLICT_DISTANCE,
-                                                          backward_distance=APPLETV_MOVE_CONFLICT_DISTANCE)
+    def update_num_moves(self, sound: str, num_moves: int, move_times: List[int], start_time: int, current_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
+        if sound in (sounds.APPLETV_KEYBOARD_SELECT, sounds.APPLETV_KEYBOARD_DELETE, sounds.APPLETV_TOOLBAR_MOVE):
+            move = Move(num_moves=num_moves,
+                        end_sound=sound,
+                        directions=Direction.ANY,  # TODO: Handle direction inference
+                        start_time=start_time,
+                        end_time=current_time,
+                        move_times=move_times)
 
-        keyboard_move_times = filter_conflicts(target_times=keyboard_move_times,
-                                               comparison_times=[keyboard_scroll_double_times],
-                                               forward_distance=APPLETV_SCROLL_DOUBLE_CONFLICT_DISTANCE,
-                                               backward_distance=APPLETV_SCROLL_DOUBLE_CONFLICT_DISTANCE)
+            current_results.append(move)
+            num_moves = 0
+            move_times = []
+        elif sound in sounds.APPLETV_MOVE_SOUNDS:
+            num_moves += sounds.APPLETV_MOVE_COUNTS[sound]
+            move_times.append(current_time)
+        else:
+            raise ValueError('Unknown sound: {}'.format(sound))
 
-        keyboard_move_times = filter_conflicts(target_times=keyboard_move_times,
-                                               comparison_times=[keyboard_scroll_six_times, keyboard_scroll_triple_times],
-                                               forward_distance=APPLETV_SCROLL_CONFLICT_DISTANCE_FORWARD,
-                                               backward_distance=APPLETV_SCROLL_CONFLICT_DISTANCE_BACKWARD)
+        return current_results, num_moves, move_times
 
-        # Create the move sequence by (1) marking the end sounds and (2) calculating the number of moves in each block
-        key_select_pairs = list(map(lambda t: (t, sounds.APPLETV_KEYBOARD_SELECT), keyboard_select_times))
-        delete_pairs = list(map(lambda t: (t, sounds.APPLETV_KEYBOARD_DELETE), keyboard_delete_times))
-        toolbar_move_pairs = list(map(lambda t: (t, sounds.APPLETV_TOOLBAR_MOVE), toolbar_move_times))
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, simlarity_scores: Dict[str, float], max_segment_energy: float) -> Tuple[str, float]:
+        if (sound != sounds.APPLETV_KEYBOARD_MOVE):
+            return sound, similarity_scores[sound]
 
-        end_time_pairs = list(sorted(key_select_pairs + delete_pairs + toolbar_move_pairs, key=lambda pair: pair[0]))
+        # Get the constellations for `move`
+        move_constellation = self._ref_constellation_maps[sound]
+        move_spectrogram = self._ref_spectrograms[sound]
+        sound_config = self._config[sound]
 
-        print('Keyboard Moves: {}'.format(keyboard_move_times))
-        print('Scroll Double: {}'.format(keyboard_scroll_double_times))
-        print('Scroll Six: {}'.format(keyboard_scroll_six_times))
+        # Compute the constellation for the target segment
+        target_times, target_freqs = compute_constellation_map(spectrogram=target_segment,
+                                                               freq_delta=sound_config[FREQ_DELTA],
+                                                               time_delta=sound_config[TIME_DELTA],
+                                                               threshold=CONSTELLATION_THRESHOLD)
 
-        start_time = 0
-        move_sequence: List[Move] = []
+        num_low_freq_peaks = 0
+        sorted_peaks_by_time = list(sorted(zip(target_times, target_freqs), key=lambda x: x[0]))
+        filtered_peaks = [(t, freq) for t, freq in sorted_peaks_by_time if (freq in MOVE_FREQS)]
 
-        for end_time_pair in end_time_pairs:
-            end_time, end_sound = end_time_pair
-            
-            keyboard_moves = [t for t in keyboard_move_times if (t >= start_time) and (t <= end_time)]
-            keyboard_double_moves = [t for t in keyboard_double_move_times if (t >= start_time) and (t <= end_time)]
-            scroll_double_moves = [t for t in keyboard_scroll_double_times if (t >= start_time) and (t <= end_time)]
-            scroll_triple_moves = [t for t in keyboard_scroll_triple_times if (t >= start_time) and (t <= end_time)]
-            scroll_full_moves = [t for t in keyboard_scroll_six_times if (t >= start_time) and (t <= end_time)]
+        should_print = False
 
-            num_moves = len(keyboard_moves) + 2 * len(keyboard_double_moves) + 2 * len(scroll_double_moves) + 3 * len(scroll_triple_moves) + 6 * len(scroll_full_moves)
+        for idx, (t, freq) in enumerate(filtered_peaks):
+            curr_peak = target_segment[freq, t]
 
-            window_move_times = sorted(keyboard_moves + keyboard_double_moves + scroll_double_moves + scroll_triple_moves + scroll_full_moves)
-            move_start_time = window_move_times[0] if len(window_move_times) > 0 else (move_sequence[-1].end_time if len(move_sequence) > 0 else 0)
+            if curr_peak >= CONSTELLATION_THRESHOLD_END:
+                num_low_freq_peaks += 1
+            elif (idx > 0) and (idx < (len(filtered_peaks) - 1)):
+                prev_peak_time, prev_peak_freq = filtered_peaks[idx - 1]
+                next_peak_time, next_peak_freq = filtered_peaks[idx + 1]
 
-            if (num_moves > 0) or (end_sound == sounds.APPLETV_KEYBOARD_SELECT):
-                move = Move(num_moves=num_moves, end_sound=end_sound, directions=Direction.ANY, start_time=move_start_time, end_time=end_time)
-                move_sequence.append(move)
+                prev_peak = target_segment[prev_peak_freq, prev_peak_time]
+                next_peak = target_segment[next_peak_freq, next_peak_time]
 
-            start_time = end_time
+                time_diff = max(abs(prev_peak_time - t), abs(next_peak_time - t))
 
-        ## Get the end time as the last system move / toolbar move
-        last_keyboard_move = keyboard_move_times[-1]
-        next_toolbar_moves = list(filter(lambda t: t > last_keyboard_move, toolbar_move_times))
-        next_system_moves = list(filter(lambda t: t > last_keyboard_move, system_move_times))
+                if (should_print):
+                    print('Prev Peak Params: t -> {}, f -> {}, h -> {}'.format(prev_peak_time, prev_peak_freq, prev_peak))
+                    print('Curr Peak Params: t -> {}, f -> {}, h -> {}'.format(t, freq, curr_peak))
+                    print('Next Peak Params: t -> {}, f -> {}, h -> {}'.format(next_peak_time, next_peak_freq, next_peak))
 
-        last_toolbar_move = next_toolbar_moves[0] if len(next_toolbar_moves) > 0 else BIG_NUMBER
-        last_system_move = next_system_moves[0] if len(next_system_moves) > 0 else BIG_NUMBER
-        end_time = min(last_toolbar_move, last_system_move)
+                if (prev_peak >= CONSTELLATION_THRESHOLD_END) and (next_peak >= CONSTELLATION_THRESHOLD_END) and (time_diff <= CONSTELLATION_TIME_DIST):
+                    num_low_freq_peaks += 1
 
-        # We use the password keyboard both of the following hold:
-        #   (1) The time between the first toolbar move and first keyboard move is "long"
-        #   (2) The sound after the last keyboard move is a toolbar move
-        keyboard_type = KeyboardType.APPLE_TV_SEARCH
+        #num_low_freq_peaks = np.sum((target_freqs < 7).astype(int))
 
-        if len(next_toolbar_moves) > 0:
-            first_keyboard_move = keyboard_move_times[0]
-            first_toolbar_moves = list(filter(lambda t: t < first_keyboard_move, toolbar_move_times))
+        if should_print:
+            print(num_low_freq_peaks)
 
-            if (len(next_system_moves) > 0) and (next_system_moves[0] < next_toolbar_moves[0]):
-                keyboard_type = KeyboardType.APPLE_TV_SEARCH
-            elif len(first_toolbar_moves) == 0:
-                keyboard_type = KeyboardType.APPLE_TV_SEARCH
-            elif (first_keyboard_move - first_toolbar_moves[-1]) < APPLETV_PASSWORD_THRESHOLD:
-                keyboard_type = KeyboardType.APPLE_TV_SEARCH
+            fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
+            ax0.imshow(move_spectrogram, cmap='gray_r')
+            ax0.scatter(move_constellation.peak_times, move_constellation.peak_freqs, marker='o', color='red')
+
+            ax1.imshow(target_segment, cmap='gray_r')
+            ax1.scatter(target_times, target_freqs, marker='o', color='red')
+
+            plt.show()
+            plt.close()
+
+        best_sim = similarity_scores[sounds.APPLETV_KEYBOARD_MOVE]
+
+        if num_low_freq_peaks <= 1:
+            return sounds.APPLETV_KEYBOARD_MOVE, best_sim
+        elif num_low_freq_peaks == 2:
+            return sounds.APPLETV_KEYBOARD_SCROLL_DOUBLE, best_sim
+        elif num_low_freq_peaks == 3:
+            return sounds.APPLETV_KEYBOARD_SCROLL_TRIPLE, best_sim
+        elif num_low_freq_peaks == 4:
+            return sounds.APPLETV_KEYBOARD_SCROLL_FOUR, best_sim
+        elif num_low_freq_peaks == 5:
+            return sounds.APPLETV_KEYBOARD_SCROLL_FIVE, best_sim
+        else:
+            return sounds.APPLETV_KEYBOARD_SCROLL_SIX, best_sim
+
+    def get_reference_constellation(self, sound: str) -> Constellation:
+        if sound in sounds.APPLETV_SOUNDS:
+            return self._ref_constellation_maps[sound]
+
+        # Stitch together multiple moves
+        num_reps = sounds.APPLETV_MOVE_COUNTS[sound]
+        base_spectrogram = self._ref_constellation_maps[sounds.APPLETV_KEYBOARD_MOVE].spectrogram
+
+        # Clip the spectrogram further to better match the observed 'scrolling' sounds
+        max_energy = np.max(base_spectrogram, axis=0)
+        start_times, end_times = get_sound_instances(max_energy=max_energy,
+                                                     threshold_factor=1.2,
+                                                     peak_height=self.detection_peak_height,
+                                                     peak_distance=self.detection_peak_distance,
+                                                     peak_prominence=self.detection_peak_prominence,
+                                                     max_merge_height=self.detection_max_merge_height)
+        base_spectrogram = base_spectrogram[:, start_times[0]:end_times[0]]
+
+        spectrogram = np.concatenate([base_spectrogram for _ in range(num_reps)], axis=-1)
+
+        # Recompute the constellations
+        sound_config = self._config[sounds.APPLETV_KEYBOARD_MOVE]
+        peak_times, peak_freqs = compute_constellation_map(spectrogram=spectrogram,
+                                                           freq_delta=sound_config[FREQ_DELTA],
+                                                           time_delta=sound_config[TIME_DELTA],
+                                                           threshold=sound_config[PEAK_THRESHOLD])
+
+        return Constellation(peak_times=peak_times, peak_freqs=peak_freqs, spectrogram=spectrogram)
+
+
+class SamsungMoveExtractor(MoveExtractor):
+
+    @property
+    def tv_type(self) -> SmartTVType:
+        return SmartTVType.SAMSUNG
+
+    @property
+    def spectrogram_freq_min(self) -> int:
+        return 5
+
+    @property
+    def spectrogram_freq_max(self) -> int:
+        return 50
+
+    @property
+    def detection_factor(self) -> float:
+        return 0.9  # 0.9
+
+    @property
+    def detection_tolerance(self) -> float:
+        return 0.07
+
+    @property
+    def detection_peak_height(self) -> float:
+        return 1.75
+
+    @property
+    def detection_peak_distance(self) -> int:
+        return 10  # 10
+
+    @property
+    def detection_peak_prominence(self) -> int:
+        return 0.08
+
+    @property
+    def detection_merge_peak_factor(self) -> float:
+        return 1.6
+
+    @property
+    def detection_max_merge_height(self) -> float:
+        return 1.75
+
+    @property
+    def smooth_detection_window_size(self) -> int:
+        return 8
+
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, similarity_scores: Dict[str, float], max_segment_energy: float) -> Tuple[str, float]:
+        if sound is None:
+            return sound, 0.0
+
+        best_sim = similarity_scores[sound]
+        key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
+
+        if (sound == sounds.SAMSUNG_SELECT):
+            # Deduplicate with key selection using an alternative threshold
+            key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
+            # sim_buffer = self._config[sounds.SAMSUNG_SELECT][DEDUP_THRESHOLD]
+
+            if (max_segment_energy < self._config[sounds.SAMSUNG_SELECT][ENERGY_THRESHOLD]) and (key_select_sim > self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]):
+                return sounds.SAMSUNG_KEY_SELECT, key_select_sim
+        elif (sound == sounds.SAMSUNG_MOVE):
+            select_sim = similarity_scores[sounds.SAMSUNG_SELECT]
+            key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
+            key_select_buffer = self._config[sounds.SAMSUNG_KEY_SELECT][DEDUP_THRESHOLD]
+
+            if (key_select_sim >= self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]) and ((key_select_sim + key_select_buffer) >= best_sim):
+                return sounds.SAMSUNG_KEY_SELECT, key_select_sim
+            elif (best_sim < self._config[sound][MIN_SIMILARITY]) and (select_sim >= self._config[sounds.SAMSUNG_SELECT][MIN_SIMILARITY]):
+                return sounds.SAMSUNG_SELECT, select_sim
+        elif (sound == sounds.SAMSUNG_DELETE):
+            move_sim = similarity_scores[sounds.SAMSUNG_MOVE]
+            move_threshold = self._config[sounds.SAMSUNG_MOVE][DEDUP_THRESHOLD]
+            force_threshold = self._config[sounds.SAMSUNG_MOVE][FORCE_THRESHOLD]
+            move_buffer = self._config[sounds.SAMSUNG_MOVE][DEDUP_BUFFER]
+            delete_threshold = self._config[sounds.SAMSUNG_DELETE][DEDUP_THRESHOLD]
+
+            time_buffer = self._config[sounds.SAMSUNG_DELETE][TIME_THRESHOLD]
+
+            if (best_sim >= (3.0 * move_sim)):
+                return sound, best_sim
+
+            if ((time - prev_time) <= time_buffer) or ((move_sim > force_threshold) and ((move_sim + 3.0 * move_buffer) > best_sim)) or ((move_sim > move_threshold) and ((best_sim < delete_threshold) or ((move_sim + move_buffer) > best_sim))):
+                return sounds.SAMSUNG_MOVE, move_sim
+
+            #if (time >= 42530) and (time <= 42550):
+            #print('Current Time: {}, Prev Time: {}, Diff: {}, Move Sim: {:.4f}, Best Sim: {:.4f}'.format(time, prev_time, time - prev_time, move_sim, best_sim))
+
+            #if (move_sim > move_threshold) or ((move_sim + delete_buffer) > best_sim) or ((time - prev_time) <= time_buffer):
+            #   return sounds.SAMSUNG_MOVE, move_sim
+
+        return sound, similarity_scores[sound]
+
+    def update_num_moves(self, sound: str, num_moves: int, move_times: List[int], start_time: int, current_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
+        assert len(move_times) == num_moves, 'Got {} move times but {} moves'.format(len(move_times), num_moves)
+
+        if sound in (sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_DELETE, sounds.SAMSUNG_SELECT):
+            directions = extract_move_directions(move_times)
+
+            move = Move(num_moves=num_moves,
+                        end_sound=sound,
+                        directions=directions,
+                        start_time=start_time,
+                        end_time=current_time,
+                        move_times=move_times)
+
+            current_results.append(move)
+            num_moves = 0
+            move_times = []
+        elif sound == sounds.SAMSUNG_MOVE:
+            num_moves += 1
+            move_times.append(current_time)
+        else:
+            raise ValueError('Unknown sound: {}'.format(sound))
+
+        return current_results, num_moves, move_times
+
+    def clean_move_sequence(self, move_seq: List[Move]) -> List[Move]:
+        if len(move_seq) == 0:
+            return []
+
+        first_move = move_seq[0]
+        cleaned: List[Move] = [first_move]
+        move_carry = 0
+        start_idx = 1
+
+        for move_idx in range(start_idx, len(move_seq)):
+            prev_move = cleaned[-1]
+            curr_move = move_seq[move_idx]
+
+            # It is impossible to go from a non-delete sound to a delete sound in 0 moves. Since `delete` sounds look similar to those of `move`
+            # we merge this `delete` sound into the NEXT sequence element by adding a single move carry
+            should_merge = (curr_move.num_moves == 0) and (prev_move.end_sound != sounds.SAMSUNG_DELETE) and (curr_move.end_sound == sounds.SAMSUNG_DELETE)
+
+            if should_merge:
+                move_carry = 1
+            elif move_carry == 1:
+                directions = prev_move.directions
+                if isinstance(directions, list):
+                    directions = [Direction.ANY] + directions
+
+                merged = Move(num_moves=curr_move.num_moves + move_carry,
+                              end_sound=curr_move.end_sound,
+                              directions=directions,
+                              start_time=prev_move.start_time,
+                              end_time=curr_move.end_time,
+                              move_times=prev_move.move_times + [prev_move.end_time] + curr_move.move_times)
+
+                cleaned.append(merged)
+                move_carry = 0
             else:
-                keyboard_type = KeyboardType.APPLE_TV_PASSWORD
+                cleaned.append(curr_move)
+                move_carry = 0
 
-        return move_sequence, False, keyboard_type
+        return cleaned
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--video-file', type=str, required=True)
-    parser.add_argument('--output-file', type=str)
+    parser.add_argument('--video-path', type=str, required=True)
+    parser.add_argument('--tv-type', type=str, required=True)
     args = parser.parse_args()
 
-    audio = SmartTVAudio(args.video_file)
-    audio_signal = audio.get_audio()
+    audio_extractor = SmartTVAudio(path=args.video_path)
+    audio = audio_extractor.get_audio()
+    target_spectrogram = create_spectrogram(audio)
 
-    sound = sounds.APPLETV_KEYBOARD_SCROLL_TRIPLE
+    if args.tv_type.lower() == 'samsung':
+        extractor = SamsungMoveExtractor()
+    elif args.tv_type.lower() in ('appletv', 'apple-tv', 'apple_tv'):
+        extractor = AppleTVMoveExtractor()
+    else:
+        raise ValueError('Unknown TV type: {}'.format(args.tv_type))
 
-    extractor = AppleTVMoveExtractor()
-    similarity = extractor.compute_spectrogram_similarity_for_sound(audio=audio_signal, sound=sound)
-    instance_idx, instance_heights = extractor.find_instances_of_sound(audio=audio_signal, sound=sound)
-
-    move_seq, did_use_autocomplete, keyboard_type = extractor.extract_move_sequence(audio=audio_signal, include_moves_to_done=True)
-    print('Move Sequence: {}'.format(list(map(lambda m: m.num_moves, move_seq))))
-    print('Did use autocomplete: {}'.format(did_use_autocomplete))
-    print('Keyboard type: {}'.format(keyboard_type.name))
-
-    for idx, move in enumerate(move_seq):
-        print('Move {}: {} ({}, {}), (Start: {}, End: {})'.format(idx, move.directions, move.num_moves, move.end_sound, move.start_time, move.end_time))
-
-    with plt.style.context('seaborn-ticks'):
-        fig, (ax0, ax1) = plt.subplots(nrows=2, ncols=1)
-
-        ax0.plot(list(range(audio_signal.shape[0])), audio_signal)
-        ax1.plot(list(range(len(similarity))), similarity)
-        ax1.scatter(instance_idx, instance_heights, marker='o', color='orange')
-
-        ax0.set_xlabel('Time Step')
-        ax0.set_ylabel('Audio Signal (dB)')
-        ax0.set_title('Audio Signal for {}'.format(audio.file_name))
-
-        ax1.set_xlabel('Time Step')
-        ax1.set_ylabel('Match Similarity')
-        ax1.set_title('Matches for Sound: {}'.format(' '.join((t.capitalize() for t in sound.split()))))
-
-        plt.tight_layout()
-
-        if args.output_file is not None:
-            plt.savefig(args.output_file, bbox_inches='tight', transparent=True)
-        else:
-            plt.show()
+    moves = extractor.extract_moves(target_spectrogram)
+    print(moves)

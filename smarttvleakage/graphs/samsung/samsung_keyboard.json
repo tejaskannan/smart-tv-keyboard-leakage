@@ -39,7 +39,7 @@
         "~": {"left": "l", "right": "@", "up": "p", "down": "?"},
         "@": {"left": "~", "up": "^", "right": "!", "down": "<UP>"},
         "!": {"left": "@", "up": "*", "down": "-", "right": "<DONE>"},
-        "z": {"up": "a", "right": "x", "down": "<SETTINGS>", "right": "<LANGUAGE>"},
+        "z": {"up": "a", "right": "x", "down": "<SETTINGS>", "left": "<LANGUAGE>"},
         "x": {"left": "z", "right": "c", "up": "s", "down": "<SETTINGS>"},
         "c": {"left": "x", "right": "v", "up": "d", "down": "<SPACE>"},
         "v": {"left": "c", "right": "b", "up": "f"},
@@ -58,7 +58,7 @@
         "<DOWN>": {"left": "<LEFT>", "up": "<UP>", "right": "<RIGHT>"},
         "<RIGHT>": {"left": "<DOWN>", "up": "-", "right": "<CANCEL>"},
         "<CAPS>": {"right": "1", "down": "<CHANGE>"},
-        "<CHANGE>": {"up": "<CAPS>", "left": "q"},
+        "<CHANGE>": {"up": "<CAPS>", "right": "q"},
         "<SPACE>": {"up": "c"},
         "<LANGUAGE>": {"right": "a"},
         "<SETTINGS>" : {"up": "z"}

@@ -4,6 +4,7 @@ from enum import Enum, auto
 class SmartTVType(Enum):
     SAMSUNG = auto()
     APPLE_TV = auto()
+    UNKNOWN = auto()
 
 
 class KeyboardType(Enum):
@@ -16,6 +17,10 @@ class Direction(Enum):
     ANY = auto()
     HORIZONTAL = auto()
     VERTICAL = auto()
+    RIGHT = auto()
+    LEFT = auto()
+    UP = auto()
+    DOWN = auto()
 
 
 CAPS = '<CAPS>'

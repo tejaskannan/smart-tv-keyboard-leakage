@@ -4,12 +4,13 @@ from smarttvleakage.utils.constants import Direction
 
 class Move:
 
-    def __init__(self, num_moves: int, end_sound: str, directions: Union[Direction, List[Direction]], start_time: int = 0, end_time: int = 0):
+    def __init__(self, num_moves: int, end_sound: str, directions: Union[Direction, List[Direction]], start_time: int = 0, end_time: int = 0, move_times: List[int] = []):
         self._num_moves = int(num_moves)
         self._end_sound = str(end_sound)
         self._directions = directions
         self._start_time = int(start_time)
         self._end_time = int(end_time)
+        self._move_times = move_times
 
     @property
     def num_moves(self) -> int:
@@ -18,6 +19,10 @@ class Move:
     @property
     def end_sound(self) -> str:
         return self._end_sound
+
+    @property
+    def move_times(self) -> List[int]:
+        return self._move_times
 
     @property
     def directions(self) -> Union[Direction, List[Direction]]:
@@ -57,7 +62,8 @@ class Move:
             'end_sound': self.end_sound,
             'directions': serialized_directions,
             'start_time': self.start_time,
-            'end_time': self.end_time
+            'end_time': self.end_time,
+            'move_times': self.move_times
         }
 
     @classmethod
@@ -73,4 +79,3 @@ class Move:
                     directions=directions,
                     start_time=int(serialized['start_time']),
                     end_time=int(serialized['end_time']))
-

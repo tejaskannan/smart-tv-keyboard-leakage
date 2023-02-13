@@ -11,11 +11,22 @@ from smarttvleakage.utils.file_utils import read_json, save_json_gz
 
 
 def combine_dicts(dicts: List[Dict[str, List[str]]]) -> DefaultDict[str, List[str]]:
-    combined: Dict[str, List[str]] = defaultdict(list)
+    if len(dicts) <= 0:
+        return dict()
+
+    first_entry = next(iter(dicts[0].values()))
+
+    if isinstance(first_entry, dict):
+        combined: Dict[str, Dict[str, str]] = defaultdict(dict)
+    else:
+        combined: Dict[str, List[str]] = defaultdict(list)
     
     for dictionary in dicts:
         for key, values in dictionary.items():
-            combined[key].extend(values)
+            if isinstance(values, dict):
+                combined[key].update(values)
+            else:
+                combined[key].extend(values)
 
     return combined
 
@@ -33,8 +44,13 @@ def to_adjacency_matrix(adjacency_list: Dict[str, List[str]]) -> Tuple[np.ndarra
 
     for key, neighbors in adjacency_list.items():
         base_idx = key_index[key]
-        
-        for neighbor in neighbors:
+
+        if isinstance(neighbors, dict):
+            neighbor_keys = neighbors.values()
+        else:
+            neighbor_keys = neighbors
+
+        for neighbor in neighbor_keys:
             neighbor_idx = key_index[neighbor]
             adj_matrix[base_idx, neighbor_idx] = 1
 
@@ -75,7 +91,6 @@ if __name__ == '__main__':
         'all': combine_dicts([graph_dictionary['adjacency_list'], graph_dictionary['shortcuts'], graph_dictionary['wraparound']]),
     }
 
-
     for setting_name, adjacency_list in graph_settings.items():
         # Create the adjacency matrix
         adj_mat, key_lookup = to_adjacency_matrix(adjacency_list)        
@@ -93,43 +108,3 @@ if __name__ == '__main__':
         # Save the result
         output_path = args.output_file.replace('.json.gz', '_{}.json.gz'.format(setting_name))
         save_json_gz(serialized_mat, output_path)
-
-    #output = []
-
-    #for (type,keyboard) in possibilities:
-    #        keys=sorted(keyboard.keys())
-    #        size=len(keys)
-
-    #        #Create adjacency matrix
-
-    #        M = [ [0]*size for i in range(size) ]
-
-    #        for a,b in [(keys.index(a), keys.index(b)) for a, row in keyboard.items() for b in row]:
-    #             M[a][b] = 2 if (a==b) else 1
-
-
-    #        for c in range(len(M)):
-    #                for r in range(len(M[c])):
-    #                        if M[c][r] == 0:
-    #                                if r!=c:
-    #                                        M[c][r] = float(M[c][r])
-    #                                        M[c][r] = np.inf
-
-    #        #make into numpy array
-    #        a = np.asarray(M)
-    #        graph = csr_matrix(M)
-
-    #        #run floyd warshall
-    #        dist_matrix, predecessors = floyd_warshall(csgraph=graph, directed=False, return_predecessors=True)
-    #        dist_matrix = dist_matrix.tolist()
-    #        dist_matrix.insert(0, keys)
-
-    #        output.append((type,dist_matrix))
-
-    #for (name,matrix) in output:
-    #        #save
-    #        filename = '_'+name+'.csv'
-    #        f = open(args.o.replace('.csv',filename), 'w+')
-    #        csvWriter = csv.writer(f,delimiter=',')
-    #        csvWriter.writerows(matrix)
-    #        f.close()

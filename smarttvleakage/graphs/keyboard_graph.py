@@ -1,20 +1,21 @@
 import os.path
+import json
+import csv
 from collections import deque, defaultdict
 from enum import Enum, auto
-from typing import Dict, DefaultDict, List, Set, Union
-import csv
-import json
-from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE
-from smarttvleakage.keyboard_utils.graph_search import breadth_first_search
+from typing import Dict, DefaultDict, List, Set, Union, Optional
+from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE, NEXT
+from smarttvleakage.keyboard_utils.graph_search import breadth_first_search, follow_path
 from smarttvleakage.utils.constants import KeyboardType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
-from smarttvleakage.audio.constants import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
+from smarttvleakage.audio.sounds import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT
 from smarttvleakage.audio.move_extractor import Direction
 from .keyboard_linker import KeyboardLinker, KeyboardPosition
 
 
 SAMSUNG_STANDARD = 'samsung_standard'
 SAMSUNG_SPECIAL_ONE = 'samsung_special_1'
+SAMSUNG_SPECIAL_TWO = 'samsung_special_2'
 SAMSUNG_CAPS = 'samsung_standard_caps'
 APPLETV_SEARCH_ALPHABET = 'appletv_search_alphabet'
 APPLETV_SEARCH_NUMBERS = 'appletv_search_numbers'
@@ -27,6 +28,7 @@ APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
 START_KEYS = {
     SAMSUNG_STANDARD: 'q',
     SAMSUNG_SPECIAL_ONE: CHANGE,
+    SAMSUNG_SPECIAL_TWO: NEXT,
     SAMSUNG_CAPS: 'Q',
     APPLETV_SEARCH_ALPHABET: 't',
     APPLETV_SEARCH_NUMBERS: CHANGE,
@@ -36,16 +38,19 @@ START_KEYS = {
     APPLETV_PASSWORD_SPECIAL: CHANGE  # TODO: Fix This (should be <SPECIAL>)
 }
 
-#If change key is the same as the select key leave it empty and we will default to select key
+
+# If change key is the same as the select key leave it empty and we will default to select key
 CHANGE_KEYS = {
     SAMSUNG_STANDARD: SAMSUNG_SELECT,
     SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
+    SAMSUNG_SPECIAL_TWO: SAMSUNG_SELECT
 }
 
 
 SELECT_KEYS = {
     SAMSUNG_STANDARD: SAMSUNG_KEY_SELECT,
     SAMSUNG_SPECIAL_ONE: SAMSUNG_KEY_SELECT,
+    SAMSUNG_SPECIAL_TWO: SAMSUNG_KEY_SELECT,
     APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
     APPLETV_PASSWORD_CAPS: APPLETV_KEYBOARD_SELECT,
     APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
@@ -80,12 +85,14 @@ class MultiKeyboardGraph:
         if keyboard_type == KeyboardType.SAMSUNG:
             standard_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard.json')
             special_one_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_1.json')
+            special_two_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_special_2.json')
             caps_path = os.path.join(dir_name, 'samsung', 'samsung_keyboard_caps.json')
             self._start_mode = SAMSUNG_STANDARD
 
             self._keyboards = {
                 SAMSUNG_STANDARD: SingleKeyboardGraph(path=standard_path),
                 SAMSUNG_SPECIAL_ONE: SingleKeyboardGraph(path=special_one_path),
+                SAMSUNG_SPECIAL_TWO: SingleKeyboardGraph(path=special_two_path),
                 SAMSUNG_CAPS: SingleKeyboardGraph(path=caps_path)
             }
 
@@ -139,6 +146,11 @@ class MultiKeyboardGraph:
     def get_linked_states(self, current_key: str, keyboard_mode: str) -> List[KeyboardPosition]:
         return self._linker.get_linked_states(current_key, keyboard_mode)
 
+    def get_linked_key_to(self, current_key: str, current_mode: str, target_mode: str) -> Optional[str]:
+        return self._linker.get_linked_key_to(current_key=current_key,
+                                              current_mode=current_mode,
+                                              target_mode=target_mode)
+
     def get_characters(self) -> List[str]:
         merged: Set[str] = set()
 
@@ -153,6 +165,13 @@ class MultiKeyboardGraph:
     def get_keyboard_characters(self, keyboard_mode: str) -> List[str]:
         return self._keyboards[keyboard_mode].get_characters()
 
+    def get_keyboard_with_character(self, character: str) -> Optional[str]:
+        for keyboard_mode in self._keyboards.keys():
+            if character in self.get_keyboard_characters(keyboard_mode):
+                return keyboard_mode
+
+        return None
+
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, mode: str, use_shortcuts: bool, use_wraparound: bool, directions: Union[Direction, List[Direction]]) -> List[str]:
         if num_moves < 0:
             return []
@@ -164,6 +183,9 @@ class MultiKeyboardGraph:
             return []
 
         return self._keyboards[mode].get_keys_for_moves_to(end_key=end_key, num_moves=num_moves, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound)
+
+    def follow_path(self, start_key: str, use_shortcuts: bool, use_wraparound: bool, directions: List[Direction], mode: str) -> Optional[str]:
+        return self._keyboards[mode].follow_path(start_key=start_key, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound, directions=directions)
 
     def get_moves_from_key(self, start_key: str, end_key: str, use_shortcuts: bool, use_wraparound: bool, mode: str) -> int:
         return self._keyboards[mode].get_moves_from_key(start_key, end_key, use_shortcuts, use_wraparound)
@@ -219,6 +241,32 @@ class SingleKeyboardGraph:
 
     def is_unclickable(self, key: str) -> bool:
         return (key in self._unclickable_keys)
+
+    def follow_path(self, start_key: str, use_shortcuts: bool, use_wraparound: bool, directions: List[Direction]) -> Optional[str]:
+        if use_shortcuts and use_wraparound:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=self._shortcuts_list,
+                               wraparound=self._wraparound_list,
+                               directions=directions)
+        elif use_shortcuts:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=self._shortcuts_list,
+                               wraparound=None,
+                               directions=directions)
+        elif use_wraparound:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=None,
+                               wraparound=self._wraparound_list,
+                               directions=directions)
+        else:
+            return follow_path(start_key=start_key,
+                               adj_list=self._adj_list,
+                               shortcuts=None,
+                               wraparound=None,
+                               directions=directions)
 
     def get_keys_for_moves_from(self, start_key: str, num_moves: int, use_shortcuts: bool, use_wraparound: bool, directions: Union[Direction, List[Direction]]) -> List[str]:
         assert num_moves >= 0, 'Must provide a non-negative number of moves. Got {}'.format(num_moves)

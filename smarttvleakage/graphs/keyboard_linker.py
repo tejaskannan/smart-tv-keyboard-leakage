@@ -26,3 +26,12 @@ class KeyboardLinker:
             return []
 
         return [KeyboardPosition(key=key, mode=mode) for mode, key in keyboard_link_map[current_key].items()]
+
+    def get_linked_key_to(self, current_key: str, current_mode: str, target_mode: str) -> Optional[str]:
+        # Get the linked states for the current keyboard
+        keyboard_link_map = self._link_map[current_mode]
+
+        if current_key not in keyboard_link_map:
+            return None
+
+        return keyboard_link_map[current_key].get(target_mode)

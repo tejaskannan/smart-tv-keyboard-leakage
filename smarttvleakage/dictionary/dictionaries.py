@@ -15,7 +15,7 @@ from smarttvleakage.utils.file_utils import read_json, read_pickle_gz, save_pick
 from smarttvleakage.dictionary.trie import Trie
 
 
-CHANGE_KEYS = frozenset({ '<CHANGE>', '<ABC>', '<abc>', '<SPECIAL>' })
+CHANGE_KEYS = frozenset({ '<CHANGE>', '<ABC>', '<abc>', '<SPECIAL>', '<NEXT>' })
 UNPRINTED_CHARACTERS = frozenset({ '<CHANGE>', '<RIGHT>', '<LEFT>', '<UP>', '<DOWN>', '<BACK>', '<CAPS>', '<NEXT>' })
 SELECT_SOUND_KEYS = frozenset({ '<CHANGE>', '<CAPS>', '<NEXT>', '<SPACE>', '<LEFT>', '<RIGHT>', '<UP>', '<DOWN>', '<LANGUAGE>', '<DONE>', '<CANCEL>'})
 DELETE_SOUND_KEYS = frozenset({ '<BACK>', '<DELETEALL>' })
@@ -38,7 +38,11 @@ CHARACTER_TRANSLATION = {
     '<WWW>': 'www',
     '<COM>': 'com',
     '<POUND>': '£',
-    '<EURO>': '€'
+    '<EURO>': '€',
+    '<OPEN-BULLET>': '◦',
+    '<BULLET>': '•',
+    '<OPEN-CIRCLE>': '○',
+    '<CIRCLE>': '⏺'
 }
 
 REVERSE_CHARACTER_TRANSLATION = { value: key for key, value in CHARACTER_TRANSLATION.items() }
