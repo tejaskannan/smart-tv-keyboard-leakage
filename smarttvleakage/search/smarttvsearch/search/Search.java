@@ -9,6 +9,7 @@ import java.util.ArrayList;
 
 import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.keyboard.KeyboardExtender;
+import smarttvsearch.keyboard.KeyboardPosition;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.utils.sounds.SmartTVSound;
@@ -34,7 +35,7 @@ public class Search {
     private KeyboardExtender keyboardExtender;
     private boolean doesEndWithDone;
     private boolean useDirections;
-    private boolean shouldAccumulateScore;
+    private boolean shouldLinkKeys;
     private int minCount;
     private SmartTVType tvType;
 
@@ -42,7 +43,7 @@ public class Search {
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldAccumulateScore, int minCount) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, int minCount) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
@@ -50,7 +51,7 @@ public class Search {
         this.suboptimalModel = suboptimalModel;
         this.keyboardExtender = keyboardExtender;
         this.useDirections = useDirections;
-        this.shouldAccumulateScore = shouldAccumulateScore;
+        this.shouldLinkKeys = shouldLinkKeys;
         this.tvType = tvType;
         this.minCount = minCount;
 
@@ -146,12 +147,7 @@ public class Search {
                     if (!this.visited.contains(visitedState)) {
                         // Make the candidate search state
                         SearchState candidateState = new SearchState(neighborKey, nextKeys, 0.0, nextKeyboard, nextMoveIdx);
-
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
-
-                        if (currentState.toString().equals("chevy_195")) {
-                            System.out.printf("%s, %d\n", neighborKey, incrementalCount);
-                        }
 
                         if ((incrementalCount > this.minCount) || (isFirstMoveAndZero) || (this.isChangeKey(neighborKey))) {
 
@@ -164,13 +160,26 @@ public class Search {
                                 score = -1 * Math.log(score);
                             }
 
-                            if (this.shouldAccumulateScore) {
-                                score = currentState.getScore() + score;
-                            }
+                            // Accumulate the score (in log space)
+                            score = currentState.getScore() + score;
 
                             candidateState.setScore(score);
                             this.frontier.add(candidateState);
                             this.visited.add(visitedState);
+
+                            if (this.shouldLinkKeys) {
+                                List<KeyboardPosition> linkedStates = this.keyboard.getLinkedKeys(neighborKey, nextKeyboard);
+
+                                for (KeyboardPosition position : linkedStates) {
+                                    visitedState = new VisitedState(nextKeys, position.getKeyboardName());
+
+                                    if (!this.visited.contains(visitedState)) {
+                                        candidateState = new SearchState(position.getKey(), nextKeys, score, position.getKeyboardName(), nextMoveIdx);
+                                        this.frontier.add(candidateState);
+                                        this.visited.add(visitedState);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
