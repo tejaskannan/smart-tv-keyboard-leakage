@@ -48,6 +48,8 @@ def build_node(clf, node):
     dict["feature"] = int(clf.tree_.feature[node])
     dict["threshold"] = int(clf.tree_.threshold[node])
 
+    dict["class"] = -1
+
     if clf.tree_.children_left[node] == -1:
         dict["left"] = -1
     else:
