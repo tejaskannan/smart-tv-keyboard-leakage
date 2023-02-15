@@ -22,6 +22,7 @@ import smarttvsearch.utils.Move;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.SpecialKeys;
 import smarttvsearch.utils.SmartTVType;
+import smarttvsearch.utils.SearchUtils;
 import smarttvsearch.utils.sounds.SamsungSound;
 
 
@@ -42,6 +43,7 @@ public class Search {
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
+    private boolean[] isMoveDeleted;
 
     public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, int minCount) {
         this.moveSeq = moveSeq;
@@ -71,6 +73,9 @@ public class Search {
             SamsungSound lastSound = (SamsungSound) lastMove.getEndSound();
             this.doesEndWithDone = lastSound.isSelect();
         }
+
+        // Get the moves that are deleted. We avoid scoring such moves to bias the prior (they don't make it in the final result anyways)
+        this.isMoveDeleted = SearchUtils.markDeletedMoves(moveSeq);
     }
 
     public String next() {
@@ -96,7 +101,7 @@ public class Search {
                 int numSuboptimal = this.suboptimalModel.getLimit(moveIdx);
                 HashMap<String, Double> neighborKeys = new HashMap<String, Double>();  // Neighbor -> Score factor
 
-                boolean isFirstMoveAndZero = (moveIdx == 0) && (numMoves == 0);
+                //boolean isFirstMoveAndZero = (moveIdx == 0) && (numMoves == 0);
 
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
                     int adjustedNumMoves = numMoves + offset;
@@ -133,7 +138,7 @@ public class Search {
                 int nextMoveIdx = moveIdx + 1;
 
                 for (String neighborKey : neighborKeys.keySet()) {
-                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound(), keyboard, currentState.getKeyboardName()) && !isFirstMoveAndZero) {
+                    if (!this.isValidKey(neighborKey, nextMoveIdx, move.getEndSound(), keyboard, currentState.getKeyboardName()) && !this.isMoveDeleted[moveIdx]) {
                         continue;  // Do not add invalid keys to the queue
                     }
 
@@ -149,11 +154,11 @@ public class Search {
                         SearchState candidateState = new SearchState(neighborKey, nextKeys, 0.0, nextKeyboard, nextMoveIdx);
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
-                        if ((incrementalCount > this.minCount) || (isFirstMoveAndZero) || (this.isChangeKey(neighborKey))) {
+                        if ((incrementalCount > this.minCount) || (this.isMoveDeleted[moveIdx]) || (this.isChangeKey(neighborKey))) {
 
                             double score = this.languagePrior.normalizeCount(incrementalCount);
 
-                            if ((incrementalCount <= 0) || (this.isFinished(nextMoveIdx) && (SpecialKeys.DONE.equals(neighborKey))) || (this.isChangeKey(neighborKey))) {
+                            if ((incrementalCount <= 0) || (this.isFinished(nextMoveIdx) && (SpecialKeys.DONE.equals(neighborKey))) || (this.isChangeKey(neighborKey)) || (this.isMoveDeleted[moveIdx])) {
                                 score = 0.0;
                             } else {
                                 score *= neighborKeys.get(neighborKey);
