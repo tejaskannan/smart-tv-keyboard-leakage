@@ -37,6 +37,7 @@ public class Search {
     private boolean doesEndWithDone;
     private boolean useDirections;
     private boolean shouldLinkKeys;
+    private boolean doesSuggestDone;
     private int minCount;
     private SmartTVType tvType;
 
@@ -45,7 +46,9 @@ public class Search {
     private HashSet<String> guessed;
     private boolean[] isMoveDeleted;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, int minCount) {
+    private static int DONE_SUGGESTION_COUNT = 8;
+
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
@@ -56,6 +59,7 @@ public class Search {
         this.shouldLinkKeys = shouldLinkKeys;
         this.tvType = tvType;
         this.minCount = minCount;
+        this.doesSuggestDone = doesSuggestDone;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
@@ -103,6 +107,10 @@ public class Search {
 
                 //boolean isFirstMoveAndZero = (moveIdx == 0) && (numMoves == 0);
 
+                if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT)) {
+                    numSuboptimal = Math.max(numSuboptimal, 1);
+                }
+
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
                     int adjustedNumMoves = numMoves + offset;
                     if (adjustedNumMoves < 0) {
@@ -122,6 +130,11 @@ public class Search {
 
                     Set<String> neighbors = this.keyboard.getKeysForDistanceCumulative(currentKey, adjustedNumMoves, true, true, directions, currentState.getKeyboardName());
                     double scoreFactor = this.suboptimalModel.getScoreFactor(offset);
+
+                    // Users often make a single suboptimal move because the suggested key gets in the way
+                    if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (Math.abs(offset) == 1)) {
+                        scoreFactor = 1.0;
+                    }
 
                     Set<String> extendedNeighbors = this.keyboardExtender.getExtendedNeighbors(currentKey, adjustedNumMoves, currentState.getKeyboardName());
                     neighbors.addAll(extendedNeighbors);

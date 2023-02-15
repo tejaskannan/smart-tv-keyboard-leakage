@@ -264,7 +264,7 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                #should_plot = (start_time >= 95180) and (start_time <= 95450) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
+                #should_plot = (start_time >= 2100) and (start_time <= 2500) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -306,9 +306,6 @@ class MoveExtractor:
             # Skip sounds are are poor matches with all references
             if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
                 continue
-
-            if (start_time >= 43760) and (start_time <= 43850):
-                print('Best Sound: {}, Sim: {:.4f}'.format(best_sound, best_sim))
 
             #print('Adjusted Best Sound: {}, Time: {}'.format(best_sound, start_time))
             #print('==========')
@@ -576,6 +573,9 @@ class SamsungMoveExtractor(MoveExtractor):
 
             if (best_sim >= (3.0 * move_sim)):
                 return sound, best_sim
+
+            if (time >= 2100) and (time <= 2500):
+                print('Time diff: {}, Time Buffer: {}, Move Sim: {}, Delete Sim: {}'.format(time - prev_time, time_buffer, move_sim, best_sim))
 
             if ((time - prev_time) <= time_buffer) or ((move_sim > force_threshold) and ((move_sim + 3.0 * move_buffer) > best_sim)) or ((move_sim > move_threshold) and ((best_sim < delete_threshold) or ((move_sim + move_buffer) > best_sim))):
                 return sounds.SAMSUNG_MOVE, move_sim

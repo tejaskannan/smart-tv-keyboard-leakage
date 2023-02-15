@@ -266,11 +266,15 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         # D #1 -> 20650, 20900
         # D #3 -> 71500, 71800
 
-        if (curr_peak_time >= 74360) and (curr_peak_time <= 74380) and ((curr_peak_time - prev_peak_time) <= 15):
+        if (curr_peak_time >= 1490) and (curr_peak_time <= 1520) and ((curr_peak_time - prev_peak_time) <= 25):
             min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
-            print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}, Min Btwn: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height), min(curr_peak_height, prev_peak_height) - min_in_between))
+            print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}, Valley Diff: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height), valley_diff))
 
-        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or ((valley_diff >= 0.15) and (diff_factor <= 1.10)):
+        # Valley Diff: 0.15
+        if ((curr_peak_time - prev_peak_time) < 25) and ((curr_peak_time - prev_peak_time) >= 15) and (diff_factor >= 1.45):
+            continue
+
+        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or ((valley_diff >= 0.13) and (diff_factor <= 1.10)):
             peak_times.append(curr_peak_time)
             peak_heights.append(curr_peak_height)
 
@@ -299,6 +303,10 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
 
         start_times.append(start_time)
         end_times.append(end_time)
+
+    # If the sound is larger than a pre-defined cutoff (85 time units), then try to split again two points with a slightly lower peak
+    
+
 
     fig, ax = plt.subplots()
     ax.plot(list(range(len(max_energy))), max_energy)

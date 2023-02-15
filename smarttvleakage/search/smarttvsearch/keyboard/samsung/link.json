@@ -58,7 +58,7 @@
         "<DOWN>": { "samsung_keyboard_caps": "<DOWN>" },
         "<RIGHT>": { "samsung_keyboard_caps": "<RIGHT>" },
         "<CAPS>": { "samsung_keyboard_caps": "<CAPS>" },
-        "<CHANGE>": { "samsung_special_1": "<CHANGE>", "samsung_keyboard_caps": "<CHANGE>" },
+        "<CHANGE>": { "samsung_keyboard_special_1": "<CHANGE>", "samsung_keyboard_caps": "<CHANGE>" },
         "<SPACE>": { "samsung_keyboard_caps": "<SPACE>" },
         "<LANGUAGE>": { "samsung_keyboard_caps": "<LANGUAGE>" },
         "<SETTINGS>": { "samsung_keyboard_caps": "<SETTINGS>" }
@@ -125,7 +125,7 @@
         "<DOWN>": { "samsung_keyboard": "<DOWN>" },
         "<RIGHT>": { "samsung_keyboard": "<RIGHT>" },
         "<CAPS>": { "samsung_keyboard": "<CAPS>" },
-        "<CHANGE>": { "samsung_special_1": "<CHANGE>", "samsung_keyboard": "<CHANGE>" },
+        "<CHANGE>": { "samsung_keyboard_special_1": "<CHANGE>", "samsung_keyboard": "<CHANGE>" },
         "<SPACE>": { "samsung_keyboard": "<SPACE>" },
         "<LANGUAGE>": { "samsung_keyboard": "<LANGUAGE>" },
         "<SETTINGS>": { "samsung_keyboard": "<SETTINGS>" }

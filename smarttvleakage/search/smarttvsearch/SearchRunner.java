@@ -33,7 +33,7 @@ public class SearchRunner {
     private static final int MAX_EXPIRY_RANK = 5;
     private static final int MAX_CVV_RANK = 50;
     private static final int MAX_ZIP_RANK = 50;
-    private static final int MAX_PASSWD_RANK = 5;
+    private static final int MAX_PASSWD_RANK = 10;
 
     public static void main(String[] args) {
         if (args.length != 3) {
@@ -122,11 +122,11 @@ public class SearchRunner {
                 }
 
                 // Recover each field
-                List<String> ccnGuesses = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK);
-                List<String> cvvGuesses = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, false, stndExtender, 0.5, 0, MAX_CVV_RANK);
-                List<String> monthGuesses = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK);
-                List<String> yearGuesses = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK);
-                List<String> zipGuesses = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, false, false, stndExtender, 1e-3, 0, MAX_ZIP_RANK);
+                List<String> ccnGuesses = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK);
+                List<String> cvvGuesses = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.5, 0, MAX_CVV_RANK);
+                List<String> monthGuesses = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK);
+                List<String> yearGuesses = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK);
+                List<String> zipGuesses = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 1e-3, 0, MAX_ZIP_RANK);
 
                 CreditCardDetails truth = new CreditCardDetails(labelsJson.getString("credit_card"), labelsJson.getString("security_code"), labelsJson.getString("exp_month"), labelsJson.getString("exp_year"), labelsJson.getString("zip_code"));
                 int rank = guessCreditCards(ccnGuesses, cvvGuesses, monthGuesses, yearGuesses, zipGuesses, truth);
@@ -153,7 +153,7 @@ public class SearchRunner {
             LanguagePrior prior = LanguagePriorFactory.makePrior("ngram", priorPath);
             prior.build(false);
 
-            for (int idx = 5; idx < jsonMoveSequences.length(); idx++) {
+            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 Move[] moveSeq = JsonUtils.parseMoveSeq(jsonMoveSequences.getJSONArray(idx), tvType);
 
                 for (Move move : moveSeq) {
@@ -174,7 +174,7 @@ public class SearchRunner {
                     System.out.println();
                 }
 
-                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, stndExtender, 1e-2, 1, MAX_PASSWD_RANK);
+                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, 1e-2, 1, MAX_PASSWD_RANK);
 
                 int rank = 1;
                 boolean didFind = false;
@@ -234,7 +234,7 @@ public class SearchRunner {
     //    return result;
     //}
 
-    private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, KeyboardExtender extender, double scoreFactor, int minCount, int maxRank) {
+    private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, KeyboardExtender extender, double scoreFactor, int minCount, int maxRank) {
         HashSet<String> guessed = new HashSet<String>();
 
         List<String> result = new ArrayList<String>();
@@ -242,7 +242,7 @@ public class SearchRunner {
         int rank = 1;
         for (int numSuboptimal = 0; numSuboptimal < moveSeq.length; numSuboptimal++) {
             CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal, scoreFactor);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, minCount);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount);
 
             while (rank <= maxRank) {
                 String guess = searcher.next();

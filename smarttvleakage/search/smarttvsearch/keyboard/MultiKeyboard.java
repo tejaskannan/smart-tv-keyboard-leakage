@@ -106,6 +106,11 @@ public class MultiKeyboard {
 
     public Set<String> getKeysForDistanceCumulative(String key, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions, String keyboardName) {
         Keyboard keyboard = this.keyboards.get(keyboardName);
+
+        if (keyboard == null) {
+            System.out.println(keyboardName);
+        }
+
         return keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, directions);
     }
 
