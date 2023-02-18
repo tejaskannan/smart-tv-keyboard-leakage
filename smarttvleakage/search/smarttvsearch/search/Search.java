@@ -107,7 +107,7 @@ public class Search {
 
                 //boolean isFirstMoveAndZero = (moveIdx == 0) && (numMoves == 0);
 
-                if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT)) {
+                if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (numMoves > 1)) {
                     numSuboptimal = Math.max(numSuboptimal, 1);
                 }
 
@@ -132,7 +132,7 @@ public class Search {
                     double scoreFactor = this.suboptimalModel.getScoreFactor(offset);
 
                     // Users often make a single suboptimal move because the suggested key gets in the way
-                    if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (Math.abs(offset) == 1)) {
+                    if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (Math.abs(offset) == 1) && (numMoves > 1)) {
                         scoreFactor = 1.0;
                     }
 

@@ -111,7 +111,17 @@ public class MultiKeyboard {
             System.out.println(keyboardName);
         }
 
-        return keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, directions);
+        Set<String> withDirections = keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, directions);
+
+        Direction[] anyDirections = new Direction[directions.length];
+        for (int idx = 0; idx < directions.length; idx++) {
+            anyDirections[idx] = Direction.ANY;
+        }
+
+        Set<String> withoutDirections = keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, anyDirections);
+        withDirections.retainAll(withoutDirections);
+
+        return withDirections;
     }
 
     public boolean isClickable(String key, String keyboardName) {

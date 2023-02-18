@@ -33,7 +33,7 @@ public class SearchRunner {
     private static final int MAX_EXPIRY_RANK = 5;
     private static final int MAX_CVV_RANK = 50;
     private static final int MAX_ZIP_RANK = 50;
-    private static final int MAX_PASSWD_RANK = 10;
+    private static final int MAX_PASSWD_RANK = 100;
 
     public static void main(String[] args) {
         if (args.length != 3) {
@@ -149,7 +149,7 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray targetStrings = serializedLabels.getJSONArray("labels");
 
-            String priorPath = FileUtils.joinPath(priorFolder, "phpbb.db");
+            String priorPath = FileUtils.joinPath(priorFolder, "rockyou.db");
             LanguagePrior prior = LanguagePriorFactory.makePrior("ngram", priorPath);
             prior.build(false);
 
