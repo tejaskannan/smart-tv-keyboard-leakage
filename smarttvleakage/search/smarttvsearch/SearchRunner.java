@@ -33,7 +33,7 @@ public class SearchRunner {
     private static final int MAX_EXPIRY_RANK = 5;
     private static final int MAX_CVV_RANK = 50;
     private static final int MAX_ZIP_RANK = 50;
-    private static final int MAX_PASSWD_RANK = 100;
+    private static final int MAX_PASSWD_RANK = 500;
 
     public static void main(String[] args) {
         if (args.length != 3) {
@@ -149,7 +149,7 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray targetStrings = serializedLabels.getJSONArray("labels");
 
-            String priorPath = FileUtils.joinPath(priorFolder, "rockyou.db");
+            String priorPath = FileUtils.joinPath(priorFolder, "rockyou-variable.db");
             LanguagePrior prior = LanguagePriorFactory.makePrior("ngram", priorPath);
             prior.build(false);
 
@@ -174,7 +174,7 @@ public class SearchRunner {
                     System.out.println();
                 }
 
-                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, 1e-2, 1, MAX_PASSWD_RANK);
+                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, 1e-2, 0, MAX_PASSWD_RANK);
 
                 int rank = 1;
                 boolean didFind = false;
