@@ -12,6 +12,9 @@ class Move:
         self._end_time = int(end_time)
         self._move_times = move_times
 
+        if len(move_times) == 0:
+            self._move_times = [0 for _ in range(num_moves)]
+
     @property
     def num_moves(self) -> int:
         return self._num_moves

@@ -125,7 +125,7 @@ class MultiKeyboardGraph:
 
             linker_path = os.path.join(dir_name, 'apple_tv_password', 'link.json')
         else:
-            raise ValueError('Unknown TV type: {}'.format(tv_type.name))
+            raise ValueError('Unknown TV type: {}'.format(keyboard_type.name))
 
         # Make the keyboard linker
         self._linker = KeyboardLinker(linker_path)
