@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import spectrogram, find_peaks, convolve
+from scipy.ndimage import maximum_filter1d
 from typing import List, Tuple, Set, Union
 
 from smarttvleakage.utils.constants import BIG_NUMBER, SMALL_NUMBER, Direction
@@ -231,7 +232,73 @@ def dedup_samsung_move_delete(normalized_spectrogram: np.ndarray, freq_delta: in
     return num_after > num_before
 
 
-def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray]:
+def get_move_time_length(move_spectrogram: np.ndarray) -> int:
+    freq_amplitude = move_spectrogram[4, :]  # Moves have a maximal amplitude at index 4
+    cutoff = 0.85
+
+    start_time = 0
+    end_time = 0
+    total_length = 0
+    time_cutoff = 10
+
+    while (start_time < freq_amplitude.shape[0]):
+        while (start_time < freq_amplitude.shape[0]) and (freq_amplitude[start_time] < cutoff):
+            start_time += 1
+
+        end_time = start_time + 1
+        while (end_time < freq_amplitude.shape[0]) and (freq_amplitude[end_time] > cutoff):
+            end_time += 1
+
+        if (end_time - start_time) >= time_cutoff:
+            total_length += (end_time - start_time)
+
+        start_time = end_time + 1
+
+    return total_length
+
+
+def count_cluster_size(segment_spectrogram: np.ndarray, start_time: int) -> int:
+    raw_time_peaks, raw_freq_peaks = compute_constellation_map(segment_spectrogram, freq_delta=1, time_delta=15, threshold=-57)
+    time_peaks = [t for t, freq in zip(raw_time_peaks, raw_freq_peaks) if (freq == 4)]
+    freq_peaks = [freq for t, freq in zip(raw_time_peaks, raw_freq_peaks) if (freq == 4)]  # For debugging alone
+
+    time_distance = 12
+
+    peak_idx = 0
+    num_clusters = 0
+    clusters: List[List[int]] = []
+
+    while (peak_idx < len(time_peaks)):
+        current_peak_time = time_peaks[peak_idx]
+
+        if (peak_idx < (len(time_peaks) - 1)) and ((time_peaks[peak_idx + 1] - current_peak_time) < time_distance):
+            clusters.append([current_peak_time, time_peaks[peak_idx + 1]])
+            peak_idx += 1
+        else:
+            clusters.append([current_peak_time])
+
+        peak_idx += 1
+        num_clusters += 1
+
+    #if (start_time >= 77750):
+    #    colors = ['red', 'green', 'orange']
+
+    #    print('Time: {}, # Clusters: {}'.format(start_time, num_clusters))
+    #    fig, ax = plt.subplots()
+    #    #ax0.plot(list(range(len(max_filtered))), max_filtered)
+    #    ax.imshow(segment_spectrogram, cmap='gray_r')
+    #    ax.scatter(time_peaks, freq_peaks, color='red', marker='o')
+
+    #    for cluster_idx, cluster in enumerate(clusters):
+    #        for cluster_time in cluster:
+    #            ax.axvline(cluster_time, color=colors[cluster_idx % len(colors)])
+
+    #    plt.show()
+
+    return max(num_clusters, 1)
+
+
+def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray, List[int]]:
      # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
     std_energy = np.std(spect, axis=-1, keepdims=True)
@@ -241,86 +308,154 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
         smooth_filter = np.ones(shape=(smooth_window_size, ), dtype=max_energy.dtype) / float(smooth_window_size)
         max_energy = convolve(max_energy, smooth_filter, mode='full')  # [T]
 
-    peak_ranges: Set[Tuple[int, int, int]] = set()
+    # Get the cutoff points for which to detect possible sounds
+    median_normalized_energy = np.median(max_energy)
+    iqr = np.percentile(max_energy, 75) - np.percentile(max_energy, 25)
+    peak_cutoff = median_normalized_energy + 0.9 * iqr
+    sound_cutoff = median_normalized_energy + 0.15 * iqr
 
-    raw_peak_times, peak_properties = find_peaks(max_energy, height=peak_height, distance=peak_distance, prominence=(peak_prominence, None))
-    raw_peak_heights = peak_properties['peak_heights']
+    print('Peak Cutoff: {:.5f}, Sound Cutoff: {:.5f}'.format(peak_cutoff, sound_cutoff))
 
-    if len(raw_peak_times) == 0:
-        return [], [], max_energy
+    def is_local_min(time: int, energy: np.ndarray, window_size: int) -> bool:
+        if (time == 0) or (time == (len(energy) - 1)):
+            return False
 
-    # Filter out peaks which are close to their previous peaks (within 20 steps) and not within 10% of their height
-    peak_times: List[int] = [raw_peak_times[0]]
-    peak_heights: List[int] = [raw_peak_heights[0]]
+        start_time = max(time - window_size - 1, 0)
+        end_time = min(time + window_size + 1, len(energy))
+        min_value = float(np.min(energy[start_time:end_time]))
 
-    for idx in range(1, len(raw_peak_times)):
-        curr_peak_time, curr_peak_height = raw_peak_times[idx], raw_peak_heights[idx]
-        prev_peak_time, prev_peak_height = raw_peak_times[idx - 1], raw_peak_heights[idx - 1]
+        return abs(min_value - energy[time]) < SMALL_NUMBER
 
-        diff_factor = max(curr_peak_height, prev_peak_height) / min(curr_peak_height, prev_peak_height)
-
-        min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
-        valley_diff = min(curr_peak_height, prev_peak_height) - min_in_between
-
-        # C #2 -> 44440, 44770
-        # D #1 -> 20650, 20900
-        # D #3 -> 71500, 71800
-
-        if (curr_peak_time >= 1490) and (curr_peak_time <= 1520) and ((curr_peak_time - prev_peak_time) <= 25):
-            min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
-            print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}, Valley Diff: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height), valley_diff))
-
-        # Valley Diff: 0.15
-        if ((curr_peak_time - prev_peak_time) < 25) and ((curr_peak_time - prev_peak_time) >= 15) and (diff_factor >= 1.45):
-            continue
-
-        if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or ((valley_diff >= 0.13) and (diff_factor <= 1.10)):
-            peak_times.append(curr_peak_time)
-            peak_heights.append(curr_peak_height)
-
-    # Create the time ranges for each sound based on the peaks
+    # Create the time ranges for each sound based on the normalized energy values
     start_times: List[int] = []
     end_times: List[int] = []
+    cluster_sizes: List[int] = []
+    min_time_length = 10  # Filter out spurious small peaks
+    buffer_time = 1
+    valley_factor = 0.7
+    window_size = 5
 
-    hard_threshold = 1.18
+    start_time = None
+    max_in_between = 0
 
-    for peak_idx, (peak_time, peak_height) in enumerate(zip(peak_times, peak_heights)):
-        prev_time = peak_times[peak_idx - 1] if peak_idx > 0 else 0
-        start_time = np.argmin(max_energy[prev_time:peak_time]) + prev_time
+    for time, energy in enumerate(max_energy):
+        if (start_time is None) and (energy >= sound_cutoff):
+            start_time = time
+            max_in_between = energy
+        elif (start_time is not None) and ((energy <= sound_cutoff) or (is_local_min(time, max_energy, window_size) and (max_in_between * valley_factor >= energy))):
+            cluster_size = 1
 
-        mask = (max_energy[start_time:peak_time] < hard_threshold).astype(int)
-        if np.any(mask == 1):
-            start_time = max(start_time, np.argmax(np.arange(start_time, peak_time) * mask) + start_time)
+            if max_in_between > peak_cutoff:
+                segment_spectrogram = spect[:, (start_time - buffer_time):(time + buffer_time)]
+                cluster_size = count_cluster_size(segment_spectrogram, start_time=start_time)
 
-        next_time = peak_times[peak_idx + 1] if peak_idx < (len(peak_times) - 1) else len(max_energy) - 1
-        end_time = np.argmin(max_energy[peak_time:next_time]) + peak_time
+            if ((time - start_time) >= min_time_length) and (max_in_between > peak_cutoff):
+                start_times.append(start_time)
+                end_times.append(time)
+                cluster_sizes.append(cluster_size)
 
-        mask = (max_energy[peak_time:end_time] < hard_threshold).astype(int)
+            max_in_between = 0
+            start_time = None
+        else:
+            max_in_between = max(max_in_between, energy)
 
-        if np.any(mask == 1):
-            mask = (1 - mask) * BIG_NUMBER
-            end_time = min(end_time, np.argmin(np.arange(peak_time, end_time) + mask) + peak_time)
+    # Plot the results for debugging    
+    #fig, ax = plt.subplots()
+    #ax.plot(list(range(len(max_energy))), max_energy)
+    #ax.axhline(peak_cutoff, color='black')
 
-        start_times.append(start_time)
-        end_times.append(end_time)
+    ##ax.scatter(peak_times, peak_heights, marker='o', color='green')
+    #
+    #for t in start_times:
+    #    ax.axvline(t, color='orange')
 
-    # If the sound is larger than a pre-defined cutoff (85 time units), then try to split again two points with a slightly lower peak
-    
+    #for t in end_times:
+    #    ax.axvline(t, color='red')
+
+    #plt.show()
+
+    return start_times, end_times, max_energy, cluster_sizes
+
+    #peak_ranges: Set[Tuple[int, int, int]] = set()
+
+    #raw_peak_times, peak_properties = find_peaks(max_energy, height=peak_height, distance=peak_distance, prominence=(peak_prominence, None))
+    #raw_peak_heights = peak_properties['peak_heights']
+
+    #if len(raw_peak_times) == 0:
+    #    return [], [], max_energy
+
+    ## Filter out peaks which are close to their previous peaks (within 20 steps) and not within 10% of their height
+    #peak_times: List[int] = [raw_peak_times[0]]
+    #peak_heights: List[int] = [raw_peak_heights[0]]
+
+    #for idx in range(1, len(raw_peak_times)):
+    #    curr_peak_time, curr_peak_height = raw_peak_times[idx], raw_peak_heights[idx]
+    #    prev_peak_time, prev_peak_height = raw_peak_times[idx - 1], raw_peak_heights[idx - 1]
+
+    #    diff_factor = max(curr_peak_height, prev_peak_height) / min(curr_peak_height, prev_peak_height)
+
+    #    min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
+    #    valley_diff = min(curr_peak_height, prev_peak_height) - min_in_between
+
+    #    # C #2 -> 44440, 44770
+    #    # D #1 -> 20650, 20900
+    #    # D #3 -> 71500, 71800
+
+    #    if (curr_peak_time >= 1490) and (curr_peak_time <= 1520) and ((curr_peak_time - prev_peak_time) <= 25):
+    #        min_in_between = np.min(max_energy[prev_peak_time:curr_peak_time])
+    #        print('Curr Time: {}, Prev Time: {}, Curr Height: {:.5f}, Prev Height: {:.5f}, Factor: {:.5f}, Diff: {:.5f}, Valley Diff: {:.5f}'.format(curr_peak_time, prev_peak_time, curr_peak_height, prev_peak_height, diff_factor, abs(curr_peak_height - prev_peak_height), valley_diff))
+
+    #    # Valley Diff: 0.15
+    #    if ((curr_peak_time - prev_peak_time) < 25) and ((curr_peak_time - prev_peak_time) >= 15) and (diff_factor >= 1.45):
+    #        continue
+
+    #    if ((curr_peak_time - prev_peak_time) > 15) or (diff_factor <= 1.03) or (curr_peak_height > prev_peak_height) or ((valley_diff >= 0.13) and (diff_factor <= 1.10)):
+    #        peak_times.append(curr_peak_time)
+    #        peak_heights.append(curr_peak_height)
+
+    ## Create the time ranges for each sound based on the peaks
+    #start_times: List[int] = []
+    #end_times: List[int] = []
+
+    #hard_threshold = 1.18
+
+    #for peak_idx, (peak_time, peak_height) in enumerate(zip(peak_times, peak_heights)):
+    #    prev_time = peak_times[peak_idx - 1] if peak_idx > 0 else 0
+    #    start_time = np.argmin(max_energy[prev_time:peak_time]) + prev_time
+
+    #    mask = (max_energy[start_time:peak_time] < hard_threshold).astype(int)
+    #    if np.any(mask == 1):
+    #        start_time = max(start_time, np.argmax(np.arange(start_time, peak_time) * mask) + start_time)
+
+    #    next_time = peak_times[peak_idx + 1] if peak_idx < (len(peak_times) - 1) else len(max_energy) - 1
+    #    end_time = np.argmin(max_energy[peak_time:next_time]) + peak_time
+
+    #    mask = (max_energy[peak_time:end_time] < hard_threshold).astype(int)
+
+    #    if np.any(mask == 1):
+    #        mask = (1 - mask) * BIG_NUMBER
+    #        end_time = min(end_time, np.argmin(np.arange(peak_time, end_time) + mask) + peak_time)
+
+    #    start_times.append(start_time)
+    #    end_times.append(end_time)
+
+    ## If the sound is larger than a pre-defined cutoff (85 time units), then try to split again two points with a slightly lower peak
+    #
 
 
-    fig, ax = plt.subplots()
-    ax.plot(list(range(len(max_energy))), max_energy)
-    ax.scatter(peak_times, peak_heights, marker='o', color='green')
-    
-    for t in start_times:
-        ax.axvline(t, color='orange')
+    #fig, ax = plt.subplots()
+    #ax.plot(list(range(len(max_energy))), max_energy)
+    #ax.scatter(peak_times, peak_heights, marker='o', color='green')
+    #
+    #for t in start_times:
+    #    ax.axvline(t, color='orange')
 
-    for t in end_times:
-        ax.axvline(t, color='red')
+    #for t in end_times:
+    #    ax.axvline(t, color='red')
 
-    plt.show()
+    #plt.show()
 
-    return start_times, end_times, max_energy
+    #return start_times, end_times, max_energy
 
 
 def get_sound_instances_old(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray]:

@@ -10,7 +10,7 @@ import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.audio_extractor import SmartTVAudio
 from smarttvleakage.audio.data_types import Move
 from smarttvleakage.audio.utils import get_sound_instances, create_spectrogram, extract_move_directions
-from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete
+from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete, get_move_time_length
 from smarttvleakage.audio.constellations import compute_constellation_map
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
 from smarttvleakage.utils.constants import SmartTVType, Direction, BIG_NUMBER, SMALL_NUMBER
@@ -150,7 +150,7 @@ class MoveExtractor:
         clipped_target_spectrogram = target_spectrogram[self.spectrogram_freq_min:self.spectrogram_freq_max]
         clipped_target_spectrogram[clipped_target_spectrogram < -BIG_NUMBER] = 0.0
 
-        start_times, end_times, _ = get_sound_instances(spect=clipped_target_spectrogram,
+        start_times, end_times, _, cluster_sizes = get_sound_instances(spect=clipped_target_spectrogram,
                                                         forward_factor=self.detection_factor,
                                                          backward_factor=self.detection_factor,
                                                          peak_height=self.detection_peak_height,
@@ -163,7 +163,7 @@ class MoveExtractor:
 
         num_matches = 0
 
-        for start_time, end_time in zip(start_times, end_times):
+        for start_time, end_time, cluster_size in zip(start_times, end_times, cluster_sizes):
             # Extract the target spectrogram during this window
             target_segment = target_spectrogram[0:self.spectrogram_freq_max, start_time:end_time]
 
@@ -209,7 +209,7 @@ class MoveExtractor:
         clipped_target_spectrogram = target_spectrogram[self.spectrogram_freq_min:self.spectrogram_freq_max]
         clipped_target_spectrogram[clipped_target_spectrogram < -BIG_NUMBER] = 0.0
 
-        start_times, end_times, max_energy = get_sound_instances(spect=clipped_target_spectrogram,
+        start_times, end_times, max_energy, cluster_sizes = get_sound_instances(spect=clipped_target_spectrogram,
                                                                  forward_factor=self.detection_factor,
                                                                  backward_factor=self.detection_factor,
                                                                  peak_height=self.detection_peak_height,
@@ -236,7 +236,7 @@ class MoveExtractor:
 
         #plt.show()
 
-        for start_time, end_time in zip(start_times, end_times):
+        for start_time, end_time, cluster_size in zip(start_times, end_times, cluster_sizes):
             # If we haven't seen any moves, set the move start time
             if current_num_moves == 0:
                 move_start_time = start_time
@@ -264,7 +264,7 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                #should_plot = (start_time >= 2100) and (start_time <= 2500) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
+                #should_plot = (start_time >= 24950) and (start_time <= 25100) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -296,12 +296,13 @@ class MoveExtractor:
             #    print('----------')
 
             # Handle TV-specific tie-breakers
-            best_sound, best_sim = self.handle_matched_sound(sound=best_sound,
+            best_sound, best_sim, count = self.handle_matched_sound(sound=best_sound,
                                                              target_segment=normalized_spectrogram,
                                                              time=peak_time,
                                                              prev_time=prev_time,
                                                              similarity_scores=similarity_scores,
-                                                             max_segment_energy=max_segment_energy)
+                                                             max_segment_energy=max_segment_energy,
+                                                             cluster_size=cluster_size)
 
             # Skip sounds are are poor matches with all references
             if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
@@ -314,6 +315,7 @@ class MoveExtractor:
             current_time = int((start_time + end_time) / 2)
             results, current_num_moves, move_times = self.update_num_moves(sound=best_sound,
                                                                            num_moves=current_num_moves,
+                                                                           count=cluster_size,
                                                                            move_times=move_times,
                                                                            start_time=move_start_time,
                                                                            current_time=current_time,
@@ -525,7 +527,7 @@ class SamsungMoveExtractor(MoveExtractor):
 
     @property
     def detection_peak_prominence(self) -> int:
-        return 0.08
+        return 0.06
 
     @property
     def detection_merge_peak_factor(self) -> float:
@@ -537,11 +539,52 @@ class SamsungMoveExtractor(MoveExtractor):
 
     @property
     def smooth_detection_window_size(self) -> int:
-        return 8
+        return 8  # 8
 
-    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, similarity_scores: Dict[str, float], max_segment_energy: float) -> Tuple[str, float]:
+    def handle_matched_sound(self, sound: str, target_segment: np.ndarray, time: int, prev_time: int, similarity_scores: Dict[str, float], max_segment_energy: float, cluster_size: int) -> Tuple[str, float]:
         if sound is None:
-            return sound, 0.0
+            return sound, 0.0, 0
+
+        if (cluster_size > 1) and (sound in (sounds.SAMSUNG_MOVE, sounds.SAMSUNG_DELETE)):
+            best_sim = 0.0
+            best_num_moves = 0
+
+            ref_time_steps = get_move_time_length(self._ref_spectrograms[sounds.SAMSUNG_MOVE]) + 1
+            observed_time_steps = get_move_time_length(target_segment)
+
+            num_moves = int(round(observed_time_steps / ref_time_steps))
+
+            #move_spectrogram = self._ref_spectrograms[sounds.SAMSUNG_MOVE]]
+
+            #freq_energy = target_segment[4, :]
+            #start_time = 0
+            #end_time = len(freq_energy)
+
+            #fig, ax = plt.subplots()
+            #ax.plot(list(range(len(freq_energy))), freq_energy)
+            #plt.show()
+
+            #for num_moves in range(1, 11):
+            #    move_copies = np.concatenate([move_spectrogram for _ in range(num_moves)], axis=-1)  # [F, T']
+
+            #    print('Ref Time: {}, Target Time: {}, Diff: {}'.format(target_segment.shape[1], move_copies.shape[1], abs(target_segment.shape[1] - move_copies.shape[1])))
+            #    
+            #    similarity = perform_match_spectrograms(first_spectrogram=target_segment,
+            #                                            second_spectrogram=move_copies,
+            #                                            mask_threshold=self._config[sounds.SAMSUNG_MOVE][PEAK_THRESHOLD],
+            #                                            should_plot=False)
+
+            #    if (similarity > best_sim):
+            #        best_sim = similarity
+            #        best_num_moves = num_moves
+
+            #if time >= 24400:
+            #    print('Time: {}, Num Moves: {}, Ref Length: {}, Observed Length: {}'.format(time, num_moves, ref_time_steps, observed_time_steps))
+            #    fig, ax = plt.subplots()
+            #    ax.imshow(target_segment, cmap='gray_r')
+            #    plt.show()
+
+            return sounds.SAMSUNG_MOVE, similarity_scores[sounds.SAMSUNG_MOVE], num_moves
 
         best_sim = similarity_scores[sound]
         key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
@@ -552,16 +595,16 @@ class SamsungMoveExtractor(MoveExtractor):
             # sim_buffer = self._config[sounds.SAMSUNG_SELECT][DEDUP_THRESHOLD]
 
             if (max_segment_energy < self._config[sounds.SAMSUNG_SELECT][ENERGY_THRESHOLD]) and (key_select_sim > self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]):
-                return sounds.SAMSUNG_KEY_SELECT, key_select_sim
+                return sounds.SAMSUNG_KEY_SELECT, key_select_sim, 1
         elif (sound == sounds.SAMSUNG_MOVE):
             select_sim = similarity_scores[sounds.SAMSUNG_SELECT]
             key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
             key_select_buffer = self._config[sounds.SAMSUNG_KEY_SELECT][DEDUP_THRESHOLD]
 
             if (key_select_sim >= self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]) and ((key_select_sim + key_select_buffer) >= best_sim):
-                return sounds.SAMSUNG_KEY_SELECT, key_select_sim
+                return sounds.SAMSUNG_KEY_SELECT, key_select_sim, 1
             elif (best_sim < self._config[sound][MIN_SIMILARITY]) and (select_sim >= self._config[sounds.SAMSUNG_SELECT][MIN_SIMILARITY]):
-                return sounds.SAMSUNG_SELECT, select_sim
+                return sounds.SAMSUNG_SELECT, select_sim, 1
         elif (sound == sounds.SAMSUNG_DELETE):
             move_sim = similarity_scores[sounds.SAMSUNG_MOVE]
             move_threshold = self._config[sounds.SAMSUNG_MOVE][DEDUP_THRESHOLD]
@@ -572,13 +615,13 @@ class SamsungMoveExtractor(MoveExtractor):
             time_buffer = self._config[sounds.SAMSUNG_DELETE][TIME_THRESHOLD]
 
             if (best_sim >= (3.0 * move_sim)):
-                return sound, best_sim
+                return sound, best_sim, 1
 
             if (time >= 2100) and (time <= 2500):
                 print('Time diff: {}, Time Buffer: {}, Move Sim: {}, Delete Sim: {}'.format(time - prev_time, time_buffer, move_sim, best_sim))
 
             if ((time - prev_time) <= time_buffer) or ((move_sim > force_threshold) and ((move_sim + 3.0 * move_buffer) > best_sim)) or ((move_sim > move_threshold) and ((best_sim < delete_threshold) or ((move_sim + move_buffer) > best_sim))):
-                return sounds.SAMSUNG_MOVE, move_sim
+                return sounds.SAMSUNG_MOVE, move_sim, 1
 
             #if (time >= 42530) and (time <= 42550):
             #print('Current Time: {}, Prev Time: {}, Diff: {}, Move Sim: {:.4f}, Best Sim: {:.4f}'.format(time, prev_time, time - prev_time, move_sim, best_sim))
@@ -586,9 +629,9 @@ class SamsungMoveExtractor(MoveExtractor):
             #if (move_sim > move_threshold) or ((move_sim + delete_buffer) > best_sim) or ((time - prev_time) <= time_buffer):
             #   return sounds.SAMSUNG_MOVE, move_sim
 
-        return sound, similarity_scores[sound]
+        return sound, similarity_scores[sound], 1
 
-    def update_num_moves(self, sound: str, num_moves: int, move_times: List[int], start_time: int, current_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
+    def update_num_moves(self, sound: str, num_moves: int, count: int, move_times: List[int], start_time: int, current_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
         assert len(move_times) == num_moves, 'Got {} move times but {} moves'.format(len(move_times), num_moves)
 
         if sound in (sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_DELETE, sounds.SAMSUNG_SELECT):
@@ -605,8 +648,9 @@ class SamsungMoveExtractor(MoveExtractor):
             num_moves = 0
             move_times = []
         elif sound == sounds.SAMSUNG_MOVE:
-            num_moves += 1
-            move_times.append(current_time)
+            num_moves += count
+            for _ in range(count):
+                move_times.append(current_time)
         else:
             raise ValueError('Unknown sound: {}'.format(sound))
 
