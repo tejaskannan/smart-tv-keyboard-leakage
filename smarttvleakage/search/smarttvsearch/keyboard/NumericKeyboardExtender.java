@@ -22,7 +22,7 @@ public class NumericKeyboardExtender extends KeyboardExtender {
                 directions[dirIdx] = direction;
             }
 
-            return this.keyboard.getKeysForDistanceCumulative(key, numMoves, true, true, directions, keyboardName);
+            return this.keyboard.getKeysForDistanceCumulative(key, numMoves, true, true, directions, keyboardName, false);
         } else {
             return new HashSet<String>();
         }

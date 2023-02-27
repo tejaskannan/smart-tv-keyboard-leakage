@@ -46,7 +46,10 @@ def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> 
     #iqr_time = np.percentile(time_diffs, 75) - np.percentile(time_diffs, 25)
     #median_time = np.median(time_diffs)
     #cutoff_time = median_time + 4.0 * iqr_time
-    cutoff_time = np.average(time_diffs) + np.std(time_diffs)
+    cutoff_time = np.average(time_diffs) + 1.5 * np.std(time_diffs)
+
+    print(time_diffs)
+    print('Cutoff Time: {}'.format(cutoff_time))
 
     split_sequence: List[List[Move]] = []
     current_split: List[Move] = [move_sequence[0]]
@@ -92,9 +95,9 @@ def process_split(move_seq: List[Move]) -> List[Move]:
 
     move_seq = move_seq[start_idx:]
 
-    # Remove the last movement if it doesn't end in a 'select'. In this case, the 'done' key was suggested, so the movement
-    # tells us nothing about the position of the prior key
-    if move_seq[-1].end_sound != sounds.SAMSUNG_SELECT:
+    # Remove the last movement if it doesn't end in a 'select' and the recording shows only 1 move.
+    # In this case, the 'done' key was suggested, so the movement tells us nothing about the position of the prior key
+    if (move_seq[-1].end_sound != sounds.SAMSUNG_SELECT) and (move_seq[-1].num_moves == 1):
         move_seq = move_seq[:-1]
 
     return move_seq

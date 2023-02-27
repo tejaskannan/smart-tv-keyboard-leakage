@@ -7,7 +7,7 @@
         "dedup_threshold": 16.0,
         "force_threshold": 28.0,
         "dedup_buffer": 3.0,
-        "energy_threshold": 1.7
+        "energy_threshold": 1.5
     },
     "key_select": {
         "threshold": 0.85,
@@ -35,6 +35,6 @@
         "min_similarity": 13.0,
         "dedup_threshold": 35.0,
         "time_threshold": 75,
-        "energy_threshold": 1.7
+        "energy_threshold": 1.5
     }
 }

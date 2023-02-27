@@ -9,7 +9,7 @@ from typing import Dict, List, Set, Tuple
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.audio_extractor import SmartTVAudio
 from smarttvleakage.audio.data_types import Move
-from smarttvleakage.audio.utils import get_sound_instances, create_spectrogram, extract_move_directions
+from smarttvleakage.audio.utils import get_sound_instances, create_spectrogram, extract_move_directions, get_num_scrolls
 from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete, get_move_time_length
 from smarttvleakage.audio.constellations import compute_constellation_map
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
@@ -264,7 +264,7 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                #should_plot = (start_time >= 24950) and (start_time <= 25100) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
+                #should_plot = (start_time >= 62600) and (start_time <= 68000) and (sound in (sounds.SAMSUNG_DELETE, sounds.SAMSUNG_MOVE, sounds.SAMSUNG_KEY_SELECT, sounds.SAMSUNG_SELECT))
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -303,6 +303,9 @@ class MoveExtractor:
                                                              similarity_scores=similarity_scores,
                                                              max_segment_energy=max_segment_energy,
                                                              cluster_size=cluster_size)
+
+            if (should_plot):
+                print('Best Sound: {}, Best Sim: {} ({}), Max Energy: {} ({})'.format(best_sound, best_sim, self._config[best_sound][MIN_SIMILARITY], max_segment_energy, self._config[best_sound][ENERGY_THRESHOLD]))
 
             # Skip sounds are are poor matches with all references
             if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
@@ -379,7 +382,8 @@ class AppleTVMoveExtractor(MoveExtractor):
                         directions=Direction.ANY,  # TODO: Handle direction inference
                         start_time=start_time,
                         end_time=current_time,
-                        move_times=move_times)
+                        move_times=move_times,
+                        num_scrolls=get_num_scrolls(move_times))
 
             current_results.append(move)
             num_moves = 0
@@ -642,7 +646,8 @@ class SamsungMoveExtractor(MoveExtractor):
                         directions=directions,
                         start_time=start_time,
                         end_time=current_time,
-                        move_times=move_times)
+                        move_times=move_times,
+                        num_scrolls=get_num_scrolls(move_times))
 
             current_results.append(move)
             num_moves = 0

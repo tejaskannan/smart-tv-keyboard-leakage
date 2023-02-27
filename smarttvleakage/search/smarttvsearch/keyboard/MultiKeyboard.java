@@ -104,7 +104,7 @@ public class MultiKeyboard {
         return keyboard.getKeysForDistance(key, distance, useWraparound, shortcutIdx, directions);
     }
 
-    public Set<String> getKeysForDistanceCumulative(String key, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions, String keyboardName) {
+    public Set<String> getKeysForDistanceCumulative(String key, int distance, boolean useWraparound, boolean useShortcuts, Direction[] directions, String keyboardName, boolean shouldEnforceMinDistance) {
         Keyboard keyboard = this.keyboards.get(keyboardName);
 
         if (keyboard == null) {
@@ -113,13 +113,15 @@ public class MultiKeyboard {
 
         Set<String> withDirections = keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, directions);
 
-        Direction[] anyDirections = new Direction[directions.length];
-        for (int idx = 0; idx < directions.length; idx++) {
-            anyDirections[idx] = Direction.ANY;
-        }
+        if (shouldEnforceMinDistance) {
+            Direction[] anyDirections = new Direction[directions.length];
+            for (int idx = 0; idx < directions.length; idx++) {
+                anyDirections[idx] = Direction.ANY;
+            }
 
-        Set<String> withoutDirections = keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, anyDirections);
-        withDirections.retainAll(withoutDirections);
+            Set<String> withoutDirections = keyboard.getKeysForDistanceCumulative(key, distance, useWraparound, useShortcuts, anyDirections);
+            withDirections.retainAll(withoutDirections);
+        }
 
         return withDirections;
     }

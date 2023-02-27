@@ -4,13 +4,14 @@ from smarttvleakage.utils.constants import Direction
 
 class Move:
 
-    def __init__(self, num_moves: int, end_sound: str, directions: Union[Direction, List[Direction]], start_time: int = 0, end_time: int = 0, move_times: List[int] = []):
+    def __init__(self, num_moves: int, end_sound: str, directions: Union[Direction, List[Direction]], start_time: int = 0, end_time: int = 0, move_times: List[int] = [], num_scrolls: int = 0):
         self._num_moves = int(num_moves)
         self._end_sound = str(end_sound)
         self._directions = directions
         self._start_time = int(start_time)
         self._end_time = int(end_time)
         self._move_times = move_times
+        self._num_scrolls = num_scrolls  # The number of rapid movements of length >= 4
 
         if len(move_times) == 0:
             self._move_times = [0 for _ in range(num_moves)]
@@ -39,6 +40,10 @@ class Move:
     def end_time(self) -> int:
         return self._end_time
 
+    @property
+    def num_scrolls(self) -> int:
+        return self._num_scrolls
+
     def __eq__(self, other: Any):
         if isinstance(other, Move):
             if isinstance(other.directions, list) and isinstance(self.directions, list):
@@ -47,12 +52,12 @@ class Move:
             else:
                 directions_equal = other.directions == self.directions
 
-            return directions_equal and (other.num_moves == self.num_moves) and (other.end_sound == self.end_sound) and (other.end_time == self.end_time)
+            return directions_equal and (other.num_moves == self.num_moves) and (other.end_sound == self.end_sound) and (other.end_time == self.end_time) and (other.num_scrolls == self.num_scrolls)
         else:
             return False
 
     def __repr__(self):
-        return 'Move(num_moves={}, end_sound={}, directions={}, start_time={}, end_time={})'.format(self.num_moves, self.end_sound, self.directions, self.start_time, self.end_time)
+        return 'Move(num_moves={}, end_sound={}, directions={}, start_time={}, end_time={}, num_scrolls={})'.format(self.num_moves, self.end_sound, self.directions, self.start_time, self.end_time, self.num_scrolls)
 
     def to_dict(self) -> Dict[str, Any]:
         if isinstance(self.directions, list):
@@ -63,6 +68,7 @@ class Move:
         return {
             'num_moves': self.num_moves,
             'end_sound': self.end_sound,
+            'num_scrolls': self.num_scrolls,
             'directions': serialized_directions,
             'start_time': self.start_time,
             'end_time': self.end_time,
@@ -81,4 +87,5 @@ class Move:
                     end_sound=str(serialized['end_sound']),
                     directions=directions,
                     start_time=int(serialized['start_time']),
-                    end_time=int(serialized['end_time']))
+                    end_time=int(serialized['end_time']),
+                    num_scrolls=int(serialized['num_scrolls']))

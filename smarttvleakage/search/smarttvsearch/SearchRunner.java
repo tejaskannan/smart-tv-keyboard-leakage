@@ -95,17 +95,17 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
-                for (int moveIdx = 0; moveIdx < zipSeq.length; moveIdx++) {
-                    System.out.printf("%d. %d (%s)\n", moveIdx + 1, zipSeq[moveIdx].getNumMoves(), zipSeq[moveIdx].getEndSound().getSoundName());
+                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
+                    System.out.printf("%d. %d (%s)\n", moveIdx + 1, ccnSeq[moveIdx].getNumMoves(), ccnSeq[moveIdx].getEndSound().getSoundName());
                 }
                 System.out.println();
 
                 List<Integer> diffs = new ArrayList<Integer>();
 
-                for (int moveIdx = 0; moveIdx < zipSeq.length; moveIdx++) {
+                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
                     System.out.printf("%d. ", moveIdx + 1);
 
-                    int[] moveTimes = zipSeq[moveIdx].getMoveTimes();
+                    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
                     List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
 
                     if (moveDiffs != null) {

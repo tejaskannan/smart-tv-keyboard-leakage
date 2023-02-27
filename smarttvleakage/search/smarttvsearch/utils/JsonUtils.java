@@ -36,6 +36,7 @@ public class JsonUtils {
         int numMoves = jsonMove.getInt("num_moves");
         int startTime = jsonMove.getInt("start_time");
         int endTime = jsonMove.getInt("end_time");
+        int numScrolls = jsonMove.getInt("num_scrolls");
 
         SmartTVSound endSound;
         if (tvType == SmartTVType.SAMSUNG) {
@@ -59,9 +60,9 @@ public class JsonUtils {
                 directions[idx] = Direction.valueOf(directionsArray.getString(idx).toUpperCase());
             }
 
-            return new Move(numMoves, directions, endSound, startTime, endTime, moveTimes);
+            return new Move(numMoves, directions, endSound, startTime, endTime, moveTimes, numScrolls);
         } catch (JSONException ex) {
-            return new Move(numMoves, endSound, startTime, endTime, moveTimes);
+            return new Move(numMoves, endSound, startTime, endTime, moveTimes, numScrolls);
         }
     }
 }

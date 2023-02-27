@@ -47,6 +47,7 @@ public class Search {
     private boolean[] isMoveDeleted;
 
     private static int DONE_SUGGESTION_COUNT = 8;
+    private static final double SCROLL_MISTAKE_FACTOR = 0.9;
 
     public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount) {
         this.moveSeq = moveSeq;
@@ -105,11 +106,14 @@ public class Search {
                 int numSuboptimal = this.suboptimalModel.getLimit(moveIdx);
                 HashMap<String, Double> neighborKeys = new HashMap<String, Double>();  // Neighbor -> Score factor
 
-                //boolean isFirstMoveAndZero = (moveIdx == 0) && (numMoves == 0);
-
+                // Password keyboards have a 'done' suggestion key which sometimes induces suboptimal moves in user
+                // behavior (they have the explicitly clear the suggestion with a move)
                 if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (numMoves > 1)) {
                     numSuboptimal = Math.max(numSuboptimal, 1);
                 }
+
+                // Each scroll has a mistake of +/- 1 based on challenges with audio parsing
+                numSuboptimal = Math.max(numSuboptimal, move.getNumScrolls());
 
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
                     int adjustedNumMoves = numMoves + offset;
@@ -128,12 +132,14 @@ public class Search {
                         }
                     }
 
-                    Set<String> neighbors = this.keyboard.getKeysForDistanceCumulative(currentKey, adjustedNumMoves, true, true, directions, currentState.getKeyboardName());
+                    Set<String> neighbors = this.keyboard.getKeysForDistanceCumulative(currentKey, adjustedNumMoves, true, true, directions, currentState.getKeyboardName(), true);
                     double scoreFactor = this.suboptimalModel.getScoreFactor(offset);
 
                     // Users often make a single suboptimal move because the suggested key gets in the way
                     if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (Math.abs(offset) == 1) && (numMoves > 1)) {
                         scoreFactor = 1.0;
+                    } else if ((offset != 0) && (Math.abs(offset) <= move.getNumScrolls())) {
+                        scoreFactor = SCROLL_MISTAKE_FACTOR;
                     }
 
                     Set<String> extendedNeighbors = this.keyboardExtender.getExtendedNeighbors(currentKey, adjustedNumMoves, currentState.getKeyboardName());
