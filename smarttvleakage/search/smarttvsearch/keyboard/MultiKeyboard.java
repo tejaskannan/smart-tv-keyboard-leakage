@@ -17,7 +17,7 @@ public class MultiKeyboard {
     public static final String SAMSUNG_SPECIAL_0 = "samsung_keyboard_special_0";
     public static final String SAMSUNG_SPECIAL_1 = "samsung_keyboard_special_1";
 
-    public static final String APPLETV_STD = "appletv_keyboard";
+    public static final String APPLETV_STD = "appletv_keyboard_standard";
     public static final String APPLETV_CAPS = "appletv_keyboard_caps";
     public static final String APPLETV_SPECIAL = "appletv_keyboard_special";
 
@@ -45,17 +45,27 @@ public class MultiKeyboard {
             path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.SAMSUNG_SPECIAL_1));
             keyboards.put(MultiKeyboard.SAMSUNG_SPECIAL_1, new Keyboard(path));
 
-            path = FileUtils.joinPath(graphFolder, "link.json");
-            linker = new KeyboardLinker(path);
-
             this.startKeyboard = MultiKeyboard.SAMSUNG_STD;
             this.startKey = "q";
-        } else if (tvType == SmartTVType.APPLETV) {
+        } else if (tvType == SmartTVType.APPLE_TV) {
+            path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.APPLETV_STD));
+            keyboards.put(MultiKeyboard.APPLETV_STD, new Keyboard(path));
+
+            path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.APPLETV_CAPS));
+            keyboards.put(MultiKeyboard.APPLETV_CAPS, new Keyboard(path));
+
+            path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.APPLETV_SPECIAL));
+            keyboards.put(MultiKeyboard.APPLETV_SPECIAL, new Keyboard(path));
+
             this.startKeyboard = MultiKeyboard.APPLETV_STD;
             this.startKey = "a";
         } else {
             throw new IllegalArgumentException("Unknown tv type: " + tvType.name());
         }
+
+        // Create the implicit keyboard linker
+        path = FileUtils.joinPath(graphFolder, "link.json");
+        linker = new KeyboardLinker(path);
     }
 
     public SmartTVType getTVType() {

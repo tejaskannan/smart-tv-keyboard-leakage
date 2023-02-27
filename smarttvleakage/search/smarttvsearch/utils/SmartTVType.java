@@ -2,5 +2,5 @@ package smarttvsearch.utils;
 
 
 public enum SmartTVType {
-    SAMSUNG, APPLETV
+    SAMSUNG, APPLE_TV
 }

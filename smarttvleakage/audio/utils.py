@@ -298,7 +298,85 @@ def count_cluster_size(segment_spectrogram: np.ndarray, start_time: int) -> int:
     return max(num_clusters, 1)
 
 
-def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_factor: float, peak_height: float, peak_distance: int, peak_prominence: float, smooth_window_size: int, tolerance: float, merge_peak_factor: float, max_merge_height: float) -> Tuple[List[int], List[int], np.ndarray, List[int]]:
+def get_sound_instances_appletv(spect: np.ndarray, smooth_window_size: int) -> Tuple[List[int], List[int], np.ndarray, List[int]]:
+     # First, normalize the energy values for each frequency
+    mean_energy = np.mean(spect, axis=-1, keepdims=True)
+    std_energy = np.std(spect, axis=-1, keepdims=True)
+    max_energy = np.max((spect - mean_energy) / std_energy, axis=0)  # [T]
+
+    if smooth_window_size > 1:
+        smooth_filter = np.ones(shape=(smooth_window_size, ), dtype=max_energy.dtype) / float(smooth_window_size)
+        max_energy = convolve(max_energy, smooth_filter, mode='full')  # [T]
+
+    # Get the cutoff points for which to detect possible sounds
+    median_normalized_energy = np.median(max_energy)
+    iqr = np.percentile(max_energy, 75) - np.percentile(max_energy, 25)
+    peak_cutoff = median_normalized_energy + 2.5 * iqr
+    sound_cutoff = median_normalized_energy + 0.15 * iqr
+
+    # Create the time ranges for each sound based on the normalized energy values
+    start_times: List[int] = []
+    end_times: List[int] = []
+    cluster_sizes: List[int] = []
+    min_time_length = 10  # Filter out spurious small peaks
+    buffer_time = 1
+    valley_factor = 0.5
+    window_size = 10
+
+    start_time = None
+    max_in_between = 0
+
+    for time, energy in enumerate(max_energy):
+        if (start_time is None) and (energy >= sound_cutoff):
+            start_time = time
+            max_in_between = energy
+        elif (start_time is not None) and ((energy <= sound_cutoff) or (is_local_min(time, max_energy, window_size) and (max_in_between * valley_factor >= energy))):
+            cluster_size = 1
+
+            if max_in_between > peak_cutoff:
+                segment_spectrogram = spect[:, (start_time - buffer_time):(time + buffer_time)]
+                cluster_size = count_cluster_size(segment_spectrogram, start_time=start_time)
+
+            if ((time - start_time) >= min_time_length) and (max_in_between > peak_cutoff):
+                start_times.append(start_time)
+                end_times.append(time)
+                cluster_sizes.append(cluster_size)
+
+            max_in_between = 0
+            start_time = None
+        else:
+            max_in_between = max(max_in_between, energy)
+
+    # Plot the results for debugging    
+    #fig, ax = plt.subplots()
+    #ax.plot(list(range(len(max_energy))), max_energy)
+    #ax.axhline(peak_cutoff, color='black')
+
+    ##ax.scatter(peak_times, peak_heights, marker='o', color='green')
+    #
+    #for t in start_times:
+    #    ax.axvline(t, color='orange')
+
+    #for t in end_times:
+    #    ax.axvline(t, color='red')
+
+    #plt.show()
+
+    return start_times, end_times, max_energy, cluster_sizes
+
+
+def is_local_min(time: int, energy: np.ndarray, window_size: int) -> bool:
+    if (time == 0) or (time == (len(energy) - 1)):
+        return False
+
+    start_time = max(time - window_size - 1, 0)
+    end_time = min(time + window_size + 1, len(energy))
+    min_value = float(np.min(energy[start_time:end_time]))
+
+    return abs(min_value - energy[time]) < SMALL_NUMBER
+
+
+def get_sound_instances_samsung(spect: np.ndarray, smooth_window_size: int) -> Tuple[List[int], List[int], np.ndarray, List[int]]:
      # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)
     std_energy = np.std(spect, axis=-1, keepdims=True)
@@ -315,16 +393,6 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
     sound_cutoff = median_normalized_energy + 0.15 * iqr
 
     print('Peak Cutoff: {:.5f}, Sound Cutoff: {:.5f}'.format(peak_cutoff, sound_cutoff))
-
-    def is_local_min(time: int, energy: np.ndarray, window_size: int) -> bool:
-        if (time == 0) or (time == (len(energy) - 1)):
-            return False
-
-        start_time = max(time - window_size - 1, 0)
-        end_time = min(time + window_size + 1, len(energy))
-        min_value = float(np.min(energy[start_time:end_time]))
-
-        return abs(min_value - energy[time]) < SMALL_NUMBER
 
     # Create the time ranges for each sound based on the normalized energy values
     start_times: List[int] = []
@@ -360,24 +428,24 @@ def get_sound_instances(spect: np.ndarray, forward_factor: float, backward_facto
             max_in_between = max(max_in_between, energy)
 
     # Plot the results for debugging    
-    fig, ax = plt.subplots()
-    ax.plot(list(range(len(max_energy))), max_energy)
-    ax.axhline(peak_cutoff, color='black')
+    #fig, ax = plt.subplots()
+    #ax.plot(list(range(len(max_energy))), max_energy)
+    #ax.axhline(peak_cutoff, color='black')
 
-    #ax.scatter(peak_times, peak_heights, marker='o', color='green')
-    
-    for t in start_times:
-        ax.axvline(t, color='orange')
+    ##ax.scatter(peak_times, peak_heights, marker='o', color='green')
+    #
+    #for t in start_times:
+    #    ax.axvline(t, color='orange')
 
-    for t in end_times:
-        ax.axvline(t, color='red')
+    #for t in end_times:
+    #    ax.axvline(t, color='red')
 
-    plt.show()
+    #plt.show()
 
     return start_times, end_times, max_energy, cluster_sizes
 
 
-def get_num_scrolls(move_times: List[int]) -> int:
+def get_num_scrolls(move_times: List[int], cutoff_size: int) -> int:
     num_scrolls = 0
     cluster_size = 0
 
@@ -387,7 +455,7 @@ def get_num_scrolls(move_times: List[int]) -> int:
         if (next_time == curr_time):
             cluster_size += 1
         else:
-            num_scrolls += int(cluster_size >= 4)
+            num_scrolls += int(cluster_size >= cutoff_size)
             cluster_size = 0
     
     return num_scrolls

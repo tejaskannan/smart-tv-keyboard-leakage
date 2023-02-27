@@ -109,6 +109,6 @@ public class Move {
 
     @Override
     public String toString() {
-        return String.format("Move(numMoves=%d, endSound=%s)", this.getNumMoves(), this.getEndSound().getSoundName());
+        return String.format("Move(numMoves=%d, endSound=%s, numScrolls=%s)", this.getNumMoves(), this.getEndSound().getSoundName(), this.getNumScrolls());
     }
 }

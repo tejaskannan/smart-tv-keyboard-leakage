@@ -33,6 +33,10 @@ public class KeyboardUtils {
         return key.equals(SpecialKeys.DELETE) || key.equals(SpecialKeys.DELETE_ALL);
     }
 
+    public static boolean isAppleTVDeleteKey(String key) {
+        return key.equals(SpecialKeys.DELETE);
+    }
+
     public static String keysToString(List<String> keys) {
         Stack<String> characters = new Stack<String>();
 

@@ -187,6 +187,10 @@ public class Keyboard {
             if (currentDist == distance) {
                 result.add(current.getKey());
             } else {
+                if (currentDist >= directions.length) {
+                    System.out.printf("Current Dist: %d, Current Key: %s, Total Dist: %d, Num Directions: %d\n", currentDist, current.getKey(), distance, directions.length);
+                }
+
                 Set<String> neighbors = this.getNeighbors(current.getKey(), useWraparound, shortcutIdx, directions[currentDist]);
 
                 for (String neighbor : neighbors) {

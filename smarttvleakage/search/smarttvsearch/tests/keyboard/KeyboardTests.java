@@ -12,9 +12,11 @@ import smarttvsearch.utils.Direction;
 public class KeyboardTests {
 
     private Keyboard samsungKeyboardStd;
+    private Keyboard appletvKeyboardStd;
 
     public KeyboardTests() {
         this.samsungKeyboardStd = new Keyboard("../../keyboard/samsung/samsung_keyboard.json");
+        this.appletvKeyboardStd = new Keyboard("../../keyboard/apple_tv/appletv_keyboard_standard.json");
     }
 
     @Test
@@ -201,6 +203,14 @@ public class KeyboardTests {
         }
 
         Set<String> observed = this.samsungKeyboardStd.getKeysForDistanceCumulative("2", numMoves, true, true, directions);
+        this.validateKeys(observed, expected);
+    }
+
+    @Test
+    public void testAppleTVBasic() {
+        String[] expected = new String[] { "f", "5" };
+        Direction[] directions = new Direction[] { Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY, Direction.ANY };
+        Set<String> observed = this.appletvKeyboardStd.getKeysForDistanceCumulative("a", 5, true, true, directions);
         this.validateKeys(observed, expected);
     }
 

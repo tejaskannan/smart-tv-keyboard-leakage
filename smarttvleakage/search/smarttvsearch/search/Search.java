@@ -24,6 +24,7 @@ import smarttvsearch.utils.SpecialKeys;
 import smarttvsearch.utils.SmartTVType;
 import smarttvsearch.utils.SearchUtils;
 import smarttvsearch.utils.sounds.SamsungSound;
+import smarttvsearch.utils.sounds.AppleTVSound;
 
 
 public class Search {
@@ -77,6 +78,10 @@ public class Search {
             Move lastMove = moveSeq[moveSeq.length - 1];
             SamsungSound lastSound = (SamsungSound) lastMove.getEndSound();
             this.doesEndWithDone = lastSound.isSelect();
+        } else if (tvType == SmartTVType.APPLE_TV) {
+            Move lastMove = moveSeq[moveSeq.length - 1];
+            AppleTVSound lastSound = (AppleTVSound) lastMove.getEndSound();
+            this.doesEndWithDone = lastSound.isToolbarMove();
         }
 
         // Get the moves that are deleted. We avoid scoring such moves to bias the prior (they don't make it in the final result anyways)
@@ -113,7 +118,8 @@ public class Search {
                 }
 
                 // Each scroll has a mistake of +/- 1 based on challenges with audio parsing
-                numSuboptimal = Math.max(numSuboptimal, move.getNumScrolls());
+                int scrollsBuffer = ((this.tvType == SmartTVType.APPLE_TV) && (!this.isFinished(moveIdx))) ? Math.max(2 * move.getNumScrolls(), 1) : move.getNumScrolls();
+                numSuboptimal = Math.max(numSuboptimal, scrollsBuffer);
 
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
                     int adjustedNumMoves = numMoves + offset;
@@ -138,7 +144,7 @@ public class Search {
                     // Users often make a single suboptimal move because the suggested key gets in the way
                     if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (Math.abs(offset) == 1) && (numMoves > 1)) {
                         scoreFactor = 1.0;
-                    } else if ((offset != 0) && (Math.abs(offset) <= move.getNumScrolls())) {
+                    } else if ((offset != 0) && (Math.abs(offset) <= scrollsBuffer)) {
                         scoreFactor = SCROLL_MISTAKE_FACTOR;
                     }
 
@@ -229,6 +235,16 @@ public class Search {
                 return KeyboardUtils.isSamsungDeleteKey(key);
             } else {
                 return this.languagePrior.isValidKey(key) && !KeyboardUtils.isSamsungSelectKey(key) && !KeyboardUtils.isSamsungDeleteKey(key);
+            }
+        }  else if (this.tvType == SmartTVType.APPLE_TV) {
+            AppleTVSound appleTVSound = (AppleTVSound) endSound;
+
+            if (SpecialKeys.DONE.equals(key)) {
+                return false;
+            } else if (appleTVSound.isDelete()) {
+                return KeyboardUtils.isAppleTVDeleteKey(key);
+            } else {
+                return this.languagePrior.isValidKey(key) && !KeyboardUtils.isAppleTVDeleteKey(key);
             }
         } else {
             return this.languagePrior.isValidKey(key);

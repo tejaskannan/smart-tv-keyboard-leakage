@@ -7,6 +7,7 @@ from typing import List, Optional, Any, Tuple, Dict
 
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio import make_move_extractor, Move
+from smarttvleakage.audio.tv_classifier import SmartTVTypeClassifier
 from smarttvleakage.utils.constants import SmartTVType
 from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence, CreditCardSequence
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_json
@@ -20,7 +21,38 @@ class SequenceType(Enum):
     CREDIT_CARD = auto()
 
 
-def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> Tuple[SequenceType, List[Any]]:
+def split_into_instances_appletv(move_sequence: List[Move], min_num_selections: int) -> Tuple[SequenceType, List[Any]]:
+    split_sequence: List[List[Move]] = []
+    current_split: List[Move] = []
+
+    for move in move_sequence:
+        if move.end_sound == sounds.APPLETV_TOOLBAR_MOVE:
+            if move.num_moves >= 2:
+                toolbar_move = Move(num_moves=move.num_moves + 1,  # Account for the move to the done key (which makes the toolbar sound)
+                                    end_sound=move.end_sound,
+                                    directions=move.directions,
+                                    start_time=move.start_time,
+                                    end_time=move.end_time,
+                                    move_times=move.move_times + [move.move_times[-1]],
+                                    num_scrolls=move.num_scrolls)
+                current_split.append(toolbar_move)
+            else:
+                current_split.append(move)
+
+            if len(current_split) >= min_num_selections:
+                split_sequence.append(current_split)
+
+            current_split = []
+        else:
+            current_split.append(move)
+
+    if len(current_split) >= min_num_selections:
+        split_sequence.append(current_split)
+
+    return SequenceType.STANDARD, split_sequence
+
+
+def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: int) -> Tuple[SequenceType, List[Any]]:
     if len(move_sequence) == 0:
         return SequenceType.STANDARD, []
 
@@ -43,13 +75,7 @@ def split_into_instances(move_sequence: List[Move], min_num_selections: int) -> 
         time_diffs.append(diff)
 
     # Get the cutoff time between moves
-    #iqr_time = np.percentile(time_diffs, 75) - np.percentile(time_diffs, 25)
-    #median_time = np.median(time_diffs)
-    #cutoff_time = median_time + 4.0 * iqr_time
     cutoff_time = np.average(time_diffs) + 1.5 * np.std(time_diffs)
-
-    print(time_diffs)
-    print('Cutoff Time: {}'.format(cutoff_time))
 
     split_sequence: List[List[Move]] = []
     current_split: List[Move] = [move_sequence[0]]
@@ -154,15 +180,23 @@ if __name__ == '__main__':
     # Get the spectrogram
     target_spectrogram = read_pickle_gz(args.spectrogram_path)
 
-    # TODO: Infer the Smart TV Type
-    tv_type = SmartTVType.SAMSUNG
+    # Infer the Smart TV Type
+    tv_clf = SmartTVTypeClassifier()
+    tv_type = tv_clf.get_tv_type(target_spectrogram)
+
+    # Extract the move sequence
     move_extractor = make_move_extractor(tv_type=tv_type)
 
     # Get the move sequence independent of the keyboard instances
     move_seq = move_extractor.extract_moves(target_spectrogram)
 
     # Split the move sequence into keyboard instances
-    seq_type, split_seq = split_into_instances(move_sequence=move_seq, min_num_selections=1)
+    if tv_type == SmartTVType.SAMSUNG:
+        seq_type, split_seq = split_into_instances_samsung(move_sequence=move_seq, min_num_selections=1)
+    elif tv_type == SmartTVType.APPLE_TV:
+        seq_type, split_seq = split_into_instances_appletv(move_sequence=move_seq, min_num_selections=3)
+    else:
+        raise ValueError('Unknown TV Type: {}'.format(tv_type))
 
     print('Number of splits: {}'.format(len(split_seq)))
 

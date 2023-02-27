@@ -9,6 +9,7 @@ import smarttvsearch.utils.Move;
 import smarttvsearch.utils.SmartTVType;
 import smarttvsearch.utils.sounds.SmartTVSound;
 import smarttvsearch.utils.sounds.SamsungSound;
+import smarttvsearch.utils.sounds.AppleTVSound;
 
 
 public class JsonUtils {
@@ -41,6 +42,8 @@ public class JsonUtils {
         SmartTVSound endSound;
         if (tvType == SmartTVType.SAMSUNG) {
             endSound = new SamsungSound(jsonMove.getString("end_sound"));
+        } else if (tvType == SmartTVType.APPLE_TV) {
+            endSound = new AppleTVSound(jsonMove.getString("end_sound"));  
         } else {
             throw new IllegalArgumentException("Cannot parse sound for tv: " + tvType.name());
         }
