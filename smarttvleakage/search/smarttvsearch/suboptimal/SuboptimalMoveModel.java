@@ -1,22 +1,28 @@
 package smarttvsearch.suboptimal;
 
 import smarttvsearch.utils.Move;
+import smarttvsearch.utils.SmartTVType;
 
 
 public class SuboptimalMoveModel {
 
     private Move[] moveSeq;
     protected double scoreFactor;
-    public static final int MAX_NUM_SUBOPTIMAL_MOVES = 4;
+    private int maxNumSuboptimalMoves;
 
-    public SuboptimalMoveModel(Move[] moveSeq) {
+    public SuboptimalMoveModel(Move[] moveSeq, SmartTVType tvType) {
         this.moveSeq = moveSeq;
-        this.scoreFactor = 0.1;
-    }
-
-    public SuboptimalMoveModel(Move[] moveSeq, double scoreFactor) {
-        this.moveSeq = moveSeq;
-        this.scoreFactor = scoreFactor;
+        
+        this.maxNumSuboptimalMoves = 0;
+        if (tvType == SmartTVType.SAMSUNG) {
+            this.maxNumSuboptimalMoves = 4;
+            this.scoreFactor = 0.1;
+        } else if (tvType == SmartTVType.APPLE_TV) {
+            this.maxNumSuboptimalMoves = 6;  // Users make more suboptimal moves on the Apple TV
+            this.scoreFactor = 0.5;
+        } else {
+            throw new IllegalArgumentException(String.format("Unknown suboptimal limit for tv: %s", tvType));
+        }
     }
 
     public Move getMove(int moveIdx) {
@@ -24,7 +30,11 @@ public class SuboptimalMoveModel {
     }
     
     public int getLimit(int moveIdx) {
-        return MAX_NUM_SUBOPTIMAL_MOVES;
+        return this.maxNumSuboptimalMoves;
+    }
+
+    public int getMaxNumSuboptimalMoves() {
+        return this.maxNumSuboptimalMoves;
     }
 
     public double getScoreFactor(int numSuboptimalMoves) {

@@ -8,7 +8,7 @@ from typing import List, Optional, Any, Tuple, Dict
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio import make_move_extractor, Move
 from smarttvleakage.audio.tv_classifier import SmartTVTypeClassifier
-from smarttvleakage.utils.constants import SmartTVType
+from smarttvleakage.utils.constants import SmartTVType, Direction
 from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence, CreditCardSequence
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_json
 
@@ -27,17 +27,20 @@ def split_into_instances_appletv(move_sequence: List[Move], min_num_selections: 
 
     for move in move_sequence:
         if move.end_sound == sounds.APPLETV_TOOLBAR_MOVE:
-            if move.num_moves >= 2:
+            # There can only be 2 or 3 moves to the end (including the toolbar sound which makes the final move).
+            # Otherwise, the user made a mistake and there is no information gained by the ending move so we just clip it off
+            if move.num_moves in (1, 2):
                 toolbar_move = Move(num_moves=move.num_moves + 1,  # Account for the move to the done key (which makes the toolbar sound)
                                     end_sound=move.end_sound,
-                                    directions=move.directions,
+                                    directions=move.directions + [Direction.ANY],
                                     start_time=move.start_time,
                                     end_time=move.end_time,
                                     move_times=move.move_times + [move.move_times[-1]],
                                     num_scrolls=move.num_scrolls)
+
+                # There can only be 2 or 3 moves to the end. Otherwise, the user made a mistake
+                # and there is no information gained by the ending move so we just clip it off
                 current_split.append(toolbar_move)
-            else:
-                current_split.append(move)
 
             if len(current_split) >= min_num_selections:
                 split_sequence.append(current_split)

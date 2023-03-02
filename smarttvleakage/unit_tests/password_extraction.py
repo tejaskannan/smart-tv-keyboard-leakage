@@ -4,6 +4,7 @@ from smarttvleakage.utils.file_utils import read_json
 
 
 FILE_FORMAT = '/local/smart-tv-user-study/{}/samsung_passwords.json'
+APPLETV_FILE_FORMAT = '/local/smart-tv-user-study/{}/appletv_passwords.json'
 
 
 class SubjectAPasswordTests(unittest.TestCase):
@@ -182,6 +183,207 @@ class SubjectCPasswordTests(unittest.TestCase):
 
         for expected_count, observed_count in zip(expected, observed):
             self.assertTrue(abs(expected_count - observed_count) <= 1)
+
+
+class AppleTVSubjectC(unittest.TestCase):
+
+    def test_one(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][0]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [5, 17, 9, 4, 6, 3, 1, 3]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_two(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][1]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [15, 5, 14, 9, 9, 22, 15, 17, 9, 10, 1, 13, 5, 12, 13, 4, 3, 8]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_three(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][2]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [26, 6, 14, 6, 7, 7, 4, 4, 2]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_four(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][3]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [11, 7, 9, 6, 19, 20, 5, 17, 0, 0, 0, 0, 19, 9, 9, 7, 7, 6, 16, 25, 6, 9, 15]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_five(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][4]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [12, 39, 26, 11, 8, 3, 4, 29, 27, 17, 5, 3]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_six(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][5]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [21, 11, 12, 10, 5, 1, 9, 11]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_seven(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][6]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [3, 2, 9, 15, 23, 8, 0, 0, 2]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_eight(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][7]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [5, 18, 3, 7, 1, 4, 5, 9, 17, 17, 17, 19, 13]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_nine(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][8]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [2, 12, 16, 12, 14, 22, 22, 15, 3, 2, 3, 10]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_ten(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-c'))
+        observed_seq = observed['move_sequences'][9]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [18, 18, 8, 14, 22, 19, 13, 13, 24, 1]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def assert_num_moves_within_buffer(self, expected: List[int], observed: List[int], scrolls: List[int]):
+        self.assertEqual(len(expected), len(observed))
+
+        for expected_count, observed_count, num_scrolls in zip(expected, observed, scrolls):
+            tolerance = max(num_scrolls, int(observed_count >= 4))
+            self.assertTrue(abs(expected_count - observed_count) <= tolerance)
+
+
+class AppleTVSubjectD(unittest.TestCase):
+
+    def test_one(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][0]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [3, 8, 7, 1, 6, 6, 1, 6, 3]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_two(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][1]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [16, 6, 20, 13, 2, 6, 23, 3]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_three(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][2]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [15, 15, 21, 7, 6, 9, 5, 5, 15, 12, 4, 3, 0]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_four(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][3]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [12, 12, 17, 4, 11, 5, 7, 1, 2]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_five(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][4]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [11, 11, 9, 16, 9, 10, 10, 18, 0, 25, 1, 16, 10]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_six(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][5]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [0, 19, 1, 1, 9, 12, 9, 1, 2]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_seven(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][6]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [20, 10, 17, 11, 5, 13, 3, 7, 4]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_eight(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][7]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [0, 0, 0, 23, 25, 1, 1, 1, 2]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_nine(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][8]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [24, 17, 17, 13, 7, 23, 5, 24]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def test_ten(self):
+        observed = read_json(APPLETV_FILE_FORMAT.format('subject-d'))
+        observed_seq = observed['move_sequences'][9]
+        observed_moves = [move['num_moves'] for move in observed_seq]
+        observed_scrolls = [move['num_moves'] for move in observed_seq]
+
+        expected = [19, 5, 3, 1, 4, 16, 16, 12, 3, 3]
+        self.assert_num_moves_within_buffer(expected, observed_moves, observed_scrolls)
+
+    def assert_num_moves_within_buffer(self, expected: List[int], observed: List[int], scrolls: List[int]):
+        self.assertEqual(len(expected), len(observed))
+
+        for expected_count, observed_count, num_scrolls in zip(expected, observed, scrolls):
+            tolerance = max(num_scrolls, int(observed_count >= 4))
+            self.assertTrue(abs(expected_count - observed_count) <= tolerance)
+
 
 
 if __name__ == '__main__':

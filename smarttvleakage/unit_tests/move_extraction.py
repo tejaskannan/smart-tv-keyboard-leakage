@@ -4,7 +4,18 @@ from typing import List
 
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio import SamsungMoveExtractor, AppleTVMoveExtractor, create_spectrogram
+from smarttvleakage.audio.utils import get_directions_appletv
 from smarttvleakage.utils.file_utils import read_pickle_gz
+from smarttvleakage.utils.constants import Direction
+
+
+class AppleTVDirections(unittest.TestCase):
+
+    def test_move_directions(self):
+        move_times = [10, 20, 20, 32, 32, 32, 32, 40, 40, 40, 56, 56, 56, 56, 56, 56]
+        expected = [Direction.ANY] * 4 + [Direction.HORIZONTAL] * 3 + [Direction.ANY] * 4 + [Direction.HORIZONTAL] * 5
+        observed = get_directions_appletv(move_times)
+        self.assertEqual(expected, observed)
 
 
 class SamsungMoveExtraction(unittest.TestCase):

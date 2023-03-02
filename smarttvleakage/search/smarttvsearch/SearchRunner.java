@@ -33,7 +33,8 @@ public class SearchRunner {
     private static final int MAX_EXPIRY_RANK = 5;
     private static final int MAX_CVV_RANK = 50;
     private static final int MAX_ZIP_RANK = 50;
-    private static final int MAX_PASSWD_RANK = 100;
+    private static final int MAX_PASSWD_RANK = 500;
+    private static final int MAX_NUM_CANDIDATES = 150000;
 
     public static void main(String[] args) {
         if (args.length != 3) {
@@ -43,7 +44,7 @@ public class SearchRunner {
 
         // Unpack the arguments
         String movePath = args[0];
-        String priorFolder = args[1];
+        String priorPath = args[1];
         String outputPath = args[2];
 
         JSONObject serializedMoves = FileUtils.readJsonObject(movePath);
@@ -76,7 +77,7 @@ public class SearchRunner {
             LanguagePrior cvvPrior = LanguagePriorFactory.makePrior("numeric", null);
             LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
             LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
-            LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", FileUtils.joinPath(priorFolder, "zip_codes.txt"));
+            LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", priorPath);
  
             zipPrior.build(true);
 
@@ -149,9 +150,10 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray targetStrings = serializedLabels.getJSONArray("labels");
 
-            String priorPath = FileUtils.joinPath(priorFolder, "phpbb.db");
             LanguagePrior prior = LanguagePriorFactory.makePrior("ngram", priorPath);
             prior.build(false);
+
+            double suboptimalFactor = (tvType == SmartTVType.APPLE_TV) ? 0.5 : 1e-2;
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 Move[] moveSeq = JsonUtils.parseMoveSeq(jsonMoveSequences.getJSONArray(idx), tvType);
@@ -174,7 +176,7 @@ public class SearchRunner {
                     System.out.println();
                 }
 
-                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, 1e-2, 0, MAX_PASSWD_RANK);
+                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, suboptimalFactor, 0, MAX_PASSWD_RANK);
 
                 int rank = 1;
                 boolean didFind = false;
@@ -238,11 +240,12 @@ public class SearchRunner {
         HashSet<String> guessed = new HashSet<String>();
 
         List<String> result = new ArrayList<String>();
+        int maxNumSuboptimal = Math.min(moveSeq.length, 10);
 
         int rank = 1;
-        for (int numSuboptimal = 0; numSuboptimal < moveSeq.length; numSuboptimal++) {
-            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal, scoreFactor);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount);
+        for (int numSuboptimal = 0; numSuboptimal < maxNumSuboptimal; numSuboptimal++) {
+            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal, scoreFactor, tvType);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount, MAX_NUM_CANDIDATES);
 
             while (rank <= maxRank) {
                 String guess = searcher.next();

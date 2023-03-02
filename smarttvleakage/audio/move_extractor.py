@@ -7,10 +7,11 @@ from scipy.signal import find_peaks, convolve
 from typing import Dict, List, Set, Tuple
 
 import smarttvleakage.audio.sounds as sounds
-from smarttvleakage.audio.audio_extractor import SmartTVAudio
+#from smarttvleakage.audio.audio_extractor import SmartTVAudio
 from smarttvleakage.audio.data_types import Move
 from smarttvleakage.audio.utils import get_sound_instances_samsung, get_sound_instances_appletv, create_spectrogram, extract_move_directions
 from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete, get_move_time_length, get_num_scrolls
+from smarttvleakage.audio.utils import get_directions_appletv
 from smarttvleakage.audio.constellations import compute_constellation_map
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
 from smarttvleakage.utils.constants import SmartTVType, Direction, BIG_NUMBER, SMALL_NUMBER
@@ -211,8 +212,7 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                #should_plot = (start_time >= 2300) and (start_time <= 68000) and (sound in (sounds.APPLETV_KEYBOARD_SELECT, sounds.APPLETV_KEYBOARD_MOVE))
-                #should_plot = (start_time >= 12600)
+                #should_plot = (start_time >= 70200) and (start_time <= 70300)
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -223,6 +223,7 @@ class MoveExtractor:
                 similarity_scores[sound] = similarity  # Track the sim score for every sound
 
                 if should_plot:
+                    print(start_time)
                     print('Sound: {}, Similarity: {:.4f}'.format(sound, similarity))
 
                     fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
@@ -289,13 +290,15 @@ class AppleTVMoveExtractor(MoveExtractor):
 
     def update_num_moves(self, sound: str, num_moves: int, count: int, move_times: List[int], start_time: int, current_time: int, current_results: List[Move]) -> Tuple[List[Move], int, List[int]]:
         if sound in (sounds.APPLETV_KEYBOARD_SELECT, sounds.APPLETV_KEYBOARD_DELETE, sounds.APPLETV_TOOLBAR_MOVE):
+            directions = get_directions_appletv(move_times)
+
             move = Move(num_moves=num_moves,
                         end_sound=sound,
-                        directions=Direction.ANY,  # TODO: Handle direction inference
+                        directions=directions,
                         start_time=start_time,
                         end_time=current_time,
                         move_times=move_times,
-                        num_scrolls=get_num_scrolls(move_times, 4))
+                        num_scrolls=get_num_scrolls(move_times, 3))
 
             current_results.append(move)
             num_moves = 0
@@ -315,6 +318,8 @@ class AppleTVMoveExtractor(MoveExtractor):
             return sound, 0.0, 0
         elif (sound != sounds.APPLETV_KEYBOARD_MOVE):
             return sound, similarity_scores[sound], 1
+        elif (similarity_scores[sounds.APPLETV_KEYBOARD_MOVE] < 30.0) and (similarity_scores[sounds.APPLETV_TOOLBAR_MOVE] > 10.25):
+            return sounds.APPLETV_TOOLBAR_MOVE, similarity_scores[sounds.APPLETV_TOOLBAR_MOVE], 1
 
         # Get the constellations for `move`
         move_constellation = self._ref_constellation_maps[sound]
@@ -322,23 +327,42 @@ class AppleTVMoveExtractor(MoveExtractor):
         sound_config = self._config[sound]
 
         # Compute the constellation for the target segment
+        constellation_threshold = 0.9
+        peak_cutoff = 0.96
+        similarity_factor = 0.97  # Within 3% of adjacent (if nearby)
+        time_cutoff = 7
+
         target_times, target_freqs = compute_constellation_map(spectrogram=target_segment,
                                                                freq_delta=sound_config[FREQ_DELTA],
                                                                time_delta=sound_config[TIME_DELTA],
-                                                               threshold=0.9)
+                                                               threshold=constellation_threshold)
 
         num_low_freq_peaks = 0
         sorted_peaks_by_time = list(sorted(zip(target_times, target_freqs), key=lambda x: x[0]))
-        filtered_peaks = [(t, freq) for t, freq in sorted_peaks_by_time if (freq in MOVE_FREQS)]
+        low_freq_peaks = [(t, freq) for t, freq in sorted_peaks_by_time if (freq in MOVE_FREQS)]
 
+        if len(low_freq_peaks) == 0:
+            return sound, similarity_scores[sound], 0
+
+        # It is possible for neighboring peaks to have the same value, and the constellation map will
+        # include both. This is not ideal, so we re-check the results to keep only one peak within the
+        # time delta
+        filtered_peaks: List[Tuple[int, int]] = [low_freq_peaks[0]]
+
+        for idx in range(1, len(low_freq_peaks)):
+            prev_time, prev_freq = filtered_peaks[-1]
+            curr_time, curr_freq = low_freq_peaks[idx]
+
+            if (curr_time - prev_time) >= sound_config[TIME_DELTA]:
+                filtered_peaks.append((curr_time, curr_freq))
+
+        #should_print = (time >= 50100) and (time <= 50500)
         should_print = False
 
         for idx, (t, freq) in enumerate(filtered_peaks):
             curr_peak = target_segment[freq, t]
 
-            if curr_peak >= CONSTELLATION_THRESHOLD_END:
-                num_low_freq_peaks += 1
-            elif (idx > 0) and (idx < (len(filtered_peaks) - 1)):
+            if (idx > 0) and (idx < (len(filtered_peaks) - 1)):
                 prev_peak_time, prev_peak_freq = filtered_peaks[idx - 1]
                 next_peak_time, next_peak_freq = filtered_peaks[idx + 1]
 
@@ -352,6 +376,15 @@ class AppleTVMoveExtractor(MoveExtractor):
                     print('Curr Peak Params: t -> {}, f -> {}, h -> {}'.format(t, freq, curr_peak))
                     print('Next Peak Params: t -> {}, f -> {}, h -> {}'.format(next_peak_time, next_peak_freq, next_peak))
 
+                if (curr_peak >= peak_cutoff) or (((t - prev_peak_time) > time_cutoff) or (curr_peak >= (similarity_factor * prev_peak))) and (((next_peak_time - t) > time_cutoff) or (curr_peak >= (similarity_factor * next_peak))):
+                    num_low_freq_peaks += 1
+            elif (idx == (len(filtered_peaks) - 1)):
+                prev_peak_time, prev_peak_freq = filtered_peaks[idx - 1]
+                prev_peak = target_segment[prev_peak_freq, prev_peak_time]
+
+                if (curr_peak > peak_cutoff) or ((t - prev_peak_time) > time_cutoff) or (curr_peak >= (similarity_factor * prev_peak)):
+                    num_low_freq_peaks += 1
+            else:
                 num_low_freq_peaks += 1
 
                 #if (prev_peak >= CONSTELLATION_THRESHOLD_END) and (next_peak >= CONSTELLATION_THRESHOLD_END) and (time_diff <= CONSTELLATION_TIME_DIST):
@@ -361,6 +394,7 @@ class AppleTVMoveExtractor(MoveExtractor):
 
         if should_print:
             print('Num Peaks: {}'.format(num_low_freq_peaks))
+            print(similarity_scores[sound])
 
             fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
             ax0.imshow(move_spectrogram, cmap='gray_r')
@@ -546,13 +580,14 @@ class SamsungMoveExtractor(MoveExtractor):
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--video-path', type=str, required=True)
+    parser.add_argument('--spectrogram-path', type=str, required=True)
     parser.add_argument('--tv-type', type=str, required=True)
     args = parser.parse_args()
 
-    audio_extractor = SmartTVAudio(path=args.video_path)
-    audio = audio_extractor.get_audio()
-    target_spectrogram = create_spectrogram(audio)
+    #audio_extractor = SmartTVAudio(path=args.video_path)
+    #audio = audio_extractor.get_audio()
+    #target_spectrogram = create_spectrogram(audio)
+    target_spectrogram = read_pickle_gz(args.spectrogram_path)
 
     if args.tv_type.lower() == 'samsung':
         extractor = SamsungMoveExtractor()
@@ -565,3 +600,5 @@ if __name__ == '__main__':
 
     for move in moves:
         print(move)
+        if (move.end_sound == sounds.APPLETV_TOOLBAR_MOVE):
+            print('==========')

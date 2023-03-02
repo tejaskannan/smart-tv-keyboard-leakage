@@ -4,6 +4,7 @@ import java.util.List;
 
 import smarttvsearch.utils.Move;
 import smarttvsearch.utils.VectorUtils;
+import smarttvsearch.utils.SmartTVType;
 
 
 public class CreditCardMoveModel extends SuboptimalMoveModel {
@@ -11,8 +12,8 @@ public class CreditCardMoveModel extends SuboptimalMoveModel {
     private int numSuboptimal;
     private int[] sortedIndices;
 
-    public CreditCardMoveModel(Move[] moveSeq, int numSuboptimal, double scoreFactor) {
-        super(moveSeq);
+    public CreditCardMoveModel(Move[] moveSeq, int numSuboptimal, double scoreFactor, SmartTVType tvType) {
+        super(moveSeq, tvType);
         this.scoreFactor = scoreFactor;
         this.numSuboptimal = numSuboptimal;
 
@@ -33,7 +34,7 @@ public class CreditCardMoveModel extends SuboptimalMoveModel {
     public int getLimit(int moveIdx) {
         for (int idx = 0; idx < this.getNumSuboptimal(); idx++) {
             if (this.sortedIndices[idx] == moveIdx) {
-                return SuboptimalMoveModel.MAX_NUM_SUBOPTIMAL_MOVES;
+                return this.getMaxNumSuboptimalMoves();
             }
         }
 

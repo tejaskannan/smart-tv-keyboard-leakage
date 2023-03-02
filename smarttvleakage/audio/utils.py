@@ -298,6 +298,32 @@ def count_cluster_size(segment_spectrogram: np.ndarray, start_time: int) -> int:
     return max(num_clusters, 1)
 
 
+def get_directions_appletv(move_times: List[int]) -> List[Direction]:
+    directions: List[Direction] = []
+
+    for idx in range(len(move_times)):
+        prev_run_length = 0
+        prev_idx = idx - 1
+        while (prev_idx >= 0) and (move_times[prev_idx] == move_times[idx]):
+            prev_run_length += 1
+            prev_idx -= 1
+
+        next_run_length = 0
+        next_idx = idx + 1
+        while (next_idx < len(move_times)) and (move_times[next_idx] == move_times[idx]):
+            next_run_length += 1
+            next_idx += 1
+
+        run_length = prev_run_length + next_run_length + 1
+
+        if (run_length >= 4) and (prev_run_length > 0):
+            directions.append(Direction.HORIZONTAL)
+        else:
+            directions.append(Direction.ANY)
+
+    return directions
+
+
 def get_sound_instances_appletv(spect: np.ndarray, smooth_window_size: int) -> Tuple[List[int], List[int], np.ndarray, List[int]]:
      # First, normalize the energy values for each frequency
     mean_energy = np.mean(spect, axis=-1, keepdims=True)

@@ -41,16 +41,18 @@ public class Search {
     private boolean doesSuggestDone;
     private int minCount;
     private SmartTVType tvType;
+    private int maxNumCandidates;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
     private boolean[] isMoveDeleted;
+    private int numCandidates;
 
     private static int DONE_SUGGESTION_COUNT = 8;
     private static final double SCROLL_MISTAKE_FACTOR = 0.9;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount, int maxNumCandidates) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
@@ -62,10 +64,12 @@ public class Search {
         this.tvType = tvType;
         this.minCount = minCount;
         this.doesSuggestDone = doesSuggestDone;
+        this.maxNumCandidates = maxNumCandidates;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
         this.guessed = new HashSet<String>();
+        this.numCandidates = 0;
 
         // Generate the initial state and place this on the queue
         SearchState initState = new SearchState(startKey, new ArrayList<String>(), 0.0, keyboard.getStartKeyboard(), 0);
@@ -84,15 +88,30 @@ public class Search {
             this.doesEndWithDone = lastSound.isToolbarMove();
         }
 
+        // Include the linked keys
+        if (this.shouldLinkKeys) {
+            List<KeyboardPosition> linkedStates = this.keyboard.getLinkedKeys(startKey, keyboard.getStartKeyboard());
+
+            for (KeyboardPosition position : linkedStates) {
+                SearchState candidateState = new SearchState(position.getKey(), new ArrayList<String>(), 0.0, position.getKeyboardName(), 0);
+                this.frontier.add(candidateState);
+            }
+        }
+
         // Get the moves that are deleted. We avoid scoring such moves to bias the prior (they don't make it in the final result anyways)
         this.isMoveDeleted = SearchUtils.markDeletedMoves(moveSeq);
     }
 
     public String next() {
         while (!this.frontier.isEmpty()) {
+            if (this.numCandidates >= this.maxNumCandidates) {
+                return null;
+            }
+
             // Get the top-ranked search state
             SearchState currentState = this.frontier.poll();
             int moveIdx = currentState.getMoveIdx();
+            this.numCandidates += 1;
 
             // Check if we are out of moves. If so, return the string if not guessed already.
             if (this.isFinished(moveIdx))  {
