@@ -11,6 +11,7 @@ import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.keyboard.KeyboardExtender;
 import smarttvsearch.keyboard.KeyboardPosition;
 import smarttvsearch.prior.LanguagePrior;
+import smarttvsearch.prior.EnglishPrior;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.utils.sounds.SmartTVSound;
 import smarttvsearch.utils.sounds.SamsungSound;
@@ -42,6 +43,7 @@ public class Search {
     private int minCount;
     private SmartTVType tvType;
     private int maxNumCandidates;
+    private boolean shouldUseSuggestions;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
@@ -49,10 +51,12 @@ public class Search {
     private boolean[] isMoveDeleted;
     private int numCandidates;
 
-    private static int DONE_SUGGESTION_COUNT = 8;
+    private static final int DONE_SUGGESTION_COUNT = 8;
+    private static final int SUGGESTIONS_MOVE_COUNT = 4;
+    private static final int TOP_SUGGESTED_KEYS = 5;
     private static final double SCROLL_MISTAKE_FACTOR = 0.9;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount, int maxNumCandidates) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount, int maxNumCandidates, boolean shouldUseSuggestions) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
@@ -65,6 +69,7 @@ public class Search {
         this.minCount = minCount;
         this.doesSuggestDone = doesSuggestDone;
         this.maxNumCandidates = maxNumCandidates;
+        this.shouldUseSuggestions = shouldUseSuggestions;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
@@ -129,11 +134,14 @@ public class Search {
                 int numMoves = move.getNumMoves();
                 int numSuboptimal = this.suboptimalModel.getLimit(moveIdx);
                 HashMap<String, Double> neighborKeys = new HashMap<String, Double>();  // Neighbor -> Score factor
+                HashSet<String> neighborsFromSuggestions = new HashSet<String>();
 
                 // Password keyboards have a 'done' suggestion key which sometimes induces suboptimal moves in user
                 // behavior (they have the explicitly clear the suggestion with a move)
                 if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (numMoves > 1)) {
                     numSuboptimal = Math.max(numSuboptimal, 1);
+                } else if ((this.shouldUseSuggestions) && (moveIdx > 0)) {
+                    numSuboptimal = Math.max(numSuboptimal, 1);  // Suggestions lead to an extra move to clear the result, so we expand the radius
                 }
 
                 // Each scroll has a mistake of +/- 1 based on challenges with audio parsing
@@ -163,6 +171,8 @@ public class Search {
                     // Users often make a single suboptimal move because the suggested key gets in the way
                     if (this.doesSuggestDone && (moveIdx >= DONE_SUGGESTION_COUNT) && (Math.abs(offset) == 1) && (numMoves > 1)) {
                         scoreFactor = 1.0;
+                    } else if (this.shouldUseSuggestions && (Math.abs(offset) <= 1)) {
+                        scoreFactor = 1.0; 
                     } else if ((offset != 0) && (Math.abs(offset) <= scrollsBuffer)) {
                         scoreFactor = SCROLL_MISTAKE_FACTOR;
                     }
@@ -176,6 +186,18 @@ public class Search {
                         if ((prevFactor == null) || (scoreFactor > prevFactor)) {
                             neighborKeys.put(neighbor, scoreFactor);
                         }
+                    }
+                }
+
+                // Consider suggested keys if needed
+                if ((this.shouldUseSuggestions) && (numMoves <= Search.SUGGESTIONS_MOVE_COUNT) && (moveIdx > 0)) {
+                    EnglishPrior englishPrior = (EnglishPrior) this.languagePrior;  // Cast to english prior to get next most common letters
+                    String[] nextMostCommon = englishPrior.nextMostCommon(currentState.toString(), Search.TOP_SUGGESTED_KEYS);
+
+                    for (int commonIdx = 0; commonIdx < nextMostCommon.length; commonIdx++) {
+                        String neighborKey = nextMostCommon[commonIdx];
+                        neighborKeys.put(neighborKey, 1.0);
+                        neighborsFromSuggestions.add(neighborKey);
                     }
                 }
 
@@ -195,7 +217,15 @@ public class Search {
 
                     if (!this.visited.contains(visitedState)) {
                         // Make the candidate search state
-                        SearchState candidateState = new SearchState(neighborKey, nextKeys, 0.0, nextKeyboard, nextMoveIdx);
+                        
+                        String keyLocation;
+                        if (neighborsFromSuggestions.contains(neighborKey)) {
+                            keyLocation = currentState.getCurrentKey();
+                        } else {
+                            keyLocation = neighborKey;
+                        }
+
+                        SearchState candidateState = new SearchState(keyLocation, nextKeys, 0.0, nextKeyboard, nextMoveIdx);
                         int incrementalCount = this.languagePrior.find(candidateState.toString());
 
                         if ((incrementalCount > this.minCount) || (this.isMoveDeleted[moveIdx]) || (this.isChangeKey(neighborKey))) {
@@ -209,15 +239,23 @@ public class Search {
                                 score = -1 * Math.log(score);
                             }
 
-                            // Accumulate the score (in log space)
-                            score = currentState.getScore() + score;
+                            if (!this.shouldUseSuggestions) {
+                                score = currentState.getScore() + score;  // Accumulate the score in log space
+                            } else {
+                                if (this.isFinished(nextMoveIdx)) {
+                                    incrementalCount = this.languagePrior.find(candidateState.toString() + EnglishPrior.END_CHAR);
+                                }
+
+                                score = this.languagePrior.normalizeCount(incrementalCount) * neighborKeys.get(neighborKey);
+                                score = -1 * Math.log(score);  // Mark the score as that of the string to this point
+                            }
 
                             candidateState.setScore(score);
                             this.frontier.add(candidateState);
                             this.visited.add(visitedState);
 
                             if (this.shouldLinkKeys) {
-                                List<KeyboardPosition> linkedStates = this.keyboard.getLinkedKeys(neighborKey, nextKeyboard);
+                                List<KeyboardPosition> linkedStates = this.keyboard.getLinkedKeys(candidateState.getCurrentKey(), nextKeyboard);
 
                                 for (KeyboardPosition position : linkedStates) {
                                     visitedState = new VisitedState(nextKeys, position.getKeyboardName());
@@ -275,6 +313,21 @@ public class Search {
             return key.equals(SpecialKeys.CHANGE) || key.equals(SpecialKeys.NEXT);
         }
         return false;
+    }
+
+    private boolean isLastKeySelection(int moveIdx) {
+        if (this.tvType == SmartTVType.APPLE_TV) {
+            return (moveIdx == (this.moveSeq.length - 1));
+        } else {
+            Move lastMove = this.moveSeq[this.moveSeq.length - 1];
+            SamsungSound endSound = (SamsungSound) lastMove.getEndSound();
+
+            if (endSound.isSelect()) {
+                return (moveIdx == (this.moveSeq.length - 2));
+            } else {
+                return (moveIdx == (this.moveSeq.length - 1));
+            }
+        }
     }
 
     private boolean isFinished(int moveIdx) {
