@@ -11,12 +11,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import random
 import math
+import json
 
 from smarttvleakage.dictionary import EnglishDictionary, restore_dictionary
 from smarttvleakage.suggestions_model.alg_determine_autocomplete import get_score_from_ms
 from smarttvleakage.suggestions_model.manual_score_dict import (build_msfd,
                                                             build_ms_dict, build_rockyou_ms_dict)
-from smarttvleakage.suggestions_model.simulate_ms import grab_words, simulate_ms, add_mistakes, add_mistakes_to_ms_dict
+from smarttvleakage.suggestions_model.simulate_ms import (grab_words, simulate_ms, add_mistakes, 
+                                                          add_mistakes_to_ms_dict, build_gt_ms_dict, build_moves)
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_pickle_gz
 
 from smarttvleakage.keyboard_utils.word_to_move import findPath
@@ -665,6 +667,25 @@ def classify_moves(model, moves : List[Move]):
     if pred_probas[1] > .5:
         return 1
 
+def classify_moves_prob(model, moves : List[Move]):
+
+    ms = [move.num_moves for move in moves]
+    bins_transform = get_transforms(1)[7] # (Hardcoded for bins (1/7))
+   
+    data = np.empty((0, max(bins_transform) + 1), dtype=float)
+    list_dist = make_row_dist(ms, range(10), 3)
+    list_dist = transform_hist(list_dist, bins_transform)
+    new_row = np.array(list_dist, dtype=float)
+    data = np.append(data, [new_row], axis=0)
+
+    column_titles = make_column_titles_dist_new(bins_transform)
+    df = pd.DataFrame(data = data, columns = column_titles)
+
+    # now predict from the dataframe, and then add manual
+
+    pred_probas = model.predict_proba(df)[0]
+    return pred_probas[1]
+
 
 # Train Set : [English_words (2000), Rockyou_dict (2000)]
 # Test Set: [Non (106?), Auto (106?), Rockyou (100), Phpbb (5000)]
@@ -688,6 +709,7 @@ if __name__ == "__main__":
     parser.add_argument("--progress-path", type=str, required=False)
     parser.add_argument("--progress", type=str, required=False)
     parser.add_argument("--test", type=str, required=False)
+    parser.add_argument("--json-path", type=str, required=False)
     args = parser.parse_args()
 
     if args.ms_path_auto is None:
@@ -734,6 +756,8 @@ if __name__ == "__main__":
     # 10-12 Other
     # 30-40 Stats
     # 41 - test Classify Move
+
+    #50-60 Test HT data
     
  
     # use 7 for main tests
@@ -743,6 +767,295 @@ if __name__ == "__main__":
         test = int(args.test)
 
 
+
+
+###################### HT TEST ################
+
+
+    # 55, but with select cutoffs
+    if test == 56:
+        print("test 56")
+
+        overrides = (0, 0)
+
+        subjects = ["B", "C", "D", "H"]
+        #subjects = ["B"]
+        acc = {}
+        acc[0] = 0
+        acc[1] = 0
+
+        ms = build_gt_ms_dict()
+
+        for subject in subjects:
+            for ty in [0, 1]:
+                #load_ty = (ty * -1) + 1
+                for n in range(10):
+                    print(subject + str(ty) + str(n))
+                    moves = build_moves(ms[subject][ty][n])
+
+                    # cut off last move
+                    moves = moves[:len(moves)-1]
+
+                    # select override
+                    selects = 0
+                    for move in moves:
+                        print(move.end_sound)
+                        if move.end_sound == "select":
+                            selects += 1
+
+                   
+
+                    conf = classify_moves_prob(read_pickle_gz(args.model_path), moves)
+                    print(conf)
+                    cutoff = .5 # .4 ...
+                    if conf > cutoff:
+                        cls = 1
+                    else:
+                        cls = 0
+
+                    
+                    # select override
+                    if cls == 1:
+                        if selects > 0:
+                            print("select override")
+                            cls = 0
+                            overrides = (overrides[0]+1, overrides[1])
+                            if cls == ty:
+                                print("override success")
+                                overrides = (overrides[0], overrides[1]+1)
+
+                    if cls == ty:
+                        acc[ty] += 1
+        
+        print("password acc: " + str(acc[0]/(10 * len(subjects))))
+        print("web searches acc: " + str(acc[1]/(10 * len(subjects))))
+        print(acc[0] + acc[1])
+
+
+
+
+
+    # 54, but with confidence cutoff adjustment
+    if test == 55:
+        print("test 55")
+
+        subjects = ["B", "C", "D", "H"]
+        #subjects = ["B"]
+        acc = {}
+        acc[0] = 0
+        acc[1] = 0
+
+        ms = build_gt_ms_dict()
+
+        for subject in subjects:
+            for ty in [0, 1]:
+                #load_ty = (ty * -1) + 1
+                for n in range(10):
+                    print(subject + str(ty) + str(n))
+                    moves = build_moves(ms[subject][ty][n])
+
+                    # cut off last move
+                    moves = moves[:len(moves)-1]
+
+                   
+
+                    conf = classify_moves_prob(read_pickle_gz(args.model_path), moves)
+                    print(conf)
+                    cutoff = .45 # .45 improves ws .625 -> .7
+                    if conf > cutoff:
+                        cls = 1
+                    else:
+                        cls = 0
+
+                    if cls == ty:
+                        acc[ty] += 1
+        
+        print("password acc: " + str(acc[0]/(10 * len(subjects))))
+        print("web searches acc: " + str(acc[1]/(10 * len(subjects))))
+        print(acc[0] + acc[1])
+
+
+
+
+    # 51, but observed data
+    if test == 54:
+        print("test 54")
+
+        subjects = ["B", "C", "D", "H"]
+        #subjects = ["B"]
+        acc = {}
+        acc[0] = 0
+        acc[1] = 0
+
+        ms = build_gt_ms_dict()
+
+        for subject in subjects:
+            for ty in [0, 1]:
+                #load_ty = (ty * -1) + 1
+                for n in range(10):
+                    print(subject + str(ty) + str(n))
+                    moves = build_moves(ms[subject][ty][n])
+
+                    # cut off last move
+                    moves = moves[:len(moves)-1]
+
+                   
+
+                    cls = classify_moves(read_pickle_gz(args.model_path), moves)
+                    print(cls)
+                    if cls == ty:
+                        acc[ty] += 1
+        
+        print("password acc: " + str(acc[0]/(10 * len(subjects))))
+        print("web searches acc: " + str(acc[1]/(10 * len(subjects))))
+        print(acc[0] + acc[1])
+
+
+
+    # 51, but with added step for Select sounds
+    if test == 53:
+        print("test 53")
+
+        subjects = ["A", "B", "C", "D", "H", "G"]
+        #subjects = ["B"]
+        fnames = {}
+        fnames[0] = "samsung_passwords.json"
+        fnames[1] = "web_searches.json"
+
+        overrides = (0, 0)
+
+
+        acc = {}
+        acc[0] = 0
+        acc[1] = 0
+
+        for subject in subjects:
+            for ty, fname in fnames.items():
+                path = args.json_path + "/subject" + subject + "/" + fname
+                with open(path) as f:
+                    ht_dict = json.load(f)
+                    print("len: " + str(len(ht_dict["move_sequences"])))
+                    for ms in ht_dict["move_sequences"]:
+                        moves = []
+
+                        # cut off last move if its a select
+                        if ms[len(ms)-1]["end_sound"] == "select": 
+                            ms = ms[:len(ms)-1]
+
+                        selects = 0
+
+                        for move in ms:
+                            if move["end_sound"] == "key_select" or move["end_sound"] == "select":
+                                moves.append(move["num_moves"])
+                                if move["end_sound"] == "select":
+                                    selects += 1
+
+
+                        move_sequence = [Move(num_moves=num_moves,
+                                    end_sound=SAMSUNG_KEY_SELECT, directions=Direction.ANY) for num_moves in moves]
+                        cls = classify_moves(read_pickle_gz(args.model_path), move_sequence)
+                        print(cls)
+
+                        if cls == 1:
+                            if selects > 0:
+                                print("select override")
+                                cls = 0
+                                overrides = (overrides[0]+1, overrides[1])
+                                if cls == ty:
+                                    print("override success")
+                                    overrides = (overrides[0], overrides[1]+1)
+
+                        if cls == ty:
+                            acc[ty] += 1
+                    f.close()
+        
+        print("password acc: " + str(acc[0]/(10 * len(subjects))))
+        print("web searches acc: " + str(acc[1]/(10 * len(subjects))))
+        print(overrides)
+        print(acc[0] + acc[1])
+
+
+
+
+
+    if test == 52:
+        print("test 52")
+
+        with open(args.json_path) as f:
+            ht_dict = json.load(f)
+            ms = ht_dict["move_sequences"][int(args.target)]
+            for move in ms:
+                print(str(move["num_moves"]) + ": " + move["end_sound"])
+                
+            f.close()
+
+
+    if test == 51:
+        print("test 51")
+
+        #subjects = ["A", "B", "C", "D", "H", "G"]
+        #subjects = ["B"]
+        subjects = ["B", "C", "D", "H"]
+        fnames = {}
+        fnames[0] = "samsung_passwords.json"
+        fnames[1] = "web_searches.json"
+
+
+        acc = {}
+        acc[0] = 0
+        acc[1] = 0
+
+        for subject in subjects:
+            for ty, fname in fnames.items():
+                path = args.json_path + "/subject" + subject + "/" + fname
+                with open(path) as f:
+                    ht_dict = json.load(f)
+                    for ms in ht_dict["move_sequences"]:
+                        moves = []
+
+                        # cut off last move if its a select
+                        if ms[len(ms)-1]["end_sound"] == "select": 
+                            ms = ms[:len(ms)-1]
+
+                        for move in ms:
+                            if move["end_sound"] == "key_select" or move["end_sound"] == "select":
+                                moves.append(move["num_moves"])
+                        move_sequence = [Move(num_moves=num_moves,
+                                    end_sound=SAMSUNG_KEY_SELECT, directions=Direction.ANY) for num_moves in moves]
+                        cls = classify_moves(read_pickle_gz(args.model_path), move_sequence)
+                        print(cls)
+                        if cls == ty:
+                            acc[ty] += 1
+                    f.close()
+        
+        print("password acc: " + str(acc[0]/(10 * len(subjects))))
+        print("web searches acc: " + str(acc[1]/(10 * len(subjects))))
+        print(acc[0] + acc[1])
+
+
+    if test == 50:
+        print("test 50")
+        with open(args.json_path) as f:
+            ht_dict = json.load(f)
+            for ms in ht_dict["move_sequences"]:
+                moves = []
+                for move in ms:
+                    if move["end_sound"] == "key_select":
+                        moves.append(move["num_moves"])
+                move_sequence = [Move(num_moves=num_moves,
+                            end_sound=SAMSUNG_KEY_SELECT, directions=Direction.ANY) for num_moves in moves]
+                print(classify_moves(read_pickle_gz(args.model_path), move_sequence))
+            f.close()
+
+
+
+
+
+
+
+
+
+ 
     if test == 41:
         print("test 41")
         val = [4, 6, 2, 2, 4]
