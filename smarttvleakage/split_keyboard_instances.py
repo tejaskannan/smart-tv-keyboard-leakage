@@ -8,10 +8,11 @@ from typing import List, Optional, Any, Tuple, Dict
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio import make_move_extractor, Move
 from smarttvleakage.audio.tv_classifier import SmartTVTypeClassifier
-from smarttvleakage.utils.constants import SmartTVType, Direction
+from smarttvleakage.utils.constants import SmartTVType, Direction, SuggestionsType
 from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence, CreditCardSequence
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_json
 
+from smarttvleakage.suggestions_model.determine_autocomplete import classify_moves
 
 MIN_LENGTH = 3
 
@@ -55,9 +56,10 @@ def split_into_instances_appletv(move_sequence: List[Move], min_num_selections: 
     return SequenceType.STANDARD, split_sequence
 
 
-def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: int) -> Tuple[SequenceType, List[Any]]:
+def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: int,
+                                 model) -> Tuple[SequenceType, List[Any], SuggestionsType]:
     if len(move_sequence) == 0:
-        return SequenceType.STANDARD, []
+        return SequenceType.STANDARD, [], SuggestionsType.STANDARD
 
     # Handle Credit Card Entries based on counting instead of timing. Note that when we detect credit cards,
     # we only extract the information relevant to credit cards even if there are other typing instance. This
@@ -66,7 +68,7 @@ def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: 
     credit_card_splits: Optional[List[CreditCardSequence]] = extract_credit_card_sequence(move_sequence, min_seq_length=min_num_selections)
 
     if credit_card_splits is not None:
-        return SequenceType.CREDIT_CARD, credit_card_splits
+        return SequenceType.CREDIT_CARD, credit_card_splits, SuggestionsType.STANDARD
 
     # Get the time differences between consecutive moves
     time_diffs: List[int] = []
@@ -107,7 +109,9 @@ def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: 
         for move in move_seq:
             print(move)
 
-    return SequenceType.STANDARD, split_sequence
+    if classify_moves(model, split_sequence):
+        return SequenceType.STANDARD, split_sequence, SuggestionsType.SUGGESTIONS
+    return SequenceType.STANDARD, split_sequence, SuggestionsType.STANDARD
 
 
 def process_split(move_seq: List[Move]) -> List[Move]:
@@ -165,6 +169,7 @@ def serialize_splits(split_seq: List[Any], tv_type: SmartTVType, seq_type: Seque
 if __name__ == '__main__':
     parser = ArgumentParser('Splits the Smart TV audio file into keyboard instances and extracts the move sequence for each instance.')
     parser.add_argument('--spectrogram-path', type=str, required=True, help='The path to the spectrogram file (pkl.gz).')
+    parser.add_argument('--model-path', type=str, required=False, help='The path to the samsung suggestions model')
     args = parser.parse_args()
 
     assert args.spectrogram_path.endswith('.pkl.gz'), 'Must provide a pickle file containing the spectrogram.'
