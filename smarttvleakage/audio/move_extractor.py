@@ -212,7 +212,7 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                #should_plot = (start_time >= 70200) and (start_time <= 70300)
+                #should_plot = (start_time >= 52400) and (start_time <= 52500)
                 should_plot = False
 
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
@@ -250,7 +250,7 @@ class MoveExtractor:
                                                              cluster_size=cluster_size)
 
             if (should_plot) and (best_sound is not None):
-                print('Time: {}, Best Sound: {}, Best Sim: {} ({}), Max Energy: {} ({})'.format(start_time, best_sound, best_sim, self._config[best_sound][MIN_SIMILARITY], max_segment_energy, self._config[best_sound][ENERGY_THRESHOLD]))
+                print('Time: {}, Best Sound: {}, Best Sim: {} ({}), Max Energy: {} ({}), Count: {}'.format(start_time, best_sound, best_sim, self._config[best_sound][MIN_SIMILARITY], max_segment_energy, self._config[best_sound][ENERGY_THRESHOLD], count))
 
             # Skip sounds are are poor matches with all references
             if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):

@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict
 from smarttvleakage.utils.file_utils import iterate_dir, read_json
 
 
-TOP = [1, 5, 10, 50, 100, 500]
+TOP = [1, 5, 10, 50, 100]
 GUESSES_NAME = 'recovered_{}_passwords_{}.json'
 LABELS_NAME = '{}_passwords_labels.json'
 PRIORS = ['phpbb', 'rockyou-5gram']
@@ -15,6 +15,7 @@ PRIOR_LABELS = {
     'phpbb': 'PHPBB Prior',
     'rockyou-5gram': 'Rockyou Prior'
 }
+COLORS = ['#253494', '#41b6c4', '#c7e9b4']
 
 
 def top_k_accuracy(password_guesses: List[List[str]], targets: List[str], top: int) -> Tuple[int, int]:
@@ -92,59 +93,59 @@ if __name__ == '__main__':
     baseline_accuracy: List[float] = [100.0 * (top / PHPBB_COUNT) for top in TOP]
 
     with plt.style.context('seaborn-ticks'):
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(figsize=(7, 5))
 
-        for prior_name in PRIORS:
+        for prior_idx, prior_name in enumerate(PRIORS):
             if prior_name not in accuracy_dict:
                 continue
 
-            ax.plot(TOP, accuracy_dict[prior_name], marker='o', linewidth=3, markersize=8, label=PRIOR_LABELS[prior_name])
+            ax.plot(TOP, accuracy_dict[prior_name], marker='o', linewidth=3, markersize=8, label=PRIOR_LABELS[prior_name], color=COLORS[prior_idx])
 
             # Write the data labels
             for idx, (topk, accuracy) in enumerate(zip(TOP, accuracy_dict[prior_name])):
                 if prior_name == 'phpbb':
-                    if topk <= 10:
-                        xoffset = 0
-                    elif topk <= 100:
-                        xoffset = -10
+                    if args.tv_type == 'samsung':
+                        xoffset = -10 if (topk > 10) else 0
+                        yoffset = -4.0
                     else:
-                        xoffset = -200
+                        xoffset = -7 if (topk > 10) else 2
+                        yoffset = -2.7 if (topk > 10) else -1.2
 
-                    yoffset = -4.0
                 elif prior_name == 'rockyou-5gram':
-                    if (topk > 1) and (topk <= 10):
-                        xoffset = -1
-                    elif topk <= 100:
-                        xoffset = 0
+                    if args.tv_type == 'samsung':
+                        xoffset = -5 if (topk <= 5) else -7
+                        yoffset = 3.0
                     else:
-                        xoffset = -200
-
-                    yoffset = 3.0
+                        if (topk == 1):
+                            xoffset = -5
+                        elif (topk == 5):
+                            xoffset = 2
+                        elif (topk == 10):
+                            xoffset = 7
+                        else:
+                            xoffset = -7
+                        
+                        yoffset = 1.0
                 else:
                     raise ValueError('Unknown prior name: {}'.format(prior_name))
 
                 ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
 
-        ax.plot(TOP, baseline_accuracy, marker='o', linewidth=3, markersize=8, label='Random Guess')
+        ax.plot(TOP, baseline_accuracy, marker='o', linewidth=3, markersize=8, label='Random Guess', color=COLORS[-1])
 
-        for idx, (topk, accuracy) in enumerate(zip(TOP, baseline_accuracy)):
-            if topk <= 10:
-                xoffset = 0
-            elif topk <= 100:
-                xoffset = -10
-            else:
-                xoffset = -200
+        if args.tv_type == 'samsung':
+            for idx, (topk, accuracy) in enumerate(zip(TOP, baseline_accuracy)):
+                xoffset = -7
+                yoffset = 3.0
 
-            yoffset = 3.0
-
-            if accuracy >= 0.01:
-                ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
+                if accuracy >= 0.01:
+                    ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
 
         #ax.set_xticks(TOP)
-        ax.set_xscale('log')
+        #ax.set_xscale('log')
         ax.legend()
 
-        ax.set_title('Password Top-K Accuracy for Human Users', size=16)
+        ax.set_title('{} Password Top-K Accuracy on Human Users'.format(args.tv_type.capitalize()), size=16)
         ax.set_xlabel('Guess Cutoff (K)', size=14)
         ax.set_ylabel('Accuracy (%)', size=14)
 

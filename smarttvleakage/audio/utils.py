@@ -258,29 +258,41 @@ def get_move_time_length(move_spectrogram: np.ndarray) -> int:
 
 
 def count_cluster_size(segment_spectrogram: np.ndarray, start_time: int) -> int:
-    raw_time_peaks, raw_freq_peaks = compute_constellation_map(segment_spectrogram, freq_delta=1, time_delta=15, threshold=-57)
-    time_peaks = [t for t, freq in zip(raw_time_peaks, raw_freq_peaks) if (freq == 4)]
-    freq_peaks = [freq for t, freq in zip(raw_time_peaks, raw_freq_peaks) if (freq == 4)]  # For debugging alone
+    peak_threshold = -57
+    target_freq = 4
+    window_size = 1
+    time_delta = 10
+    time_distance = 13
 
-    time_distance = 12
+    raw_time_peaks, raw_freq_peaks = compute_constellation_map(segment_spectrogram, freq_delta=1, time_delta=time_delta, threshold=peak_threshold)
+    time_peaks = [t for t, freq in zip(raw_time_peaks, raw_freq_peaks) if (freq == target_freq) and (np.all(segment_spectrogram[target_freq, (t-window_size):(t+window_size+1)] >= peak_threshold))]
+    freq_peaks = [freq for t, freq in zip(raw_time_peaks, raw_freq_peaks) if (freq == target_freq) and (np.all(segment_spectrogram[target_freq, (t-window_size):(t+window_size+1)] >= peak_threshold))]  # For debugging alone
 
     peak_idx = 0
-    num_clusters = 0
     clusters: List[List[int]] = []
 
     while (peak_idx < len(time_peaks)):
         current_peak_time = time_peaks[peak_idx]
-
-        if (peak_idx < (len(time_peaks) - 1)) and ((time_peaks[peak_idx + 1] - current_peak_time) < time_distance):
-            clusters.append([current_peak_time, time_peaks[peak_idx + 1]])
-            peak_idx += 1
-        else:
-            clusters.append([current_peak_time])
+        cluster: List[int] = [current_peak_time]
 
         peak_idx += 1
-        num_clusters += 1
+        while (peak_idx < len(time_peaks)) and ((time_peaks[peak_idx] - current_peak_time) <= time_distance):
+            cluster.append(time_peaks[peak_idx])
+            peak_idx += 1
 
-    #if (start_time >= 77750):
+        clusters.append(cluster)
+
+        #if (peak_idx < (len(time_peaks) - 1)) and ((time_peaks[peak_idx + 1] - current_peak_time) < time_distance):
+        #    clusters.append([current_peak_time, time_peaks[peak_idx + 1]])
+        #    peak_idx += 1
+        #else:
+        #    clusters.append([current_peak_time])
+
+        #peak_idx += 1
+
+    num_clusters = len(clusters)
+
+    #if (start_time >= 17840):
     #    colors = ['red', 'green', 'orange']
 
     #    print('Time: {}, # Clusters: {}'.format(start_time, num_clusters))

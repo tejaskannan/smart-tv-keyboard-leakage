@@ -109,7 +109,7 @@ public class Search {
 
     public String next() {
         while (!this.frontier.isEmpty()) {
-            if (this.numCandidates >= this.maxNumCandidates) {
+            if ((this.maxNumCandidates > 0) && (this.numCandidates >= this.maxNumCandidates)) {
                 return null;
             }
 
@@ -146,6 +146,7 @@ public class Search {
 
                 // Each scroll has a mistake of +/- 1 based on challenges with audio parsing
                 int scrollsBuffer = ((this.tvType == SmartTVType.APPLE_TV) && (!this.isFinished(moveIdx))) ? Math.max(2 * move.getNumScrolls(), 1) : move.getNumScrolls();
+                //int scrollsBuffer = 0;
                 numSuboptimal = Math.max(numSuboptimal, scrollsBuffer);
 
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
@@ -332,11 +333,6 @@ public class Search {
 
     private boolean isFinished(int moveIdx) {
         return moveIdx >= this.moveSeq.length;
-        //if (this.doesEndWithDone) {
-        //    return moveIdx >= this.moveSeq.length;
-        //} else {
-        //    return moveIdx > this.moveSeq.length;
-        //}
     }
 
 }
