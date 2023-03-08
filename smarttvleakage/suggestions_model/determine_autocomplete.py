@@ -1,4 +1,4 @@
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Any
 from argparse import ArgumentParser
 
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
@@ -645,9 +645,24 @@ def classify_ms_with_msfd_full_oh(model, msfd, db,
 
 
 
-def classify_moves(model, moves : List[Move]):
-
+def classify_moves(model: Any, moves: List[Move], cutoff: float) -> int:
+    moves = [m for m in moves if m.end_sound != SAMSUNG_DELETE]
     ms = [move.num_moves for move in moves]
+    
+    # If we see at least 3 zeros moves after the first move, then the user
+    # must have typed the same character 4 times in a row to start (dynamic
+    # suggestions do not start until after the first move). Based on the English language,
+    # it is exceedingly unlikely that this result is a proper English word.
+    num_starting_zeros = 0
+    for move_idx in range(1, len(ms)):
+        if (ms[move_idx] > 0):
+            break
+
+        num_starting_zeros += 1
+
+    if num_starting_zeros >= 3:
+        return 0
+
     bins_transform = get_transforms(1)[7] # (Hardcoded for bins (1/7))
    
     data = np.empty((0, max(bins_transform) + 1), dtype=float)
@@ -660,12 +675,13 @@ def classify_moves(model, moves : List[Move]):
     df = pd.DataFrame(data = data, columns = column_titles)
 
     # now predict from the dataframe, and then add manual
-
     pred_probas = model.predict_proba(df)[0]
-    if pred_probas[0] >= .5:
-        return 0
-    if pred_probas[1] > .5:
-        return 1
+    return int(pred_probas[1] >= cutoff)
+
+    #if pred_probas[0] >= .5:
+    #    return 0
+    #if pred_probas[1] > .5:
+    #    return 1
 
 def classify_moves_prob(model, moves : List[Move]):
 

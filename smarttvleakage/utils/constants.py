@@ -23,6 +23,11 @@ class Direction(Enum):
     DOWN = auto()
 
 
+class SuggestionsType(Enum):
+    SUGGESTIONS = auto()
+    STANDARD = auto()
+
+
 CAPS = '<CAPS>'
 CHANGE = '<CHANGE>'
 DONE = '<DONE>'
@@ -34,6 +39,8 @@ START_CHAR = '<S>'
 END_CHAR = '<E>'
 
 
+SUGGESTIONS_CUTOFF = 0.6  # Gives over 99.5% accuracy on passwords generated using optimal move sequences
+
+
 SMALL_NUMBER = 1e-9
 BIG_NUMBER = 1e9
-

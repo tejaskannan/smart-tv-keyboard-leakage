@@ -5,7 +5,7 @@ from collections import deque, defaultdict
 from enum import Enum, auto
 from typing import Dict, DefaultDict, List, Set, Union, Optional
 from smarttvleakage.dictionary.dictionaries import SPACE, CHANGE, BACKSPACE, NEXT
-from smarttvleakage.keyboard_utils.graph_search import breadth_first_search, follow_path
+from smarttvleakage.keyboard_utils.graph_search import breadth_first_search, follow_path, bfs
 from smarttvleakage.utils.constants import KeyboardType, BIG_NUMBER
 from smarttvleakage.utils.file_utils import read_json, read_json_gz
 from smarttvleakage.audio.sounds import SAMSUNG_SELECT, SAMSUNG_KEY_SELECT, APPLETV_KEYBOARD_SELECT

@@ -540,6 +540,16 @@ class AppleTVPasswordGraphMoveCounts(unittest.TestCase):
         expected = [';', '?', '0', '5', '<DONE>', '<abc>']
         self.list_equal(neighbors, expected)
 
+    def test_z_nine(self):
+        neighbors = appletv_password_graph.get_keys_for_moves_from(start_key='z',
+                                                                   num_moves=9,
+                                                                   mode=APPLETV_PASSWORD_STANDARD,
+                                                                   use_shortcuts=True,
+                                                                   use_wraparound=False,
+                                                                   directions=Direction.ANY)
+        expected = ['q', '_', 'p']
+        self.list_equal(neighbors, expected)
+
     def list_equal(self, observed: List[str], expected: List[str]):
         self.assertEqual(list(sorted(observed)), list(sorted(expected)))
 

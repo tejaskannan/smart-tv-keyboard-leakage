@@ -12,15 +12,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     result_move_sequences: List[List[Dict[str, Any]]] = []
+    suggestions_types: List[str] = []
 
     for extraction_path in args.extracted_paths:
         move_extraction = read_json(extraction_path)
 
         result_move_sequences.extend(move_extraction['move_sequences'])
+        suggestions_types.extend(move_extraction['suggestions_types'])
 
     result = {
         'tv_type': SmartTVType.SAMSUNG.name.lower(),
         'seq_type': 'standard',
-        'move_sequences': result_move_sequences
+        'move_sequences': result_move_sequences,
+        'suggestions_types': suggestions_types
     }
     save_json(result, args.output_path)

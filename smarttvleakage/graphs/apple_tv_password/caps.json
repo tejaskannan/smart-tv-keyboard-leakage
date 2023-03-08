@@ -48,7 +48,7 @@
         "%": [ "$", "^", "<SPECIAL>" ],
         "^": [ "%", "&", "<SPECIAL>" ],
         "&": [ "^", "*", "<SPECIAL>" ],
-        "*": [ "9", "<SPECIAL>" ],
+        "*": [ "&", "<SPECIAL>" ],
         "<ABC>": ["<abc>", "<DONE>" ],
         "<abc>": ["<ABC>", "<SPECIAL>", "<DONE>" ],
         "<SPECIAL>": ["<abc>", "<DONE>" ],

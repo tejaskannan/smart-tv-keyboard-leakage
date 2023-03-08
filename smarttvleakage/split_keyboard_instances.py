@@ -8,11 +8,11 @@ from typing import List, Optional, Any, Tuple, Dict
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio import make_move_extractor, Move
 from smarttvleakage.audio.tv_classifier import SmartTVTypeClassifier
-from smarttvleakage.utils.constants import SmartTVType, Direction, SuggestionsType
+from smarttvleakage.utils.constants import SmartTVType, Direction, SuggestionsType, SUGGESTIONS_CUTOFF
 from smarttvleakage.utils.credit_card_detection import extract_credit_card_sequence, CreditCardSequence
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_json
-
 from smarttvleakage.suggestions_model.determine_autocomplete import classify_moves
+
 
 MIN_LENGTH = 3
 
@@ -22,7 +22,7 @@ class SequenceType(Enum):
     CREDIT_CARD = auto()
 
 
-def split_into_instances_appletv(move_sequence: List[Move], min_num_selections: int) -> Tuple[SequenceType, List[Any]]:
+def split_into_instances_appletv(move_sequence: List[Move], min_num_selections: int) -> Tuple[SequenceType, List[Any], List[SuggestionsType]]:
     split_sequence: List[List[Move]] = []
     current_split: List[Move] = []
 
@@ -53,13 +53,13 @@ def split_into_instances_appletv(move_sequence: List[Move], min_num_selections: 
     if len(current_split) >= min_num_selections:
         split_sequence.append(current_split)
 
-    return SequenceType.STANDARD, split_sequence
+    suggestions_types = [SuggestionsType.STANDARD for _ in split_sequence]
+    return SequenceType.STANDARD, split_sequence, suggestions_types
 
 
-def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: int,
-                                 model) -> Tuple[SequenceType, List[Any], SuggestionsType]:
+def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: int, keyboard_model: Any) -> Tuple[SequenceType, List[Any], List[SuggestionsType]]:
     if len(move_sequence) == 0:
-        return SequenceType.STANDARD, [], SuggestionsType.STANDARD
+        return SequenceType.STANDARD, [], []
 
     # Handle Credit Card Entries based on counting instead of timing. Note that when we detect credit cards,
     # we only extract the information relevant to credit cards even if there are other typing instance. This
@@ -68,7 +68,8 @@ def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: 
     credit_card_splits: Optional[List[CreditCardSequence]] = extract_credit_card_sequence(move_sequence, min_seq_length=min_num_selections)
 
     if credit_card_splits is not None:
-        return SequenceType.CREDIT_CARD, credit_card_splits, SuggestionsType.STANDARD
+        suggestions_types = [SuggestionsType.STANDARD for _ in credit_card_splits]
+        return SequenceType.CREDIT_CARD, credit_card_splits, suggestions_types
 
     # Get the time differences between consecutive moves
     time_diffs: List[int] = []
@@ -84,37 +85,41 @@ def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: 
 
     split_sequence: List[List[Move]] = []
     current_split: List[Move] = [move_sequence[0]]
+    suggestions_types: List[SuggestionsType] = []
 
     for idx in range(1, len(move_sequence)):
         time_diff = time_diffs[idx - 1]
 
         if time_diff >= cutoff_time:
             if len(current_split) >= MIN_LENGTH:
-                processed = process_split(current_split)
+                processed, suggestions_type = process_split(current_split)
+
                 if len(processed) >= MIN_LENGTH:
                     split_sequence.append(processed)
+                    suggestions_types.append(suggestions_type)
 
             current_split = []
 
         current_split.append(move_sequence[idx])
 
     if (len(current_split) >= MIN_LENGTH):
-        processed = process_split(current_split)
+        processed, suggestions_type = process_split(current_split)
+
         if len(processed) >= MIN_LENGTH:
             split_sequence.append(processed)
+            suggestions_types.append(suggestions_type)
 
-    for move_seq in split_sequence:
+    for move_seq, suggestions_type in zip(split_sequence, suggestions_types):
         print('==========')
+        print(suggestions_type)
 
         for move in move_seq:
             print(move)
 
-    if classify_moves(model, split_sequence):
-        return SequenceType.STANDARD, split_sequence, SuggestionsType.SUGGESTIONS
-    return SequenceType.STANDARD, split_sequence, SuggestionsType.STANDARD
+    return SequenceType.STANDARD, split_sequence, suggestions_types
 
 
-def process_split(move_seq: List[Move]) -> List[Move]:
+def process_split(move_seq: List[Move]) -> Tuple[List[Move], SuggestionsType]:
     # Clip of leading 'select' sounds. This is a heuristic, as technically one can start on the keyboard
     # with a selection. But more often than not, the first 'select' is the action that actually opens the keyboard up
 
@@ -127,17 +132,18 @@ def process_split(move_seq: List[Move]) -> List[Move]:
         start_idx = select_idx + 1
 
     move_seq = move_seq[start_idx:]
+    suggestions_type = SuggestionsType.SUGGESTIONS if classify_moves(keyboard_model, move_seq, cutoff=SUGGESTIONS_CUTOFF) else SuggestionsType.STANDARD
 
     # Remove the last movement if it doesn't end in a 'select' and the recording shows only 1 move.
     # In this case, the 'done' key was suggested, so the movement tells us nothing about the position of the prior key
     # TODO: Amend this rule specifically for `suggestions` types
-    if (move_seq[-1].end_sound != sounds.SAMSUNG_SELECT):
+    if (move_seq[-1].end_sound != sounds.SAMSUNG_SELECT) and ((move_seq[-1].num_moves <= 1) or (suggestions_type == SuggestionsType.SUGGESTIONS)):
         move_seq = move_seq[:-1]
 
-    return move_seq
+    return move_seq, suggestions_type
 
 
-def serialize_splits(split_seq: List[Any], tv_type: SmartTVType, seq_type: SequenceType, output_path: str):
+def serialize_splits(split_seq: List[Any], suggestions_types: List[SuggestionsType], tv_type: SmartTVType, seq_type: SequenceType, output_path: str):
     dictionary_splits: List[Any] = []
 
     def moves_to_dict(moves: List[Move]) -> List[Dict[str, Any]]:
@@ -161,7 +167,8 @@ def serialize_splits(split_seq: List[Any], tv_type: SmartTVType, seq_type: Seque
     result = {
         'tv_type': tv_type.name.lower(),
         'seq_type': seq_type.name.lower(),
-        'move_sequences': dictionary_splits
+        'move_sequences': dictionary_splits,
+        'suggestions_types': [suggestions_type.name.lower() for suggestions_type in suggestions_types]
     }
     save_json(result, output_path)
 
@@ -169,7 +176,7 @@ def serialize_splits(split_seq: List[Any], tv_type: SmartTVType, seq_type: Seque
 if __name__ == '__main__':
     parser = ArgumentParser('Splits the Smart TV audio file into keyboard instances and extracts the move sequence for each instance.')
     parser.add_argument('--spectrogram-path', type=str, required=True, help='The path to the spectrogram file (pkl.gz).')
-    parser.add_argument('--model-path', type=str, required=False, help='The path to the samsung suggestions model')
+    parser.add_argument('--keyboard-model-path', type=str, required=True, help='The path to the samsung suggestions model. Only needed for Samsung instances.')
     args = parser.parse_args()
 
     assert args.spectrogram_path.endswith('.pkl.gz'), 'Must provide a pickle file containing the spectrogram.'
@@ -201,12 +208,13 @@ if __name__ == '__main__':
 
     # Split the move sequence into keyboard instances
     if tv_type == SmartTVType.SAMSUNG:
-        seq_type, split_seq = split_into_instances_samsung(move_sequence=move_seq, min_num_selections=1)
+        keyboard_model = read_pickle_gz(args.keyboard_model_path)
+        seq_type, split_seq, suggestions_types = split_into_instances_samsung(move_sequence=move_seq, min_num_selections=1, keyboard_model=keyboard_model)
     elif tv_type == SmartTVType.APPLE_TV:
-        seq_type, split_seq = split_into_instances_appletv(move_sequence=move_seq, min_num_selections=3)
+        seq_type, split_seq, suggestions_types = split_into_instances_appletv(move_sequence=move_seq, min_num_selections=3)
     else:
         raise ValueError('Unknown TV Type: {}'.format(tv_type))
 
     print('Number of splits: {}'.format(len(split_seq)))
 
-    serialize_splits(split_seq, tv_type=tv_type, seq_type=seq_type, output_path=output_path)
+    serialize_splits(split_seq, suggestions_types=suggestions_types, tv_type=tv_type, seq_type=seq_type, output_path=output_path)

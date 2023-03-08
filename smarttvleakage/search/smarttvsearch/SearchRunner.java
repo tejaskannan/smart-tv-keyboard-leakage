@@ -37,15 +37,14 @@ public class SearchRunner {
     private static final int MAX_NUM_CANDIDATES = 150000;
 
     public static void main(String[] args) {
-        if (args.length != 3) {
-            System.out.println("Must provide a path to (1) the move JSON file, (2) the folder containing the language prior, and (3) the name of the output file (json).");
+        if (args.length < 3) {
+            System.out.println("Must provide a path to (1) the move JSON file, (2) the name of the output file (json), and (3) the path(s) to the language priors.");
             return;
         }
 
         // Unpack the arguments
         String movePath = args[0];
-        String priorPath = args[1];
-        String outputPath = args[2];
+        String outputPath = args[1];
 
         JSONObject serializedMoves = FileUtils.readJsonObject(movePath);
         String seqType = serializedMoves.getString("seq_type");
@@ -77,6 +76,8 @@ public class SearchRunner {
             LanguagePrior cvvPrior = LanguagePriorFactory.makePrior("numeric", null);
             LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
             LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
+
+            String priorPath = args[2];
             LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", priorPath);
  
             zipPrior.build(true);
@@ -148,16 +149,17 @@ public class SearchRunner {
             }
         } else if (seqType.equals("standard")) {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
+            JSONArray jsonSuggestionsTypes = serializedMoves.getJSONArray("suggestions_types");
             JSONArray targetStrings = serializedLabels.getJSONArray("labels");
 
-            LanguagePrior prior;
-            if (priorPath.endsWith("wikipedia.db")) {
-                prior = LanguagePriorFactory.makePrior("english", priorPath);
-            } else {
-                prior = LanguagePriorFactory.makePrior("ngram", priorPath);
-            }
+            String passwordPriorPath = args[2];
+            LanguagePrior passwordPrior = LanguagePriorFactory.makePrior("ngram", passwordPriorPath);
 
-            prior.build(false);
+            String englishPriorPath = args[3];
+            LanguagePrior englishPrior = LanguagePriorFactory.makePrior("english", englishPriorPath);
+
+            passwordPrior.build(false);
+            englishPrior.build(false);
 
             double suboptimalFactor = (tvType == SmartTVType.APPLE_TV) ? 0.5 : 1e-2;
             int correctCount = 0;
@@ -184,7 +186,12 @@ public class SearchRunner {
                 //    System.out.println();
                 //}
 
-                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, suboptimalFactor, 0, MAX_PASSWD_RANK, false, MAX_NUM_CANDIDATES);
+                // Determine the suggestions type
+                String suggestionsType = jsonSuggestionsTypes.getString(idx);
+                boolean shouldUseSuggestions = suggestionsType.equals("suggestions");
+                LanguagePrior prior = shouldUseSuggestions ? englishPrior : passwordPrior;
+
+                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, suboptimalFactor, 0, MAX_PASSWD_RANK, shouldUseSuggestions, MAX_NUM_CANDIDATES);
 
                 int rank = 1;
                 boolean didFind = false;

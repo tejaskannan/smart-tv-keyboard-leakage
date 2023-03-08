@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from typing import List, Tuple, Dict
 
+from smarttvleakage.analysis.utils import PLOT_STYLE, AXIS_SIZE, TITLE_SIZE, LABEL_SIZE, LEGEND_SIZE
+from smarttvleakage.analysis.utils import MARKER_SIZE, MARKER, LINE_WIDTH, COLORS_0
+from smarttvleakage.analysis.utils import compute_rank, top_k_accuracy, compute_accuracy, compute_baseline_accuracy
 from smarttvleakage.utils.file_utils import iterate_dir, read_json
 
 
@@ -12,27 +15,9 @@ LABELS_NAME = '{}_passwords_labels.json'
 PRIORS = ['phpbb', 'rockyou-5gram']
 PHPBB_COUNT = 184388
 PRIOR_LABELS = {
-    'phpbb': 'PHPBB Prior',
-    'rockyou-5gram': 'Rockyou Prior'
+    'phpbb': 'Audio + PHPBB Prior',
+    'rockyou-5gram': 'Audio + Rockyou Prior'
 }
-COLORS = ['#253494', '#41b6c4', '#c7e9b4']
-
-
-def top_k_accuracy(password_guesses: List[List[str]], targets: List[str], top: int) -> Tuple[int, int]:
-    assert top >= 1, 'Must provide a positive `top` count'
-    assert len(password_guesses) == len(targets), 'Must provide the same number of guesses as targets'
-
-    recovered_count = 0
-
-    for guesses, target in zip(password_guesses, targets):
-        for rank, guess in enumerate(guesses):
-            if rank >= top:
-                break
-            elif guess == target:
-                recovered_count += 1
-                break
-    
-    return recovered_count, len(targets)
 
 
 if __name__ == '__main__':
@@ -66,11 +51,13 @@ if __name__ == '__main__':
             labels_path = os.path.join(subject_folder, LABELS_NAME.format(args.tv_type))
             password_labels = read_json(labels_path)['labels']
 
+            ranks = [compute_rank(guesses=guesses, label=password_labels[idx]) for idx, guesses in enumerate(password_guesses)]
+
             # Get the correct counts for each `top` entry
             for top_idx, top_count in enumerate(TOP):
-                correct, total = top_k_accuracy(password_guesses, targets=password_labels, top=top_count)
+                correct, total = top_k_accuracy(ranks, top=top_count)
                 correct_counts[prior_name][subject_name][top_idx] += correct
-                total_counts[prior_name][subject_name][top_idx] += total
+                total_counts[prior_name][subject_name][top_idx] += max(total, len(password_labels))
 
             print('Prior: {}, Subject {}, Correct: {}, Total: {}'.format(prior_name, subject_name, correct_counts[prior_name][subject_name], total_counts[prior_name][subject_name]))
 
@@ -87,19 +74,20 @@ if __name__ == '__main__':
                 merged_total_list[top_idx] += total_counts[prior_name][subject_name][top_idx]
 
         if all((t > 0) for t in merged_total_list):
-            accuracy_list: List[float] = [100.0 * (count / total) for count, total in zip(merged_count_list, merged_total_list)]
+            accuracy_list: List[float] = compute_accuracy(num_correct=merged_count_list,
+                                                          total_counts=merged_total_list)
             accuracy_dict[prior_name] = accuracy_list
 
-    baseline_accuracy: List[float] = [100.0 * (top / PHPBB_COUNT) for top in TOP]
+    baseline_accuracy: List[float] = compute_baseline_accuracy(baseline_size=PHPBB_COUNT, top_counts=TOP)
 
-    with plt.style.context('seaborn-ticks'):
+    with plt.style.context(PLOT_STYLE):
         fig, ax = plt.subplots(figsize=(7, 5))
 
         for prior_idx, prior_name in enumerate(PRIORS):
             if prior_name not in accuracy_dict:
                 continue
 
-            ax.plot(TOP, accuracy_dict[prior_name], marker='o', linewidth=3, markersize=8, label=PRIOR_LABELS[prior_name], color=COLORS[prior_idx])
+            ax.plot(TOP, accuracy_dict[prior_name], marker=MARKER, linewidth=LINE_WIDTH, markersize=MARKER_SIZE, label=PRIOR_LABELS[prior_name], color=COLORS_0[prior_idx])
 
             # Write the data labels
             for idx, (topk, accuracy) in enumerate(zip(TOP, accuracy_dict[prior_name])):
@@ -129,25 +117,22 @@ if __name__ == '__main__':
                 else:
                     raise ValueError('Unknown prior name: {}'.format(prior_name))
 
-                ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
+                ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=LABEL_SIZE)
 
-        ax.plot(TOP, baseline_accuracy, marker='o', linewidth=3, markersize=8, label='Random Guess', color=COLORS[-1])
+        ax.plot(TOP, baseline_accuracy, marker=MARKER, linewidth=LINE_WIDTH, markersize=MARKER_SIZE, label='Random Guess', color=COLORS_0[-1])
 
         if args.tv_type == 'samsung':
-            for idx, (topk, accuracy) in enumerate(zip(TOP, baseline_accuracy)):
-                xoffset = -7
-                yoffset = 3.0
+            last_accuracy = baseline_accuracy[-1]
+            last_count = TOP[-1]
+            ax.annotate('{:.2f}%'.format(last_accuracy), xy=(last_count, last_accuracy), xytext=(last_count + xoffset, last_accuracy + yoffset), size=LABEL_SIZE)
 
-                if accuracy >= 0.01:
-                    ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
+        ax.legend(fontsize=LEGEND_SIZE)
+        ax.xaxis.set_tick_params(labelsize=LABEL_SIZE)
+        ax.yaxis.set_tick_params(labelsize=LABEL_SIZE)
 
-        #ax.set_xticks(TOP)
-        #ax.set_xscale('log')
-        ax.legend()
-
-        ax.set_title('{} Password Top-K Accuracy on Human Users'.format(args.tv_type.capitalize()), size=16)
-        ax.set_xlabel('Guess Cutoff (K)', size=14)
-        ax.set_ylabel('Accuracy (%)', size=14)
+        ax.set_title('{} Password Top-K Accuracy on Human Users'.format(args.tv_type.capitalize()), size=TITLE_SIZE)
+        ax.set_xlabel('Guess Cutoff (K)', size=AXIS_SIZE)
+        ax.set_ylabel('Accuracy (%)', size=AXIS_SIZE)
 
         # Show or save the result
         if args.output_file is None:

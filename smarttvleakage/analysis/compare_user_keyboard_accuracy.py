@@ -7,6 +7,7 @@ from typing import List, Tuple
 
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.data_types import Move
+from smarttvleakage.analysis.utils import PLOT_STYLE, AXIS_SIZE, LABEL_SIZE, LEGEND_SIZE, TITLE_SIZE, TV_COLORS, FIGSIZE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.utils.file_utils import read_json, iterate_dir
@@ -104,7 +105,7 @@ def compare_against_optimal(move_sequences: List[List[OrderedDict]], labels: Lis
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--folder', type=str, required=True)
-    parser.add_argument('--output-path', type=str)
+    parser.add_argument('--output-file', type=str)
     args = parser.parse_args()
 
     samsung_keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
@@ -151,34 +152,40 @@ if __name__ == '__main__':
     samsung_avg_dist, samsung_std_dist = np.mean(samsung_distances), np.std(samsung_distances)
     appletv_avg_dist, appletv_std_dist = np.mean(appletv_distances), np.std(appletv_distances)
 
-    with plt.style.context('seaborn-ticks'):
-        fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=(7, 5))
+    with plt.style.context(PLOT_STYLE):
+        fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=FIGSIZE)
 
-        ax0.bar(-(WIDTH / 2), height=samsung_accuracy, width=WIDTH, label='Samsung', color='#1f78b4')
-        ax0.bar((WIDTH / 2), height=appletv_accuracy, width=WIDTH, label='Apple TV', color='#b2df8a')
+        ax0.bar(-(WIDTH / 2), height=samsung_accuracy, width=WIDTH, label='Samsung', color=TV_COLORS['samsung'])
+        ax0.bar((WIDTH / 2), height=appletv_accuracy, width=WIDTH, label='Apple TV', color=TV_COLORS['appletv'])
 
-        ax0.annotate('{:.3f}%'.format(samsung_accuracy), (-(WIDTH / 2), samsung_accuracy), xytext=(-(WIDTH / 2) - 0.1, samsung_accuracy + 1))
-        ax0.annotate('{:.3f}%'.format(appletv_accuracy), (WIDTH / 2, appletv_accuracy), xytext=((WIDTH / 2) - 0.1, appletv_accuracy + 1))
+        ax0.annotate('{:.3f}%'.format(samsung_accuracy), (-(WIDTH / 2), samsung_accuracy), xytext=(-(WIDTH / 2) - 0.1, samsung_accuracy + 1), fontsize=LABEL_SIZE)
+        ax0.annotate('{:.3f}%'.format(appletv_accuracy), (WIDTH / 2, appletv_accuracy), xytext=((WIDTH / 2) - 0.1, appletv_accuracy + 1), fontsize=LABEL_SIZE)
 
         ax0.set_xticks([0])
         ax0.set_xticklabels([''])
-        ax0.legend()
-        ax0.set_ylabel('Accuracy (%)')
-        ax0.set_title('Optimal Move Accuracy')
+        ax0.xaxis.set_tick_params(labelsize=LABEL_SIZE)
+        ax0.yaxis.set_tick_params(labelsize=LABEL_SIZE)
 
-        ax1.hist(x=samsung_distances, bins=10, label='Samsung', density=True, color='#1f78b4')
-        ax1.hist(x=appletv_distances, bins=10, label='Apple TV', density=True, color='#b2df8a', alpha=0.9)
+        ax0.legend(fontsize=LEGEND_SIZE)
+        ax0.set_ylabel('Accuracy (%)', fontsize=AXIS_SIZE)
+        ax0.set_title('Optimal Move Accuracy', fontsize=TITLE_SIZE)
 
-        ax1.text(5, 0.5, s='Samsung: ${:.3f} (\\pm {:.3f})$ \nApple TV: ${:.3f} (\\pm {:.3f})$'.format(samsung_avg_dist, samsung_std_dist, appletv_avg_dist, appletv_std_dist))
+        ax1.hist(x=samsung_distances, bins=10, label='Samsung', density=True, color=TV_COLORS['samsung'])
+        ax1.hist(x=appletv_distances, bins=10, label='Apple TV', density=True, color=TV_COLORS['appletv'], alpha=0.7)
 
-        ax1.legend()
-        ax1.set_xlabel('Distance from Optimal')
-        ax1.set_ylabel('Density')
-        ax1.set_title('Distance from Optimal Move Count')
+        ax1.text(3, 0.5, s='Samsung: ${:.3f} (\\pm {:.3f})$ \nApple TV: ${:.3f} (\\pm {:.3f})$'.format(samsung_avg_dist, samsung_std_dist, appletv_avg_dist, appletv_std_dist), fontsize=LABEL_SIZE)
+
+        ax1.legend(fontsize=LABEL_SIZE)
+        ax1.xaxis.set_tick_params(labelsize=LABEL_SIZE)
+        ax1.yaxis.set_tick_params(labelsize=LABEL_SIZE)
+
+        ax1.set_xlabel('Distance', fontsize=AXIS_SIZE)
+        ax1.set_ylabel('Density', fontsize=AXIS_SIZE)
+        ax1.set_title('Distance from Optimal', fontsize=TITLE_SIZE)
 
         plt.tight_layout()
 
-        if args.output_path is None:
+        if args.output_file is None:
             plt.show()
         else:
-            plt.savefig(args.output_path, bbox_inches='tight', transparent=True)
+            plt.savefig(args.output_file, bbox_inches='tight', transparent=True)

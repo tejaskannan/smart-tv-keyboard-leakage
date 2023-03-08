@@ -7,7 +7,8 @@ from queue import PriorityQueue
 from collections import namedtuple, defaultdict, Counter
 from typing import Set, List, Dict, Optional, Iterable, Tuple, DefaultDict
 
-from smarttvleakage.audio import Move, SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE
+from smarttvleakage.audio import Move
+from smarttvleakage.audio.sounds import SAMSUNG_KEY_SELECT, SAMSUNG_SELECT, SAMSUNG_DELETE
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, SPACE, SAMSUNG_STANDARD
 from smarttvleakage.dictionary import CharacterDictionary, UniformDictionary, EnglishDictionary, UNPRINTED_CHARACTERS, CHARACTER_TRANSLATION, SELECT_SOUND_KEYS, DELETE_SOUND_KEYS
 from smarttvleakage.utils.constants import SmartTVType, KeyboardType, END_CHAR, Direction, SMALL_NUMBER

@@ -52,6 +52,46 @@ def breadth_first_search(start_key: str,
     return result
 
 
+def bfs(start_key: str,
+        distance: int,
+        adj_list: Dict[str, Dict[str, str]],
+        wraparound: Optional[Dict[str, Dict[str, str]]],
+        shortcuts: Optional[Dict[str, Dict[str, str]]]):
+    frontier = deque()
+    frontier.append((0, start_key))
+    result: List[str] = []
+    visited: Set[str] = { start_key }
+
+    while len(frontier) > 0:
+        dist, key = frontier.pop() 
+
+        if dist == distance:
+            result.append(key)
+            continue
+
+        neighbors = [k for k in adj_list[key]]
+
+        if '9' in neighbors:
+            print('{}: {}'.format(key, dist))
+
+        if (wraparound is not None) and (key in wraparound):
+            neighbors.extend(wraparound[key])
+
+        if (shortcuts is not None) and (key in shortcuts):
+            neighbors.extend(shortcuts[key])
+
+        for neighbor in neighbors:
+            if neighbor not in visited:
+                frontier.append((dist + 1, neighbor))
+                visited.add(neighbor)
+
+        for neighbor in neighbors:
+            visited.add(neighbor)
+
+    return result
+
+
+
 def follow_path(start_key: str,
                 adj_list: Dict[str, Dict[str, str]],
                 wraparound: Optional[Dict[str, Dict[str, str]]],
