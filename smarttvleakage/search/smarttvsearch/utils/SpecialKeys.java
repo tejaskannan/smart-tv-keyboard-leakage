@@ -19,5 +19,8 @@ public class SpecialKeys {
     public static final String SETTINGS = "<SETTINGS>";
     public static final String RETURN = "<RETURN>";
     public static final String CANCEL = "<CANCEL>";
+    public static final String LOWERCASE = "<abc>";
+    public static final String UPPERCASE = "<ABC>";
+    public static final String SPECIAL = "<SPECIAL>";
 
 }

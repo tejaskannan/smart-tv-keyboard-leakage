@@ -39,7 +39,7 @@ public abstract class LanguagePrior {
         return result;
     }
 
-    public double normalizeCount(int count) {
+    public double normalizeCount(int count, String word) {
         return ((double) count) / ((double) this.getTotalCount());
     }
 

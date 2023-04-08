@@ -22,6 +22,9 @@ public class KeyboardUtils {
         translation.put(SpecialKeys.SETTINGS, "");
         translation.put(SpecialKeys.CHANGE, "");
         translation.put(SpecialKeys.NEXT, "");
+        translation.put(SpecialKeys.LOWERCASE, "###");
+        translation.put(SpecialKeys.UPPERCASE, "###");
+        translation.put(SpecialKeys.SPECIAL, "###");
         return translation;
     }
 

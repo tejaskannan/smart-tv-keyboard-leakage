@@ -1,6 +1,8 @@
-SUBJECTS=("a" "b" "c" "d" "e" "f" "g" "h" "i" "j")
+SUBJECTS=("e")
+OUTPUT_FOLDER="/local/samsung/ccn_search_comparison"
+OUTPUT_FILE_NAME="exhaustive.json"
 
 for s in "${SUBJECTS[@]}"
 do
-    java smarttvsearch.SearchRunner /local/smart-tv-user-study/subject-${s}/credit_card_details.json /local/dictionaries/credit_cards/zip_codes.txt /local/smart-tv-user-study/subject-${s}/recovered_credit_card_details.json
+    java smarttvsearch.SearchRunner --input-file /local/smart-tv-user-study/subject-${s}/credit_card_details.json --output-file ${OUTPUT_FOLDER}/subject-${s}/${OUTPUT_FILE_NAME} --password-prior /local/dictionaries/passwords/phpbb.db --english-prior /local/dictionaries/english/wikipedia.db --zip-prior /local/dictionaries/credit_cards/zip_codes.txt
 done

@@ -14,14 +14,23 @@ import smarttvsearch.utils.sounds.AppleTVSound;
 
 public class JsonUtils {
 
-    public static JSONArray listToJsonArray(List<String> list) {
+    public static <T> JSONArray listToJsonArray(List<T> list) {
         JSONArray result = new JSONArray();
-        for (String value : list) {
+        for (T value : list) {
             result.put(value);
         }
 
         return result;
     }
+
+    //public static JSONArray doubleListToJsonArray(List<Double> list) {
+    //    JSONArray result = new JSONArray();
+    //    for (Double value : list) {
+    //        result.put(value);
+    //    }
+
+    //    return result;
+    //}
 
     public static Move[] parseMoveSeq(JSONArray jsonMoveSeq, SmartTVType tvType) {
         Move[] moveSeq = new Move[jsonMoveSeq.length()];

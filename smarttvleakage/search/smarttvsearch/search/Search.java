@@ -44,19 +44,23 @@ public class Search {
     private SmartTVType tvType;
     private int maxNumCandidates;
     private boolean shouldUseSuggestions;
+    private int minNumSuboptimal;
+    private boolean shouldReverse;
 
     private PriorityQueue<SearchState> frontier;
     private HashSet<VisitedState> visited;
     private HashSet<String> guessed;
     private boolean[] isMoveDeleted;
     private int numCandidates;
+    private int numPossibleGuesses;
+    private int rank;
+    private double scrollMistakeFactor;
 
     private static final int DONE_SUGGESTION_COUNT = 8;
     private static final int SUGGESTIONS_MOVE_COUNT = 4;
     private static final int TOP_SUGGESTED_KEYS = 5;
-    private static final double SCROLL_MISTAKE_FACTOR = 0.9;
 
-    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount, int maxNumCandidates, boolean shouldUseSuggestions) {
+    public Search(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior languagePrior, String startKey, SuboptimalMoveModel suboptimalModel, KeyboardExtender keyboardExtender, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, int minCount, int maxNumCandidates, boolean shouldUseSuggestions, int minNumSuboptimal, boolean shouldReverse) {
         this.moveSeq = moveSeq;
         this.keyboard = keyboard;
         this.languagePrior = languagePrior;
@@ -70,11 +74,15 @@ public class Search {
         this.doesSuggestDone = doesSuggestDone;
         this.maxNumCandidates = maxNumCandidates;
         this.shouldUseSuggestions = shouldUseSuggestions;
+        this.minNumSuboptimal = minNumSuboptimal;
+        this.shouldReverse = shouldReverse;
 
         this.frontier = new PriorityQueue<SearchState>();
         this.visited = new HashSet<VisitedState>();
         this.guessed = new HashSet<String>();
         this.numCandidates = 0;
+        this.numPossibleGuesses = 0;
+        this.rank = 0;
 
         // Generate the initial state and place this on the queue
         SearchState initState = new SearchState(startKey, new ArrayList<String>(), 0.0, keyboard.getStartKeyboard(), 0);
@@ -87,10 +95,14 @@ public class Search {
             Move lastMove = moveSeq[moveSeq.length - 1];
             SamsungSound lastSound = (SamsungSound) lastMove.getEndSound();
             this.doesEndWithDone = lastSound.isSelect();
+            this.scrollMistakeFactor = 0.9;
         } else if (tvType == SmartTVType.APPLE_TV) {
             Move lastMove = moveSeq[moveSeq.length - 1];
             AppleTVSound lastSound = (AppleTVSound) lastMove.getEndSound();
             this.doesEndWithDone = lastSound.isToolbarMove();
+            this.scrollMistakeFactor = 0.4;
+        } else {
+            throw new IllegalArgumentException(String.format("Unknown TV Type: %s", tvType));
         }
 
         // Include the linked keys
@@ -107,7 +119,7 @@ public class Search {
         this.isMoveDeleted = SearchUtils.markDeletedMoves(moveSeq);
     }
 
-    public String next() {
+    public SearchResult next() {
         while (!this.frontier.isEmpty()) {
             if ((this.maxNumCandidates > 0) && (this.numCandidates >= this.maxNumCandidates)) {
                 return null;
@@ -121,10 +133,18 @@ public class Search {
             // Check if we are out of moves. If so, return the string if not guessed already.
             if (this.isFinished(moveIdx))  {
                 String guess = currentState.toString();
+                this.numPossibleGuesses += 1;
+
+                if (this.shouldReverse) {
+                    guess = Search.reverseGuess(guess);
+                }
 
                 if ((guess.length() > 0) && (!this.guessed.contains(guess)) && (this.languagePrior.isValid(guess))) {
                     this.guessed.add(guess);
-                    return guess;
+                    this.rank += 1;
+
+                    SearchResult result = new SearchResult(guess, this.rank, this.numCandidates, this.numPossibleGuesses, currentState.getScore());
+                    return result;
                 }
             } else {
                 // Get the move at this step
@@ -145,9 +165,8 @@ public class Search {
                 }
 
                 // Each scroll has a mistake of +/- 1 based on challenges with audio parsing
-                int scrollsBuffer = ((this.tvType == SmartTVType.APPLE_TV) && (!this.isFinished(moveIdx))) ? Math.max(2 * move.getNumScrolls(), 1) : move.getNumScrolls();
-                //int scrollsBuffer = 0;
-                numSuboptimal = Math.max(numSuboptimal, scrollsBuffer);
+                int scrollsBuffer = ((this.tvType == SmartTVType.APPLE_TV) && (!this.isFinished(moveIdx))) ? 2 * move.getNumScrolls() : move.getNumScrolls();
+                numSuboptimal = Math.max(Math.max(numSuboptimal, scrollsBuffer), this.minNumSuboptimal);
 
                 for (int offset = -1 * numSuboptimal; offset <= numSuboptimal; offset++) {
                     int adjustedNumMoves = numMoves + offset;
@@ -175,7 +194,7 @@ public class Search {
                     } else if (this.shouldUseSuggestions && (Math.abs(offset) <= 1)) {
                         scoreFactor = 1.0; 
                     } else if ((offset != 0) && (Math.abs(offset) <= scrollsBuffer)) {
-                        scoreFactor = SCROLL_MISTAKE_FACTOR;
+                        scoreFactor = this.scrollMistakeFactor;
                     }
 
                     Set<String> extendedNeighbors = this.keyboardExtender.getExtendedNeighbors(currentKey, adjustedNumMoves, currentState.getKeyboardName());
@@ -231,25 +250,42 @@ public class Search {
 
                         if ((incrementalCount > this.minCount) || (this.isMoveDeleted[moveIdx]) || (this.isChangeKey(neighborKey))) {
 
-                            double score = this.languagePrior.normalizeCount(incrementalCount);
+                            double score = this.languagePrior.normalizeCount(incrementalCount, candidateState.toString());
 
                             if ((incrementalCount <= 0) || (this.isFinished(nextMoveIdx) && (SpecialKeys.DONE.equals(neighborKey))) || (this.isChangeKey(neighborKey)) || (this.isMoveDeleted[moveIdx])) {
                                 score = 0.0;
+                            }  else if (this.shouldUseSuggestions) {
+                                String endString = candidateState.toString() + EnglishPrior.END_CHAR;
+
+                                if (this.isFinished(nextMoveIdx)) {
+                                    incrementalCount = this.languagePrior.find(endString);
+                                }
+
+                                score = this.languagePrior.normalizeCount(incrementalCount, endString) * neighborKeys.get(neighborKey);
+                                score = -1 * Math.log(score);
                             } else {
                                 score *= neighborKeys.get(neighborKey);
                                 score = -1 * Math.log(score);
                             }
 
-                            if (!this.shouldUseSuggestions) {
-                                score = currentState.getScore() + score;  // Accumulate the score in log space
-                            } else {
-                                if (this.isFinished(nextMoveIdx)) {
-                                    incrementalCount = this.languagePrior.find(candidateState.toString() + EnglishPrior.END_CHAR);
-                                }
+                            score = currentState.getScore() + score;  // Accumulate the score in log space
 
-                                score = this.languagePrior.normalizeCount(incrementalCount) * neighborKeys.get(neighborKey);
-                                score = -1 * Math.log(score);  // Mark the score as that of the string to this point
-                            }
+                            //if (!this.shouldUseSuggestions) {
+                            //    score = currentState.getScore() + score;  // Accumulate the score in log space
+                            //} else {
+                            //    String endString = candidateState.toString() + EnglishPrior.END_CHAR;
+
+                            //    if (this.isFinished(nextMoveIdx)) {
+                            //        incrementalCount = this.languagePrior.find(endString);
+                            //    }
+
+                            //    score = this.languagePrior.normalizeCount(incrementalCount, endString) * neighborKeys.get(neighborKey);
+                            //    score = currentState.getScore() - Math.log(score);  // Mark the score as that of the string to this point
+                            //}
+
+                            //if (currentState.toString().equals("agains")) {
+                            //    System.out.println(score);
+                            //}
 
                             candidateState.setScore(score);
                             this.frontier.add(candidateState);
@@ -335,4 +371,13 @@ public class Search {
         return moveIdx >= this.moveSeq.length;
     }
 
+    private static String reverseGuess(String guess) {
+        StringBuilder result = new StringBuilder();
+
+        for (int idx = guess.length() - 1; idx >= 0; idx--) {
+            result.append(guess.charAt(idx));
+        }
+
+        return result.toString();
+    }
 }

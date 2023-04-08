@@ -16,7 +16,7 @@ public class SuboptimalMoveModel {
         this.maxNumSuboptimalMoves = 0;
         if (tvType == SmartTVType.SAMSUNG) {
             this.maxNumSuboptimalMoves = 4;
-            this.scoreFactor = 0.1;
+            this.scoreFactor = 1e-3;  // 0.1
         } else if (tvType == SmartTVType.APPLE_TV) {
             this.maxNumSuboptimalMoves = 6;  // Users make more suboptimal moves on the Apple TV
             this.scoreFactor = 0.5;

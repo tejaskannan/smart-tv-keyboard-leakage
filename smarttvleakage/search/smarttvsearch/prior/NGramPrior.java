@@ -57,6 +57,23 @@ public class NGramPrior extends LanguagePrior {
     }
 
     @Override
+    public double normalizeCount(int count, String word) {
+        String ngram = toNGram(word, this.ngramSizes[this.ngramSizes.length - 1] - 1);
+        Map<Character, Integer> nextCounts = this.cache.get(ngram);
+
+        if (nextCounts == null) {
+            return ((double) count) / ((double) this.getTotalCount());
+        } else {
+            int totalCount = 0;
+            for (Integer nextCount : nextCounts.values()) {
+                totalCount += nextCount;
+            }
+
+            return ((double) count) / ((double) totalCount);
+        }
+    }
+
+    @Override
     public boolean isValidKey(String key) {
         return !key.equals(SpecialKeys.COM) && !key.equals(SpecialKeys.WWW);
     }

@@ -1,8 +1,7 @@
-#SUBJECTS=("a" "b" "c" "d" "e" "f" "g" "h" "i" "j")
-SUBJECTS=("f" "i")
+SUBJECTS=("a" "b" "c" "d" "e" "f" "g" "h" "i" "j")
 PRIOR="phpbb"
 
 for s in "${SUBJECTS[@]}"
 do
-    java smarttvsearch.SearchRunner /local/smart-tv-user-study/subject-${s}/web_searches.json /local/smart-tv-user-study/subject-${s}/recovered_web_searches.json /local/dictionaries/passwords/${PRIOR}.db /local/dictionaries/english/wikipedia.db
+    java smarttvsearch.SearchRunner --input-file /local/smart-tv-user-study/subject-${s}/web_searches.json --output-file /local/smart-tv-user-study/subject-${s}/forced_recovered_web_searches.json --password-prior /local/dictionaries/passwords/${PRIOR}.db --english-prior /local/dictionaries/english/wikipedia.db --zip-prior /local/dictionaries/credit_card/zip_codes.txt
 done

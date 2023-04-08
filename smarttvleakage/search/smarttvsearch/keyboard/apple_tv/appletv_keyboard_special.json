@@ -142,5 +142,5 @@
         "*": { "up": "<BACK>" }
     }],
     "wraparound": {},
-    "unclickable": []
+    "unclickable": ["<abc>", "<ABC>", "<SPECIAL>"]
 }

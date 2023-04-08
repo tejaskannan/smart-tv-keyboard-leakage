@@ -9,18 +9,23 @@ import org.json.JSONArray;
 //import org.json.JSONException;
 
 import smarttvsearch.creditcard.CreditCardDetails;
+import smarttvsearch.creditcard.CreditCardRank;
+import smarttvsearch.creditcard.CreditCardUtils;
 import smarttvsearch.prior.LanguagePrior;
 import smarttvsearch.prior.LanguagePriorFactory;
 import smarttvsearch.keyboard.MultiKeyboard;
 import smarttvsearch.keyboard.KeyboardExtender;
 import smarttvsearch.keyboard.NumericKeyboardExtender;
 import smarttvsearch.search.Search;
+import smarttvsearch.search.SearchResult;
 import smarttvsearch.suboptimal.SuboptimalMoveModel;
 import smarttvsearch.suboptimal.CreditCardMoveModel;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.FileUtils;
 import smarttvsearch.utils.JsonUtils;
 import smarttvsearch.utils.Move;
+import smarttvsearch.utils.SearchArguments;
+import smarttvsearch.utils.SpecialKeys;
 import smarttvsearch.utils.SmartTVType;
 import smarttvsearch.utils.VectorUtils;
 import smarttvsearch.utils.sounds.SmartTVSound;
@@ -29,24 +34,19 @@ import smarttvsearch.utils.sounds.SamsungSound;
 
 public class SearchRunner {
 
-    private static final int MAX_CCN_RANK = 500;
+    private static final int MAX_CCN_RANK = 100;
     private static final int MAX_EXPIRY_RANK = 5;
     private static final int MAX_CVV_RANK = 50;
     private static final int MAX_ZIP_RANK = 50;
-    private static final int MAX_PASSWD_RANK = 100;
-    private static final int MAX_NUM_CANDIDATES = 150000;
+    private static final int MAX_PASSWD_RANK = 250;
+    private static final int MAX_NUM_CANDIDATES = 500000;
 
     public static void main(String[] args) {
-        if (args.length < 3) {
-            System.out.println("Must provide a path to (1) the move JSON file, (2) the name of the output file (json), and (3) the path(s) to the language priors.");
-            return;
-        }
+        // Parse the arguments
+        SearchArguments searchArgs = new SearchArguments(args);
 
-        // Unpack the arguments
-        String movePath = args[0];
-        String outputPath = args[1];
-
-        JSONObject serializedMoves = FileUtils.readJsonObject(movePath);
+        // Read the move JSON file
+        JSONObject serializedMoves = FileUtils.readJsonObject(searchArgs.getInputFile());
         String seqType = serializedMoves.getString("seq_type");
 
         // Parse the TV Type
@@ -59,8 +59,7 @@ public class SearchRunner {
 
         // Unpack the labels for reference. We do this for efficiency only, as we can stop the search when
         // we actually find the correct target string
-        String labelsPath = movePath.substring(0, movePath.length() - 5) + "_labels.json";
-        JSONObject serializedLabels = FileUtils.readJsonObject(labelsPath);
+        JSONObject serializedLabels = FileUtils.readJsonObject(searchArgs.getLabelsFile());
 
         KeyboardExtender stndExtender = new KeyboardExtender(keyboard);
 
@@ -77,12 +76,11 @@ public class SearchRunner {
             LanguagePrior monthPrior = LanguagePriorFactory.makePrior("month", null);
             LanguagePrior yearPrior = LanguagePriorFactory.makePrior("year", null);
 
-            String priorPath = args[2];
-            LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", priorPath);
- 
+            LanguagePrior zipPrior = LanguagePriorFactory.makePrior("prefix", searchArgs.getZipPrior());
             zipPrior.build(true);
 
             KeyboardExtender numericExtender = new NumericKeyboardExtender(keyboard);
+            int numFound = 0;
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record and parse each field as a proper move sequence
@@ -97,41 +95,31 @@ public class SearchRunner {
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
-                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
-                    System.out.printf("%d. %d (%s)\n", moveIdx + 1, ccnSeq[moveIdx].getNumMoves(), ccnSeq[moveIdx].getEndSound().getSoundName());
-                }
-                System.out.println();
-
-                List<Integer> diffs = new ArrayList<Integer>();
-
-                for (int moveIdx = 0; moveIdx < ccnSeq.length; moveIdx++) {
-                    System.out.printf("%d. ", moveIdx + 1);
-
-                    int[] moveTimes = ccnSeq[moveIdx].getMoveTimes();
-                    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
-
-                    if (moveDiffs != null) {
-                        diffs.addAll(moveDiffs);
-                    }
-
-                    for (int j = 1; j < moveTimes.length; j++) {
-                        int diff = moveTimes[j] - moveTimes[j - 1];
-
-                        System.out.printf("%d ", diff);
-                    }
-
-                    System.out.println();
-                }
-
                 // Recover each field
-                List<String> ccnGuesses = recoverString(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, MAX_NUM_CANDIDATES);
-                List<String> cvvGuesses = recoverString(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.5, 0, MAX_CVV_RANK, false, -1);
-                List<String> monthGuesses = recoverString(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK, false, -1);
-                List<String> yearGuesses = recoverString(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK, false, -1);
-                List<String> zipGuesses = recoverString(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 1e-3, 0, MAX_ZIP_RANK, false, -1);
+                List<SearchResult> ccnResults = recover(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), false, MAX_NUM_CANDIDATES, "");
+                //List<SearchResult> ccnResults = recoverExhaustive(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), MAX_NUM_CANDIDATES, "");
+                List<SearchResult> cvvResults = recover(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.5, 0, MAX_CVV_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");
+                List<SearchResult> monthResults = recover(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");
+                List<SearchResult> yearResults = recover(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");
+                List<SearchResult> zipResults = recover(zipSeq, keyboard, zipPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 1e-3, 0, MAX_ZIP_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");
+
+                // Unpack the guesses
+                List<String> ccnGuesses = SearchResult.toGuessList(ccnResults);
+                List<String> cvvGuesses = SearchResult.toGuessList(cvvResults);
+                List<String> monthGuesses = SearchResult.toGuessList(monthResults);
+                List<String> yearGuesses = SearchResult.toGuessList(yearResults);
+                List<String> zipGuesses = SearchResult.toGuessList(zipResults);
 
                 CreditCardDetails truth = new CreditCardDetails(labelsJson.getString("credit_card"), labelsJson.getString("security_code"), labelsJson.getString("exp_month"), labelsJson.getString("exp_year"), labelsJson.getString("zip_code"));
                 int rank = guessCreditCards(ccnGuesses, cvvGuesses, monthGuesses, yearGuesses, zipGuesses, truth);
+
+                int numPossibleCcns = 0;
+                int numCcnCandidates = 0;
+                if (!ccnGuesses.isEmpty()) {
+                    SearchResult finalResult = ccnResults.get(ccnResults.size() - 1);
+                    numPossibleCcns = finalResult.getNumPossibleGuesses();
+                    numCcnCandidates = finalResult.getNumCandidates();
+                }
 
                 // Collect the output into a JSON Object
                 JSONObject outputJson = new JSONObject();
@@ -141,22 +129,21 @@ public class SearchRunner {
                 outputJson.put("exp_year", JsonUtils.listToJsonArray(yearGuesses));
                 outputJson.put("zip", JsonUtils.listToJsonArray(zipGuesses));
                 outputJson.put("rank", rank);
+                outputJson.put("numPossibleCcns", numPossibleCcns);
+                outputJson.put("numCcnCandidates", numCcnCandidates);
 
                 results.put(outputJson);
 
-                System.out.printf("Overall Rank: %d\n", rank);
-                System.out.println("==========");
+                numFound += ((rank > 0) ? 1 : 0);
+                System.out.printf("Completed %d / %d entries. Accuracy: %.4f\r", idx + 1, jsonMoveSequences.length(), ((double) numFound) / ((double) (idx + 1)));
             }
         } else if (seqType.equals("standard")) {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray jsonSuggestionsTypes = serializedMoves.getJSONArray("suggestions_types");
             JSONArray targetStrings = serializedLabels.getJSONArray("labels");
 
-            String passwordPriorPath = args[2];
-            LanguagePrior passwordPrior = LanguagePriorFactory.makePrior("ngram", passwordPriorPath);
-
-            String englishPriorPath = args[3];
-            LanguagePrior englishPrior = LanguagePriorFactory.makePrior("english", englishPriorPath);
+            LanguagePrior passwordPrior = LanguagePriorFactory.makePrior("ngram", searchArgs.getPasswordPrior());
+            LanguagePrior englishPrior = LanguagePriorFactory.makePrior("english", searchArgs.getEnglishPrior());
 
             passwordPrior.build(false);
             englishPrior.build(false);
@@ -168,127 +155,228 @@ public class SearchRunner {
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 Move[] moveSeq = JsonUtils.parseMoveSeq(jsonMoveSequences.getJSONArray(idx), tvType);
 
-                //for (Move move : moveSeq) {
-                //    System.out.println(move);
-                //}
-
-                //for (int moveIdx = 0; moveIdx < moveSeq.length; moveIdx++) {
-                //    System.out.printf("%d. ", moveIdx + 1);
-
-                //    int[] moveTimes = moveSeq[moveIdx].getMoveTimes();
-                //    List<Integer> moveDiffs = VectorUtils.getDiffs(moveTimes);
-
-                //    for (int j = 1; j < moveTimes.length; j++) {
-                //        int diff = moveTimes[j] - moveTimes[j - 1];
-                //        System.out.printf("%d ", diff);
-                //    }
-
-                //    System.out.println();
-                //}
-
                 // Determine the suggestions type
                 String suggestionsType = jsonSuggestionsTypes.getString(idx);
                 boolean shouldUseSuggestions = suggestionsType.equals("suggestions");
+                //boolean shouldUseSuggestions = true;
                 LanguagePrior prior = shouldUseSuggestions ? englishPrior : passwordPrior;
+                String groundTruth = targetStrings.getString(idx);
 
-                List<String> guesses = recoverString(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, true, true, true, stndExtender, suboptimalFactor, 0, MAX_PASSWD_RANK, shouldUseSuggestions, MAX_NUM_CANDIDATES);
+                List<SearchResult> searchResults = recover(moveSeq, keyboard, prior, keyboard.getStartKey(), tvType, searchArgs.shouldUseDirections(), true, true, stndExtender, suboptimalFactor, 0, MAX_PASSWD_RANK, shouldUseSuggestions, searchArgs.shouldUseSuboptimal(), false, MAX_NUM_CANDIDATES, groundTruth);
+                List<String> guesses = SearchResult.toGuessList(searchResults);
+                List<Double> scores = SearchResult.toScoreList(searchResults);
 
                 int rank = 1;
                 boolean didFind = false;
-                String groundTruth = targetStrings.getString(idx);
 
                 for (String guess : guesses) {
-
                     if (guess.equals(groundTruth)) {
                         didFind = true;
-                        //System.out.printf("%d. %s (correct)\n", rank, guess);
                         break;
                     } 
-                    //else {
-                    //    System.out.printf("%d. %s\n", rank, guess);
-                    //}
 
                     rank += 1;
                 }
 
                 if (didFind) {
                     correctCount += 1;
-                    //System.out.printf("Correct Rank: %d\n", rank);
+                } else {
+                    rank = -1;
                 }
 
                 totalCount += 1;
 
+                int numCandidates = -1;
+                if (searchResults.size() > 0) {
+                    numCandidates = searchResults.get(searchResults.size() - 1).getNumCandidates();
+                }
+
                 // Add the results to the output file
                 JSONObject output = new JSONObject();
                 output.put("guesses", JsonUtils.listToJsonArray(guesses));
+                output.put("scores", JsonUtils.listToJsonArray(scores));
                 output.put("rank", rank);
+                output.put("numCandidates", numCandidates);
+                output.put("shouldUseSuggestions", shouldUseSuggestions);
                 results.put(output);
 
                 System.out.printf("Completed %d. Accuracy: %d / %d (%.4f)\r", totalCount, correctCount, totalCount, ((double) correctCount) / ((double) totalCount));
+            }
+        } else if (seqType.equals("credit_card_reverse")) {
+            JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
+            JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
+
+            LanguagePrior ccnPrior = LanguagePriorFactory.makePrior("numeric", null);
+            KeyboardExtender numericExtender = new NumericKeyboardExtender(keyboard);
+            int numFound = 0;
+
+            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
+                // Unpack the credit card record
+                JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
+                Move[] ccnSeq = JsonUtils.parseMoveSeq(creditCardRecord.getJSONArray("credit_card"), tvType);
+                
+                // Get the labels for this index
+                JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
+
+                // Recover the credit card number field
+                List<SearchResult> ccnResults = recover(ccnSeq, keyboard, ccnPrior, SpecialKeys.DONE, tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), true, MAX_NUM_CANDIDATES, "");
+
+                // Unpack the guesses
+                List<String> ccnGuesses = SearchResult.toGuessList(ccnResults);
+                int rank = getCorrectRank(ccnGuesses, labelsJson.getString("credit_card"));
+
+                // Collect the output into a JSON Object
+                JSONObject outputJson = new JSONObject();
+                outputJson.put("ccn", JsonUtils.listToJsonArray(ccnGuesses));
+                outputJson.put("rank", rank);
+                results.put(outputJson);
+
+                numFound += ((rank > 0) ? 1 : 0);
+                System.out.printf("Completed %d / %d entries. Accuracy: %.4f\r", idx + 1, jsonMoveSequences.length(), ((double) numFound) / ((double) (idx + 1)));
+                break;
+            }
+        
+        } else if (seqType.equals("credit_card_bubble")) {
+            JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
+            JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
+
+            LanguagePrior ccnPrior = LanguagePriorFactory.makePrior("numeric", null);
+            KeyboardExtender numericExtender = new NumericKeyboardExtender(keyboard);
+            int numFound = 0;
+
+            for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
+                // Unpack the credit card record
+                JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
+                Move[] ccnSeq = JsonUtils.parseMoveSeq(creditCardRecord.getJSONArray("credit_card"), tvType);
+                
+                // Get the labels for this index
+                JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
+                String groundTruth = labelsJson.getString("credit_card");
+
+                // Recover the credit card number field
+                List<SearchResult> ccnResults = recoverExhaustive(ccnSeq, keyboard, ccnPrior, SpecialKeys.DONE, tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), MAX_NUM_CANDIDATES, groundTruth);
+
+                // Unpack the guesses
+                List<String> ccnGuesses = SearchResult.toGuessList(ccnResults);
+                int rank = getCorrectRank(ccnGuesses, groundTruth);
+
+                // Collect the output into a JSON Object
+                JSONObject outputJson = new JSONObject();
+                outputJson.put("ccn", JsonUtils.listToJsonArray(ccnGuesses));
+                outputJson.put("rank", rank);
+                results.put(outputJson);
+
+                numFound += ((rank > 0) ? 1 : 0);
+                System.out.printf("Completed %d / %d entries. Accuracy: %.4f\r", idx + 1, jsonMoveSequences.length(), ((double) numFound) / ((double) (idx + 1)));
+                break;
             }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
         }
 
         // Write the output to the provided JSON file
-        FileUtils.writeJsonArray(results, outputPath);
+        FileUtils.writeJsonArray(results, searchArgs.getOutputFile());
         System.out.println();
     }
 
-    //private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, int maxRank) {
-    //    KeyboardExtender extender = new KeyboardExtender(keyboard);
-    //    //SuboptimalMoveModel suboptimalModel = new SuboptimalMoveModel(moveSeq);
-    //    SuboptimalMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, 1, 0.1);
-    //    Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, true, 5);
-
-    //    List<String> result = new ArrayList<String>();
-
-    //    for (int rank = 1; rank <= maxRank; rank++) {
-    //        String guess = searcher.next();
-
-    //        if (guess == null) {
-    //            break;
-    //        }
-
-    //        result.add(guess);
-    //    }
-
-    //    return result;
-    //}
-
-    private static List<String> recoverString(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, KeyboardExtender extender, double scoreFactor, int minCount, int maxRank, boolean shouldUseSuggestions, int maxNumCandidates) {
+    private static List<SearchResult> recover(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, KeyboardExtender extender, double scoreFactor, int minCount, int maxRank, boolean shouldUseSuggestions, boolean shouldUseSuboptimal, boolean shouldReverse, int maxNumCandidates, String groundTruth) {
         HashSet<String> guessed = new HashSet<String>();
 
-        List<String> result = new ArrayList<String>();
-        //int maxNumSuboptimal = Math.min(moveSeq.length, 10);
-        int maxNumSuboptimal = 1;
+        List<SearchResult> configResults;
+        List<SearchResult> results = new ArrayList<SearchResult>();
+
+        int maxNumSuboptimal = Math.min(moveSeq.length, 10);
+        if (!shouldUseSuboptimal) {
+            maxNumSuboptimal = 1;
+        }
 
         int rank = 1;
-        for (int numSuboptimal = 0; numSuboptimal < maxNumSuboptimal; numSuboptimal++) {
-            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal, scoreFactor, tvType);
-            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount, maxNumCandidates, shouldUseSuggestions);
+        int numCandidates = 0;
 
-            while (rank <= maxRank) {
-                String guess = searcher.next();
+        if (tvType == SmartTVType.APPLE_TV) {
+            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, 0, scoreFactor, tvType);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount, maxNumCandidates, shouldUseSuggestions, 0, shouldReverse);
+            
+            configResults = recoverForConfig(searcher, guessed, groundTruth, rank, maxRank);
+            results.addAll(configResults);
 
-                if (guess == null) {
-                    break;
-                }
+            // Include the number of candidates we have seen up to this point
+            for (SearchResult result : configResults) {
+                result.addNumCandidates(numCandidates);
+            }
 
-                if (guessed.contains(guess)) {
-                    continue;
-                }
-
-                result.add(guess);
-
-                //System.out.printf("%d. %s\n", rank, guess);
+            if (!configResults.isEmpty()) {
+                SearchResult finalResult = configResults.get(configResults.size() - 1);
                 
-                rank += 1;
-                guessed.add(guess);
+                if (finalResult.getGuess().equals(groundTruth)) {
+                    return results;
+                }
+
+                numCandidates = finalResult.getNumCandidates();
+            } else {
+                System.out.println("Returned 0 results.");
             }
         }
 
-        return result;
+        int minNumSuboptimal = (tvType == SmartTVType.APPLE_TV) ? 1 : 0;
+
+        for (int numSuboptimal = 0; numSuboptimal < maxNumSuboptimal; numSuboptimal++) {
+            CreditCardMoveModel suboptimalModel = new CreditCardMoveModel(moveSeq, numSuboptimal, scoreFactor, tvType);
+            Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount, maxNumCandidates, shouldUseSuggestions, minNumSuboptimal, shouldReverse);
+            rank = results.size() + 1;
+
+            configResults = recoverForConfig(searcher, guessed, groundTruth, rank, maxRank);
+            results.addAll(configResults);
+
+            if (!configResults.isEmpty()) {
+                SearchResult finalResult = configResults.get(configResults.size() - 1);
+                
+                if (finalResult.getGuess().equals(groundTruth)) {
+                    return results;
+                }
+            }
+        }
+
+        return results;
+    }
+
+    private static List<SearchResult> recoverExhaustive(Move[] moveSeq, MultiKeyboard keyboard, LanguagePrior prior, String startKey, SmartTVType tvType, boolean useDirections, boolean shouldLinkKeys, boolean doesSuggestDone, KeyboardExtender extender, double scoreFactor, int minCount, int maxRank, boolean shouldUseSuggestions, boolean shouldUseSuboptimal, int maxNumCandidates, String groundTruth) {
+        HashSet<String> guessed = new HashSet<String>();
+
+        int minNumSuboptimal = (tvType == SmartTVType.APPLE_TV) ? 1 : 0;
+
+        SuboptimalMoveModel suboptimalModel = new SuboptimalMoveModel(moveSeq, tvType);
+        Search searcher = new Search(moveSeq, keyboard, prior, startKey, suboptimalModel, extender, tvType, useDirections, shouldLinkKeys, doesSuggestDone, minCount, maxNumCandidates, shouldUseSuggestions, minNumSuboptimal, false);
+
+        List<SearchResult> results = recoverForConfig(searcher, guessed, groundTruth, 1, maxRank);
+        return results;
+    }
+
+    private static List<SearchResult> recoverForConfig(Search searcher, HashSet<String> guessed, String groundTruth, int rank, int maxRank) {
+        List<SearchResult> results = new ArrayList<SearchResult>();
+
+        while (rank <= maxRank) {
+            SearchResult searchResult = searcher.next();
+
+            if (searchResult == null) {
+                break;
+            }
+
+            if (guessed.contains(searchResult.getGuess())) {
+                continue;
+            }
+
+            results.add(searchResult);
+
+            if (searchResult.getGuess().equals(groundTruth)) {
+                return results;
+            }
+
+            rank += 1;
+            guessed.add(searchResult.getGuess());
+        }
+
+        return results;
     }
 
     private static int getCorrectRank(List<String> guesses, String groundTruth) {
@@ -309,123 +397,12 @@ public class SearchRunner {
         int monthRank = getCorrectRank(monthGuesses, groundTruth.getExpMonth());
         int yearRank = getCorrectRank(yearGuesses, groundTruth.getExpYear());
 
-        System.out.printf("CCN: %d / %d, CVV: %d / %d, Month: %d / %d, Year: %d / %d, Zip: %d / %d\n", ccnRank, ccnGuesses.size(), cvvRank, cvvGuesses.size(), monthRank, monthGuesses.size(), yearRank, yearGuesses.size(), zipRank, zipCodeGuesses.size());
+        //System.out.printf("CCN: %d / %d, CVV: %d / %d, Month: %d / %d, Year: %d / %d, Zip: %d / %d\n", ccnRank, ccnGuesses.size(), cvvRank, cvvGuesses.size(), monthRank, monthGuesses.size(), yearRank, yearGuesses.size(), zipRank, zipCodeGuesses.size());
 
-        if ((ccnRank == -1) || (cvvRank == -1) || (zipRank == -1) || (monthRank == -1) || (yearRank == -1)) {
-            return -1;  // If we did not find one of the fields, do not worry about the entire search
-        }
+        CreditCardRank targetRanks = new CreditCardRank(ccnRank, cvvRank, zipRank, monthRank, yearRank);
+        CreditCardRank guessLimits = new CreditCardRank(ccnGuesses.size(), cvvGuesses.size(), zipCodeGuesses.size(), monthGuesses.size(), yearGuesses.size());
 
-        // First, iterate through first 30 CCNs, first 5 CVVs, first 5 ZIPs, and first 2 months / years
-        int ccnLimit = Math.min(10, ccnGuesses.size());
-        int cvvLimit = Math.min(3, cvvGuesses.size());
-        int zipLimit = Math.min(3, zipCodeGuesses.size());
-        int monthLimit = Math.min(2, monthGuesses.size());
-        int yearLimit = Math.min(2, yearGuesses.size());
-
-        int rank = 1;
-        CreditCardDetails guess;
-        HashSet<CreditCardDetails> guesses = new HashSet<CreditCardDetails>();
-
-        for (int yearIdx = 0; yearIdx < yearLimit; yearIdx++) {
-            for (int monthIdx = 0; monthIdx < monthLimit; monthIdx++) {
-                for (int zipIdx = 0; zipIdx < zipLimit; zipIdx++) {
-                    for (int cvvIdx = 0; cvvIdx < cvvLimit; cvvIdx++) {
-                        for (int ccnIdx = 0; ccnIdx < ccnLimit; ccnIdx++) {
-                            guess = new CreditCardDetails(ccnGuesses.get(ccnIdx), cvvGuesses.get(cvvIdx), monthGuesses.get(monthIdx), yearGuesses.get(yearIdx), zipCodeGuesses.get(zipIdx));
-
-                            if (guess.equals(groundTruth)) {
-                                return rank;
-                            }
-
-                            guesses.add(guess);
-                            rank += 1;
-                        }
-                    }
-                } 
-            }
-        }
-
-        ccnLimit = Math.min(30, ccnGuesses.size());
-        cvvLimit = Math.min(5, cvvGuesses.size());
-        zipLimit = Math.min(5, zipCodeGuesses.size());
-        monthLimit = Math.min(2, monthGuesses.size());
-        yearLimit = Math.min(2, yearGuesses.size());
-
-        for (int yearIdx = 0; yearIdx < yearLimit; yearIdx++) {
-            for (int monthIdx = 0; monthIdx < monthLimit; monthIdx++) {
-                for (int zipIdx = 0; zipIdx < zipLimit; zipIdx++) {
-                    for (int cvvIdx = 0; cvvIdx < cvvLimit; cvvIdx++) {
-                        for (int ccnIdx = 0; ccnIdx < ccnLimit; ccnIdx++) {
-                            guess = new CreditCardDetails(ccnGuesses.get(ccnIdx), cvvGuesses.get(cvvIdx), monthGuesses.get(monthIdx), yearGuesses.get(yearIdx), zipCodeGuesses.get(zipIdx));
-
-                            if (guess.equals(groundTruth)) {
-                                return rank;
-                            }
-
-                            guesses.add(guess);
-                            rank += 1;
-                        }
-                    }
-                } 
-            }
-        }
-
-
-        // Second, search over the entire element set in a sequential manner, avoiding the same guess twice
-        ccnLimit = Math.min(100, ccnGuesses.size());
-        cvvLimit = Math.min(12, cvvGuesses.size());
-        zipLimit = Math.min(12, zipCodeGuesses.size());
-        monthLimit = Math.min(3, monthGuesses.size());
-        yearLimit = Math.min(3, yearGuesses.size());
-        
-        for (int yearIdx = 0; yearIdx < yearLimit; yearIdx++) {
-            for (int monthIdx = 0; monthIdx < monthLimit; monthIdx++) {
-                for (int zipIdx = 0; zipIdx < zipLimit; zipIdx++) {
-                    for (int cvvIdx = 0; cvvIdx < cvvLimit; cvvIdx++) {
-                        for (int ccnIdx = 0; ccnIdx < ccnLimit; ccnIdx++) {
-                            guess = new CreditCardDetails(ccnGuesses.get(ccnIdx), cvvGuesses.get(cvvIdx), monthGuesses.get(monthIdx), yearGuesses.get(yearIdx), zipCodeGuesses.get(zipIdx));
-
-                            if (guesses.contains(guess)) {
-                                continue;
-                            }
-
-                            if (guess.equals(groundTruth)) {
-                                return rank;
-                            }
-
-                            rank += 1;
-                            guesses.add(guess);
-                        }
-                    }
-                } 
-            }
-        }
-
-
-        // Finally, search over the entire element set in a sequential manner, avoiding the same guess twice
-        for (int yearIdx = 0; yearIdx < yearGuesses.size(); yearIdx++) {
-            for (int monthIdx = 0; monthIdx < monthGuesses.size(); monthIdx++) {
-                for (int zipIdx = 0; zipIdx < zipCodeGuesses.size(); zipIdx++) {
-                    for (int cvvIdx = 0; cvvIdx < cvvGuesses.size(); cvvIdx++) {
-                        for (int ccnIdx = 0; ccnIdx < ccnGuesses.size(); ccnIdx++) {
-                            guess = new CreditCardDetails(ccnGuesses.get(ccnIdx), cvvGuesses.get(cvvIdx), monthGuesses.get(monthIdx), yearGuesses.get(yearIdx), zipCodeGuesses.get(zipIdx));
-
-                            if (guesses.contains(guess)) {
-                                continue;
-                            }
-
-                            if (guess.equals(groundTruth)) {
-                                return rank;
-                            }
-
-                            rank += 1;
-                            guesses.add(guess);
-                        }
-                    }
-                } 
-            }
-        }
-
-        return -1;
+        int totalRank = CreditCardUtils.computeTotalRank(targetRanks, guessLimits, 10000);
+        return totalRank;
     }
 }

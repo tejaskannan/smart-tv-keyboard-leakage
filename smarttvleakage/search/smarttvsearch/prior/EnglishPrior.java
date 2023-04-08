@@ -59,6 +59,32 @@ public class EnglishPrior extends LanguagePrior {
     }
 
     @Override
+    public double normalizeCount(int count, String word) {
+        String prefix;
+
+        if (word.endsWith(END_CHAR)) {
+            prefix = word.substring(0, word.length() - END_CHAR.length());
+        } else if (word.length() <= 1) {
+            prefix = START_CHAR;
+        } else {
+            prefix = word.substring(0, word.length() - 1);
+        }
+
+        Map<String, Integer> nextCounts = this.cache.get(prefix);
+
+        if (nextCounts == null) {
+            return ((double) count) / ((double) this.getTotalCount());
+        } else {
+            int totalCount = 0;
+            for (Integer nextCount : nextCounts.values()) {
+                totalCount += nextCount;
+            }
+
+            return ((double) count) / ((double) totalCount);
+        }
+    }
+
+    @Override
     public boolean isValid(String word) {
         if ((word == null) || (word.length() == 0)) {
             return false;

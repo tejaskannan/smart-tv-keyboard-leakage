@@ -2,6 +2,8 @@ package smarttvsearch.utils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.Arrays;
 
 
 public class VectorUtils {
@@ -84,6 +86,19 @@ public class VectorUtils {
             }
         }
 
+        return result;
+    }
+
+    public static String[] sortStringSet(Set<String> strings) {
+        String[] result = new String[strings.size()];
+
+        int idx = 0;
+        for (String str : strings) {
+            result[idx] = str;
+            idx += 1;
+        }
+
+        Arrays.sort(result);
         return result;
     }
 }
