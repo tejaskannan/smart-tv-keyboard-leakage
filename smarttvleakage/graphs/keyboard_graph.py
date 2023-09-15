@@ -23,6 +23,9 @@ APPLETV_SEARCH_SPECIAL = 'appletv_search_special'
 APPLETV_PASSWORD_STANDARD = 'appletv_password_standard'
 APPLETV_PASSWORD_CAPS = 'appletv_password_caps'
 APPLETV_PASSWORD_SPECIAL = 'appletv_password_special'
+ABC_STANDARD = 'abc_standard'
+ABC_CAPS = 'abc_standard_caps'
+ABC_SPECIAL = 'abc_special'
 
 
 START_KEYS = {
@@ -34,30 +37,37 @@ START_KEYS = {
     APPLETV_SEARCH_NUMBERS: CHANGE,
     APPLETV_SEARCH_SPECIAL: CHANGE,
     APPLETV_PASSWORD_STANDARD: 'a',
-    APPLETV_PASSWORD_CAPS: CHANGE,  # TODO: Fix This (should be <ABC>)
-    APPLETV_PASSWORD_SPECIAL: CHANGE  # TODO: Fix This (should be <SPECIAL>)
+    APPLETV_PASSWORD_CAPS: CHANGE,
+    APPLETV_PASSWORD_SPECIAL: CHANGE,
+    ABC_STANDARD: 'a',
+    ABC_CAPS: '<CAPS>',
+    ABC_SPECIAL: CHANGE
 }
 
 
 # If change key is the same as the select key leave it empty and we will default to select key
-CHANGE_KEYS = {
-    SAMSUNG_STANDARD: SAMSUNG_SELECT,
-    SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
-    SAMSUNG_SPECIAL_TWO: SAMSUNG_SELECT
-}
-
-
-SELECT_KEYS = {
-    SAMSUNG_STANDARD: SAMSUNG_KEY_SELECT,
-    SAMSUNG_SPECIAL_ONE: SAMSUNG_KEY_SELECT,
-    SAMSUNG_SPECIAL_TWO: SAMSUNG_KEY_SELECT,
-    APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
-    APPLETV_PASSWORD_CAPS: APPLETV_KEYBOARD_SELECT,
-    APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
-    APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
-    APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
-    APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT
-}
+#CHANGE_KEYS = {
+#    SAMSUNG_STANDARD: SAMSUNG_SELECT,
+#    SAMSUNG_SPECIAL_ONE: SAMSUNG_SELECT,
+#    SAMSUNG_SPECIAL_TWO: SAMSUNG_SELECT,
+#    ABC_STANDARD: SAMSUNG_SELECT
+#}
+#
+#
+#SELECT_KEYS = {
+#    SAMSUNG_STANDARD: SAMSUNG_KEY_SELECT,
+#    SAMSUNG_SPECIAL_ONE: SAMSUNG_KEY_SELECT,
+#    SAMSUNG_SPECIAL_TWO: SAMSUNG_KEY_SELECT,
+#    APPLETV_PASSWORD_SPECIAL: APPLETV_KEYBOARD_SELECT,
+#    APPLETV_PASSWORD_CAPS: APPLETV_KEYBOARD_SELECT,
+#    APPLETV_PASSWORD_STANDARD: APPLETV_KEYBOARD_SELECT,
+#    APPLETV_SEARCH_ALPHABET: APPLETV_KEYBOARD_SELECT,
+#    APPLETV_SEARCH_NUMBERS: APPLETV_KEYBOARD_SELECT,
+#    APPLETV_SEARCH_SPECIAL: APPLETV_KEYBOARD_SELECT,
+#    ABC_STANDARD: SAMSUNG_KEY_SELECT,
+#    ABC_CAPS: SAMSUNG_KEY_SELECT,
+#    ABC_SPECIAL: SAMSUNG_KEY_SELECT
+#}
 
 
 def parse_graph_distances(path: str) -> Dict[str, DefaultDict[int, Set[str]]]:
@@ -124,6 +134,20 @@ class MultiKeyboardGraph:
             }
 
             linker_path = os.path.join(dir_name, 'apple_tv_password', 'link.json')
+        elif keyboard_type == KeyboardType.ABC:
+            standard_path = os.path.join(dir_name, 'abc', 'standard.json')
+            caps_path = os.path.join(dir_name, 'abc', 'caps.json')
+            special_path = os.path.join(dir_name, 'abc', 'special.json')
+
+            self._start_mode = ABC_STANDARD
+
+            self._keyboards = {
+                ABC_STANDARD: SingleKeyboardGraph(path=standard_path),
+                ABC_CAPS: SingleKeyboardGraph(path=caps_path),
+                ABC_SPECIAL: SingleKeyboardGraph(path=special_path)
+            }
+
+            linker_path = os.path.join(dir_name, 'abc', 'link.json')
         else:
             raise ValueError('Unknown TV type: {}'.format(keyboard_type.name))
 

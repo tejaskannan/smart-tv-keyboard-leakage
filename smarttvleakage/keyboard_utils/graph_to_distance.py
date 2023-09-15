@@ -75,10 +75,12 @@ def serialize_distance_matrix(distance_matrix: np.ndarray, key_lookup: List[str]
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--graph-file', type=str, help='Path to the graph json file.')
-    parser.add_argument('--output-file', type=str, help='Path to the output file.')
+    parser = argparse.ArgumentParser('Script to generate distance matrix in keyboard graphs (for efficiency later on).')
+    parser.add_argument('--graph-file', type=str, help='Path to the graph json file.', required=True)
+    parser.add_argument('--output-file', type=str, help='Path to the output (.json.gz) file.', required=True)
     args = parser.parse_args()
+
+    assert args.output_file.endswith('.json.gz'), 'Must provide a `.json.gz` output file.'
 
     # Read in the original graph
     graph_dictionary = read_json(args.graph_file)

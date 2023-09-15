@@ -503,10 +503,12 @@ def extract_move_directions(move_times: List[int]) -> Union[List[Direction], Dir
     # If we have a run of 4+ times of <= 30 apart, then we consider these to be all HORIZONTAL
     # and the remainder are ANY. This design comes from the keyboard layout.
     min_run_length = 4
-    diff_threshold = 30
 
     if (len(move_times) < min_run_length):
         return Direction.ANY
+
+    move_diffs = [(move_times[idx] - move_times[idx - 1]) for idx in range(1, len(move_times))]
+    diff_threshold = np.percentile(move_diffs, 50)
 
     # Start with everything being direction 'ANY'
     move_directions: List[Direction] = [Direction.ANY for _ in range(len(move_times))]
@@ -517,7 +519,7 @@ def extract_move_directions(move_times: List[int]) -> Union[List[Direction], Dir
         diffs = [move_slice[i] - move_slice[i - 1] for i in range(1, len(move_slice))]
         assert len(diffs) == (min_run_length - 1), 'Expected {} diffs, found {}'.format(min_run_length - 1, len(diffs))
 
-        if all([(diff < diff_threshold) for diff in diffs]):
+        if all([(diff <= diff_threshold) for diff in diffs]):
             for idx in range(start_idx, start_idx + min_run_length):
                 move_directions[idx] = Direction.HORIZONTAL
 

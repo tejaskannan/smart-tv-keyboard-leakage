@@ -11,6 +11,7 @@ class KeyboardType(Enum):
     SAMSUNG = auto()
     APPLE_TV_SEARCH = auto()
     APPLE_TV_PASSWORD = auto()
+    ABC = auto()
 
 
 class Direction(Enum):

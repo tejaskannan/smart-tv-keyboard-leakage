@@ -14,7 +14,7 @@ from smarttvleakage.dictionary.dictionaries import DONE, SPACE, CHANGE, NEXT
 from smarttvleakage.utils.constants import KeyboardType, Direction
 from smarttvleakage.utils.file_utils import save_jsonl_gz
 from smarttvleakage.utils.transformations import get_keyboard_mode
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS, CHANGE_KEYS, SELECT_KEYS, SingleKeyboardGraph
+from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph, START_KEYS
 from smarttvleakage.graphs.keyboard_graph import SAMSUNG_STANDARD, APPLETV_SEARCH_ALPHABET, APPLETV_SEARCH_NUMBERS, APPLETV_SEARCH_SPECIAL, APPLETV_PASSWORD_STANDARD, APPLETV_PASSWORD_SPECIAL
 from smarttvleakage.graphs.keyboard_graph import SAMSUNG_CAPS, SAMSUNG_SPECIAL_ONE, SAMSUNG_SPECIAL_TWO
 from smarttvleakage.dictionary.dictionaries import REVERSE_CHARACTER_TRANSLATION
@@ -98,6 +98,12 @@ def findPath(word: str, use_shortcuts: bool, use_wraparound: bool, use_done: boo
                                                     target_mode=target_keyboard_mode)
                 
                 assert on_key is not None, 'No linked key for {} from {} to {}'.format(prev, mode, target_keyboard_mode)
+            elif keyboard_type == KeyboardType.ABC:
+                num_moves = keyboard.get_moves_from_key(prev, CHANGE, use_shortcuts, use_wraparound, mode)
+                path.append(Move(num_moves=num_moves, end_sound=CHANGE_SOUNDS[keyboard_type], directions=Direction.ANY))
+                on_key = CHANGE
+            else:
+                raise ValueError('Unknown keyboard type: {}'.format(keyboard_type))
 
             mode = target_keyboard_mode
             distance = keyboard.get_moves_from_key(on_key, character, use_shortcuts, use_wraparound, mode)

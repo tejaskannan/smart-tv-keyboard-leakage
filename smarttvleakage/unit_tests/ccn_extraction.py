@@ -935,10 +935,12 @@ class CreditCardMoveTests(unittest.TestCase):
         self.assert_num_moves_within_one(expected, observed_zip_moves)
 
     def assert_num_moves_within_one(self, expected: List[int], observed: List[int]):
-        self.assertEqual(len(expected), len(observed))
+        self.assertEqual(expected, observed)
 
-        for expected_count, observed_count in zip(expected, observed):
-            self.assertTrue(abs(expected_count - observed_count) <= 1)
+        #self.assertEqual(len(expected), len(observed))
+
+        #for expected_count, observed_count in zip(expected, observed):
+        #    self.assertTrue(abs(expected_count - observed_count) <= 1)
 
 if __name__ == '__main__':
     unittest.main()
