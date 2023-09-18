@@ -14,18 +14,15 @@ import math
 import json
 
 from smarttvleakage.dictionary import EnglishDictionary, restore_dictionary
-from smarttvleakage.suggestions_model.alg_determine_autocomplete import get_score_from_ms
-from smarttvleakage.suggestions_model.manual_score_dict import (build_msfd,
-                                                            build_ms_dict, build_rockyou_ms_dict)
 from smarttvleakage.suggestions_model.simulate_ms import (grab_words, simulate_ms, add_mistakes, 
-                                                          add_mistakes_to_ms_dict, build_gt_ms_dict, build_moves)
+                                                          add_mistakes_to_ms_dict)
+from smarttvleakage.suggestions_model.manual_score_dict import build_ms_dict
+
 from smarttvleakage.utils.file_utils import read_pickle_gz, save_pickle_gz
 
 from smarttvleakage.keyboard_utils.word_to_move import findPath
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.utils.constants import KeyboardType, SmartTVType, Direction
-
-from smarttvleakage.suggestions_model.msfd_math import combine_confidences, normalize_msfd_score
 
 from smarttvleakage.dictionary.rainbow import PasswordRainbow
 from smarttvleakage.audio.move_extractor import Move
@@ -33,9 +30,6 @@ from smarttvleakage.audio.sounds import SAMSUNG_DELETE, SAMSUNG_KEY_SELECT, SAMS
 
 from smarttvleakage.dictionary.dictionaries import NgramDictionary
 
-
-from smarttvleakage.search_without_autocomplete import get_words_from_moves
-from smarttvleakage.search_with_autocomplete import get_words_from_moves_suggestions
 
 ##################### DATA STRUCTS ##########################
 
@@ -202,6 +196,35 @@ def save_model(path : str, model):
 
 
 
+def classify_ms(model, db,
+                ms : List[int],
+                bins_transform : List[int], weight : int = 3, 
+                peak : float = 30) -> Tuple[int, float, float, float]:
+    """Classifies a move sequence using ML and algorithmic method,
+    returns class, ML confidence, manual score, combined score"""
+
+    data = np.empty((0, max(bins_transform) + 1), dtype=float)
+    list_dist = make_row_dist(ms, range(10), weight)
+    list_dist = transform_hist(list_dist, bins_transform)
+    new_row = np.array(list_dist, dtype=float)
+    data = np.append(data, [new_row], axis=0)
+
+    column_titles = make_column_titles_dist_new(bins_transform)
+    df = pd.DataFrame(data = data, columns = column_titles)
+
+    # now predict from the dataframe, and then add manual
+
+    pred_probas = model.predict_proba(df)[0]
+    if pred_probas[0] >= .5:
+        return (0, pred_probas[0], -1, pred_probas[0])
+    if pred_probas[1] > .5:
+        return (1, pred_probas[1], -1, pred_probas[1])
+
+    
+
+
+
+
 def classify_moves(model, moves : List[Move]):
 
     ms = [move.num_moves for move in moves]
@@ -232,7 +255,6 @@ if __name__ == "__main__":
     parser.add_argument("--ms-path-rockyou", type=str, required=False) #rockyou.txt
     parser.add_argument("--ed-path", type=str, required=False) #ed pkl.gz, only build works rn
     parser.add_argument("--words-path", type=str, required=False) #big.txt
-    parser.add_argument("--msfd-path", type=str, required=False) #msfd pkl.gz
     parser.add_argument("--results-path", type=str, required=False) #where to save results
     parser.add_argument("--save-path", type=str, required=False) #where to save model
     parser.add_argument("--model-path", type=str, required=False) #where to load model
@@ -260,10 +282,6 @@ if __name__ == "__main__":
     elif args.ms_path_rockyou == "test":
         ms_dict_rockyou = build_ms_dict("suggestions_model/local/ms_dict_rockyou.pkl.gz")
 
-    if args.msfd_path is None:
-        args.msfd_path = "suggestions_model/msfd_exp.pkl.gz"
-        msfd = build_msfd(args.msfd_path)
-
     if args.ed_path is None:
         englishDictionary = restore_dictionary(
             "suggestions_model/local/dictionaries/ed.pkl.gz")
@@ -286,7 +304,7 @@ if __name__ == "__main__":
  
     # use 7 for main tests
     if args.test is None:
-        test = 31
+        test = 1
     else:
         test = int(args.test)
 
@@ -321,7 +339,7 @@ if __name__ == "__main__":
         #ac = .5
         #nc = .5
         peak = 30
-        bins_nums = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+        bins_nums = [4, 5]
         transforms = {}
         transforms[2] = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         transforms[3] = [0, 1, 2, 2, 2, 2, 2, 2, 2, 2]
@@ -369,6 +387,8 @@ if __name__ == "__main__":
                             full_path = args.save_path + "/md" + str(md) + "/bins/size1"
                             full_path += "/" + str(bins) + "bins/"
                             full_path += mt + "_" + step
+                        else:
+                            full_path = "test"
 
                         english_accs = []
                         english_f1s = []
@@ -380,18 +400,18 @@ if __name__ == "__main__":
                             results = {}
                             print("classifying autos")
                             for key, val in ms_dict_auto_test.items():
-                                pred = classify_ms_with_msfd_full_new(model, msfd, db, add_mistakes(val, mistakes), bins_transform=transforms[bins], weight=3,
-                                    peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                                pred = classify_ms(model, db, add_mistakes(val, mistakes), bins_transform=transforms[bins], weight=3,
+                                    peak=peak)[0]
                                 results[(key, "auto")] = pred
                             print("classifying nons")
                             for key, val in ms_dict_non_test.items():
-                                pred = classify_ms_with_msfd_full_new(model, msfd, db, add_mistakes(val, mistakes), bins_transform=transforms[bins], weight=3,
-                                    peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                                pred = classify_ms(model, db, add_mistakes(val, mistakes), bins_transform=transforms[bins], weight=3,
+                                    peak=peak)[0]
                                 results[(key, "non")] = pred
                             print("classifying phpbbs")
                             for key, val in ms_dict_phpbb_test.items():
-                                pred = classify_ms_with_msfd_full_new(model, msfd, db, add_mistakes(val, mistakes), bins_transform=transforms[bins], weight=3,
-                                    peak=peak, auto_cutoff=ac, non_cutoff=nc)[0]
+                                pred = classify_ms(model, db, add_mistakes(val, mistakes), bins_transform=transforms[bins], weight=3,
+                                    peak=peak)[0]
                                 results[(key, "phpbb")] = pred
                             print("classified")
 
