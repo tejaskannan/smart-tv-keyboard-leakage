@@ -4,6 +4,7 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Set;
 import java.util.List;
+import smarttvsearch.utils.KeyboardType;
 import smarttvsearch.utils.SmartTVType;
 import smarttvsearch.utils.SpecialKeys;
 import smarttvsearch.utils.Direction;
@@ -21,18 +22,23 @@ public class MultiKeyboard {
     public static final String APPLETV_CAPS = "appletv_keyboard_caps";
     public static final String APPLETV_SPECIAL = "appletv_keyboard_special";
 
+    public static final String ABC_STD = "abc_keyboard";
+    public static final String ABC_CAPS = "abc_keyboard_caps";
+    public static final String ABC_SPECIAL = "abc_keyboard_special";
+
     private HashMap<String, Keyboard> keyboards;
     private String startKeyboard;
     private String startKey;
+    private KeyboardType keyboardType;
     private SmartTVType tvType;
     private KeyboardLinker linker;
 
-    public MultiKeyboard(SmartTVType tvType, String graphFolder) {
+    public MultiKeyboard(KeyboardType keyboardType, String graphFolder) {
         keyboards = new HashMap<String, Keyboard>();
-        this.tvType = tvType;
+        this.keyboardType = keyboardType;
 
         String path;
-        if (tvType == SmartTVType.SAMSUNG) {
+        if (keyboardType == KeyboardType.SAMSUNG) {
             path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.SAMSUNG_STD));
             keyboards.put(MultiKeyboard.SAMSUNG_STD, new Keyboard(path));
 
@@ -47,7 +53,7 @@ public class MultiKeyboard {
 
             this.startKeyboard = MultiKeyboard.SAMSUNG_STD;
             this.startKey = "q";
-        } else if (tvType == SmartTVType.APPLE_TV) {
+        } else if (keyboardType == KeyboardType.APPLE_TV) {
             path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.APPLETV_STD));
             keyboards.put(MultiKeyboard.APPLETV_STD, new Keyboard(path));
 
@@ -59,6 +65,18 @@ public class MultiKeyboard {
 
             this.startKeyboard = MultiKeyboard.APPLETV_STD;
             this.startKey = "a";
+        } else if (keyboardType == KeyboardType.ABC) {
+            path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.ABC_STD));
+            keyboards.put(MultiKeyboard.ABC_STD, new Keyboard(path));
+
+            path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.ABC_CAPS));
+            keyboards.put(MultiKeyboard.ABC_CAPS, new Keyboard(path));
+
+            path = FileUtils.joinPath(graphFolder, String.format("%s.json", MultiKeyboard.ABC_SPECIAL));
+            keyboards.put(MultiKeyboard.ABC_SPECIAL, new Keyboard(path));
+
+            this.startKeyboard = MultiKeyboard.ABC_STD;
+            this.startKey = "a";
         } else {
             throw new IllegalArgumentException("Unknown tv type: " + tvType.name());
         }
@@ -68,8 +86,8 @@ public class MultiKeyboard {
         linker = new KeyboardLinker(path);
     }
 
-    public SmartTVType getTVType() {
-        return this.tvType;
+    public KeyboardType getKeyboardType() {
+        return this.keyboardType;
     }
 
     public String getStartKeyboard() {
@@ -81,7 +99,7 @@ public class MultiKeyboard {
     }
 
     public String getNextKeyboard(String pressedKey, String currentKeyboard) {
-        if (this.getTVType() == SmartTVType.SAMSUNG) {
+        if (this.getKeyboardType() == KeyboardType.SAMSUNG) {
             if (pressedKey.equals(SpecialKeys.CHANGE)) {
                 if (currentKeyboard.equals(MultiKeyboard.SAMSUNG_STD) || currentKeyboard.equals(MultiKeyboard.SAMSUNG_CAPS)) {
                     return MultiKeyboard.SAMSUNG_SPECIAL_0;
@@ -93,6 +111,14 @@ public class MultiKeyboard {
                     return MultiKeyboard.SAMSUNG_SPECIAL_1;
                 } else if (currentKeyboard.equals(MultiKeyboard.SAMSUNG_SPECIAL_1)) {
                     return MultiKeyboard.SAMSUNG_SPECIAL_0;
+                }
+            }
+        } else if (this.getKeyboardType() == KeyboardType.ABC) {
+            if (pressedKey.equals(SpecialKeys.CHANGE)) {
+                if (currentKeyboard.equals(MultiKeyboard.ABC_SPECIAL)) {
+                    return MultiKeyboard.ABC_STD;
+                } else {
+                    return MultiKeyboard.ABC_SPECIAL;
                 }
             }
         }

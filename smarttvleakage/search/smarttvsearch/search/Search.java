@@ -270,23 +270,6 @@ public class Search {
 
                             score = currentState.getScore() + score;  // Accumulate the score in log space
 
-                            //if (!this.shouldUseSuggestions) {
-                            //    score = currentState.getScore() + score;  // Accumulate the score in log space
-                            //} else {
-                            //    String endString = candidateState.toString() + EnglishPrior.END_CHAR;
-
-                            //    if (this.isFinished(nextMoveIdx)) {
-                            //        incrementalCount = this.languagePrior.find(endString);
-                            //    }
-
-                            //    score = this.languagePrior.normalizeCount(incrementalCount, endString) * neighborKeys.get(neighborKey);
-                            //    score = currentState.getScore() - Math.log(score);  // Mark the score as that of the string to this point
-                            //}
-
-                            //if (currentState.toString().equals("agains")) {
-                            //    System.out.println(score);
-                            //}
-
                             candidateState.setScore(score);
                             this.frontier.add(candidateState);
                             this.visited.add(visitedState);

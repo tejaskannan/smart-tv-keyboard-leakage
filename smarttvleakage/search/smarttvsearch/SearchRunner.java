@@ -23,6 +23,7 @@ import smarttvsearch.suboptimal.CreditCardMoveModel;
 import smarttvsearch.utils.Direction;
 import smarttvsearch.utils.FileUtils;
 import smarttvsearch.utils.JsonUtils;
+import smarttvsearch.utils.KeyboardType;
 import smarttvsearch.utils.Move;
 import smarttvsearch.utils.SearchArguments;
 import smarttvsearch.utils.SpecialKeys;
@@ -53,9 +54,19 @@ public class SearchRunner {
         String tvTypeName = serializedMoves.getString("tv_type").toUpperCase();
         SmartTVType tvType = SmartTVType.valueOf(tvTypeName);
 
+        // Parse the keyboard type
+        String keyboardTypeName = serializedMoves.getString("keyboard_type");
+        KeyboardType keyboardType;
+
+        if (keyboardTypeName == null) {
+            keyboardType = KeyboardType.valueOf(tvTypeName);
+        } else {
+            keyboardType = KeyboardType.valueOf(keyboardTypeName.toUpperCase());
+        }
+
         // Make the keyboard
-        String keyboardFolder = FileUtils.joinPath("keyboard", tvTypeName.toLowerCase());
-        MultiKeyboard keyboard = new MultiKeyboard(tvType, keyboardFolder);
+        String keyboardFolder = FileUtils.joinPath("keyboard", keyboardType.name().toLowerCase());
+        MultiKeyboard keyboard = new MultiKeyboard(keyboardType, keyboardFolder);
 
         // Unpack the labels for reference. We do this for efficiency only, as we can stop the search when
         // we actually find the correct target string
@@ -157,8 +168,7 @@ public class SearchRunner {
 
                 // Determine the suggestions type
                 String suggestionsType = jsonSuggestionsTypes.getString(idx);
-                boolean shouldUseSuggestions = suggestionsType.equals("suggestions");
-                //boolean shouldUseSuggestions = true;
+                boolean shouldUseSuggestions = suggestionsType.equals("suggestions") || searchArgs.shouldForceSuggestions();
                 LanguagePrior prior = shouldUseSuggestions ? englishPrior : passwordPrior;
                 String groundTruth = targetStrings.getString(idx);
 
@@ -191,6 +201,10 @@ public class SearchRunner {
                     numCandidates = searchResults.get(searchResults.size() - 1).getNumCandidates();
                 }
 
+                if (!didFind) {
+                    System.out.println(groundTruth);
+                }
+
                 // Add the results to the output file
                 JSONObject output = new JSONObject();
                 output.put("guesses", JsonUtils.listToJsonArray(guesses));
@@ -206,7 +220,7 @@ public class SearchRunner {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
 
-            LanguagePrior ccnPrior = LanguagePriorFactory.makePrior("numeric", null);
+            LanguagePrior ccnPrior = LanguagePriorFactory.makePrior("reverse_credit_card", null);
             KeyboardExtender numericExtender = new NumericKeyboardExtender(keyboard);
             int numFound = 0;
 
@@ -215,11 +229,14 @@ public class SearchRunner {
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
                 Move[] ccnSeq = JsonUtils.parseMoveSeq(creditCardRecord.getJSONArray("credit_card"), tvType);
                 
+                // Reverse the sequence to perform search in opposite direction
+                Move[] reversed = SearchRunner.reverseMoveSeq(ccnSeq);
+
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
                 // Recover the credit card number field
-                List<SearchResult> ccnResults = recover(ccnSeq, keyboard, ccnPrior, SpecialKeys.DONE, tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), true, MAX_NUM_CANDIDATES, "");
+                List<SearchResult> ccnResults = recover(reversed, keyboard, ccnPrior, SpecialKeys.DONE, tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), true, MAX_NUM_CANDIDATES, "");
 
                 // Unpack the guesses
                 List<String> ccnGuesses = SearchResult.toGuessList(ccnResults);
@@ -233,42 +250,40 @@ public class SearchRunner {
 
                 numFound += ((rank > 0) ? 1 : 0);
                 System.out.printf("Completed %d / %d entries. Accuracy: %.4f\r", idx + 1, jsonMoveSequences.length(), ((double) numFound) / ((double) (idx + 1)));
-                break;
             }
         
         } else if (seqType.equals("credit_card_bubble")) {
             JSONArray jsonMoveSequences = serializedMoves.getJSONArray("move_sequences");
             JSONArray creditCardLabels = serializedLabels.getJSONArray("labels");
 
-            LanguagePrior ccnPrior = LanguagePriorFactory.makePrior("numeric", null);
+            LanguagePrior prior = LanguagePriorFactory.makePrior("numeric", null);
             KeyboardExtender numericExtender = new NumericKeyboardExtender(keyboard);
             int numFound = 0;
 
             for (int idx = 0; idx < jsonMoveSequences.length(); idx++) {
                 // Unpack the credit card record
                 JSONObject creditCardRecord = jsonMoveSequences.getJSONObject(idx);
-                Move[] ccnSeq = JsonUtils.parseMoveSeq(creditCardRecord.getJSONArray("credit_card"), tvType);
-                
+                Move[] cvvSeq = JsonUtils.parseMoveSeq(creditCardRecord.getJSONArray("security_code"), tvType);
+
                 // Get the labels for this index
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
-                String groundTruth = labelsJson.getString("credit_card");
+                String groundTruth = labelsJson.getString("security_code");
 
                 // Recover the credit card number field
-                List<SearchResult> ccnResults = recoverExhaustive(ccnSeq, keyboard, ccnPrior, SpecialKeys.DONE, tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), MAX_NUM_CANDIDATES, groundTruth);
+                List<SearchResult> cvvResults = recoverExhaustive(cvvSeq, keyboard, prior, SpecialKeys.DONE, tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), MAX_NUM_CANDIDATES, groundTruth);
 
                 // Unpack the guesses
-                List<String> ccnGuesses = SearchResult.toGuessList(ccnResults);
-                int rank = getCorrectRank(ccnGuesses, groundTruth);
+                List<String> cvvGuesses = SearchResult.toGuessList(cvvResults);
+                int rank = getCorrectRank(cvvGuesses, groundTruth);
 
                 // Collect the output into a JSON Object
                 JSONObject outputJson = new JSONObject();
-                outputJson.put("ccn", JsonUtils.listToJsonArray(ccnGuesses));
+                outputJson.put("security_code", JsonUtils.listToJsonArray(cvvGuesses));
                 outputJson.put("rank", rank);
                 results.put(outputJson);
 
                 numFound += ((rank > 0) ? 1 : 0);
                 System.out.printf("Completed %d / %d entries. Accuracy: %.4f\r", idx + 1, jsonMoveSequences.length(), ((double) numFound) / ((double) (idx + 1)));
-                break;
             }
         } else {
             throw new IllegalArgumentException("Invalid sequence type: " + seqType);
@@ -404,5 +419,25 @@ public class SearchRunner {
 
         int totalRank = CreditCardUtils.computeTotalRank(targetRanks, guessLimits, 10000);
         return totalRank;
+    }
+
+    private static Move[] reverseMoveSeq(Move[] moveSeq) {
+        int numMoves = moveSeq.length;
+        SamsungSound finalSound = (SamsungSound) moveSeq[numMoves - 1].getEndSound();
+
+        if (!finalSound.isSelect()) {
+            return null;
+        }
+
+        Move[] reversed = new Move[moveSeq.length - 1];
+        int writeIdx = 0;
+
+        for (int readIdx = numMoves - 1; readIdx >= 1; readIdx--) {
+            Move move = moveSeq[readIdx];
+            reversed[writeIdx] = new Move(move.getNumMoves(), new SamsungSound("key_select"), move.getStartTime(), move.getEndTime(), move.getMoveTimes(), move.getNumScrolls());
+            writeIdx += 1;
+        }
+
+        return reversed;
     }
 }

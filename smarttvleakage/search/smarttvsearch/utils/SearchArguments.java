@@ -11,6 +11,7 @@ public class SearchArguments {
     private String zipPrior;
     private boolean shouldUseDirections;
     private boolean shouldIncludeSuboptimal;
+    private boolean shouldForceSuggestions;
 
     private static final String INPUT_NAME = "--input-file";
     private static final String OUTPUT_NAME = "--output-file";
@@ -19,6 +20,7 @@ public class SearchArguments {
     private static final String ZIP_NAME = "--zip-prior";
     private static final String DIRECTIONS_NAME = "--ignore-directions";
     private static final String SUBOPTIMAL_NAME = "--ignore-suboptimal";
+    private static final String SUGGESTIONS_NAME = "--force-suggestions";
 
     public SearchArguments(String[] args) {
         if (args.length < 10) {
@@ -32,6 +34,7 @@ public class SearchArguments {
         this.zipPrior = null;
         this.shouldUseDirections = true;
         this.shouldIncludeSuboptimal = true;
+        this.shouldForceSuggestions = false;
 
         for (int idx = 0; idx < args.length; idx += 2) {
             if (args[idx].equals(INPUT_NAME)) {
@@ -63,6 +66,8 @@ public class SearchArguments {
                 this.shouldUseDirections = false;
             } else if (args[idx].equals(SUBOPTIMAL_NAME)) {
                 this.shouldIncludeSuboptimal = false;
+            } else if (args[idx].equals(SUGGESTIONS_NAME)) {
+                this.shouldForceSuggestions = true;
             } else {
                 throw new IllegalArgumentException(String.format("Unknown argument: %s", args[idx]));
             }
@@ -136,5 +141,9 @@ public class SearchArguments {
 
     public boolean shouldUseSuboptimal() {
         return this.shouldIncludeSuboptimal;
+    }
+
+    public boolean shouldForceSuggestions() {
+        return this.shouldForceSuggestions;
     }
 }
