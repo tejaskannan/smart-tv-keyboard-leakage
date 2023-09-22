@@ -3,3 +3,6 @@ moviepy
 numpy
 scipy
 matplotlib
+scikit-learn
+pandas
+more_itertools

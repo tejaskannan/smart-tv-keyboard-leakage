@@ -136,8 +136,7 @@ def process_split(move_seq: List[Move]) -> Tuple[List[Move], SuggestionsType]:
 
     # Remove the last movement if it doesn't end in a 'select' and the recording shows only 1 move.
     # In this case, the 'done' key was suggested, so the movement tells us nothing about the position of the prior key
-    # TODO: Amend this rule specifically for `suggestions` types
-    if (move_seq[-1].end_sound != sounds.SAMSUNG_SELECT) and ((move_seq[-1].num_moves <= 1) or (suggestions_type == SuggestionsType.SUGGESTIONS)):
+    if ((move_seq[-1].end_sound != sounds.SAMSUNG_SELECT) and ((move_seq[-1].num_moves <= 1) or (suggestions_type == SuggestionsType.SUGGESTIONS))) or ((move_seq[-1].end_sound == sounds.SAMSUNG_SELECT) and (move_seq[-1].num_moves >= 18)):
         move_seq = move_seq[:-1]
 
     return move_seq, suggestions_type
