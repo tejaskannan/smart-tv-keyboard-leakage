@@ -15,10 +15,6 @@ def compute_constellation_map(spectrogram: np.ndarray, freq_delta: int, time_del
     assert freq_delta > 0, 'Must provide a positive frequency delta'
     assert time_delta > 0, 'Must provide a positive time delta'
 
-    # Compute the thresholds at each frequency
-    #thresholds = np.linspace(start=start_threshold, stop=end_threshold, endpoint=True, num=spectrogram.shape[0])  # [F]
-    #thresholds = np.expand_dims(thresholds, axis=-1)  # [F, 1]
-
     # Find the peaks
     filtered_spectrogram = maximum_filter(spectrogram, size=(freq_delta, time_delta), mode='nearest')
     peak_matrix = np.logical_and(np.isclose(filtered_spectrogram, spectrogram), (spectrogram > threshold)).astype(int)
@@ -60,17 +56,12 @@ def match_constellations(target_spectrogram: np.ndarray,
 
     # Shift the reference times to clip out unecessary space
     min_time, max_time = min(ref_times), max(ref_times)
-    #min_time = max(min_time - window_buffer, 0)
-    #max_time = min(max_time + window_buffer, ref_spectrogram.shape[1])
 
     ref_times -= min_time
     window_size = (max_time - min_time) + window_buffer
 
-    #window_size = ref_spectrogram.shape[1]  # T1
     result: List[float] = []
-
     for start_time in range(target_spectrogram.shape[1]):
-
         end_time = start_time + window_size
         window_times, window_freq = filter_and_shift_by_time(times=target_times, freqs=target_freq, start_time=start_time, end_time=end_time)
 
@@ -81,7 +72,6 @@ def match_constellations(target_spectrogram: np.ndarray,
                                                  time_tol=time_tol,
                                                  freq_tol=freq_tol,
                                                  start_time=start_time)
-
         result.append(match_score)
 
     return result

@@ -14,9 +14,9 @@ END_CHAR = '<E>'
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Script to construct a new database of English words.')
     parser.add_argument('--db-file', type=str, required=True, help='Path to the output database file.')
-    parser.add_argument('--dictionary-file', type=str, required=True, help='Path to the list of strings to upload.')
+    parser.add_argument('--input-file', type=str, required=True, help='Path to the list of strings to upload.')
     parser.add_argument('--min-count', type=int, required=True, help='The minimum word count to include.')
     args = parser.parse_args()
 
@@ -54,7 +54,7 @@ if __name__ == '__main__':
     word_count = 0
     weighted_word_count = 0
 
-    with open(args.dictionary_file, 'r') as fin:
+    with open(args.input_file, 'r') as fin:
         for line_idx, line in enumerate(fin):
             word, count = line.split()
             count = int(count)

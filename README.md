@@ -6,6 +6,10 @@ This repository has two main portions: audio extraction and string recovery. The
 
 This document describes how to create emulation benchmarks (to test string recovery in isolation), process recordings of users interacting with Smart TVs, and recover strings from the audio's intermediate representation. The code has only been tested on Ubuntu `20.04`. The installation instructions may differ on other systems.
 
+We include the results of intermediate steps, as well as the dictionary priors, in this ![Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder.
+
+For all Python scripts, you can use the command line option `--help` (e.g., `python make_spectrogram.py --help`) to get a description of each argument.
+
 ## Setup
 
 ### Python
@@ -39,6 +43,8 @@ Exception in thread "main" java.lang.IllegalArgumentException: Must provide the 
 Output: serialized move count sequences
 
 ### Emulation: Creating Benchmarks
+
+
 
 
 ### Realistic Users

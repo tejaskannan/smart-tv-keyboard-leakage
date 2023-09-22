@@ -7,7 +7,6 @@ from scipy.signal import find_peaks, convolve
 from typing import Dict, List, Set, Tuple
 
 import smarttvleakage.audio.sounds as sounds
-#from smarttvleakage.audio.audio_extractor import SmartTVAudio
 from smarttvleakage.audio.data_types import Move
 from smarttvleakage.audio.utils import get_sound_instances_samsung, get_sound_instances_appletv, create_spectrogram, extract_move_directions
 from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete, get_move_time_length, get_num_scrolls
@@ -22,7 +21,6 @@ CONSTELLATION_THRESHOLD = 0.80
 CONSTELLATION_THRESHOLD_END = 0.905
 CONSTELLATION_TIME_DIST = 10
 MOVE_FREQS = (2, 3, 4)
-#END_THRESHOLD = 0.9
 
 CONV_MODE = 'full'
 TIME_TOL = 'time_tol'
@@ -212,9 +210,6 @@ class MoveExtractor:
                 min_freq_diff = min_freq - self.spectrogram_freq_min
                 normalized_target_segment = normalized_spectrogram[min_freq_diff:, :]
 
-                #should_plot = (start_time >= 52400) and (start_time <= 52500)
-                should_plot = False
-
                 similarity = perform_match_spectrograms(first_spectrogram=normalized_target_segment,
                                                         second_spectrogram=self._ref_spectrograms[sound],
                                                         mask_threshold=sound_config[PEAK_THRESHOLD],
@@ -222,35 +217,18 @@ class MoveExtractor:
 
                 similarity_scores[sound] = similarity  # Track the sim score for every sound
 
-                if should_plot:
-                    print(start_time)
-                    print('Sound: {}, Similarity: {:.4f}'.format(sound, similarity))
-
-                    fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
-
-                    ax0.imshow(normalized_target_segment, cmap='gray_r')
-                    ax1.imshow(self._ref_spectrograms[sound], cmap='gray_r')
-
-                    ax0.set_title('Target')
-                    ax1.set_title('Reference')
-
-                    plt.show()
-
                 if (similarity > best_sim) and (similarity > self._config[sound][MIN_SIMILARITY]):
                     best_sim = similarity
                     best_sound = sound
 
             # Handle TV-specific tie-breakers
             best_sound, best_sim, count = self.handle_matched_sound(sound=best_sound,
-                                                             target_segment=normalized_spectrogram,
-                                                             time=peak_time,
-                                                             prev_time=prev_time,
-                                                             similarity_scores=similarity_scores,
-                                                             max_segment_energy=max_segment_energy,
-                                                             cluster_size=cluster_size)
-
-            if (should_plot) and (best_sound is not None):
-                print('Time: {}, Best Sound: {}, Best Sim: {} ({}), Max Energy: {} ({}), Count: {}'.format(start_time, best_sound, best_sim, self._config[best_sound][MIN_SIMILARITY], max_segment_energy, self._config[best_sound][ENERGY_THRESHOLD], count))
+                                                                    target_segment=normalized_spectrogram,
+                                                                    time=peak_time,
+                                                                    prev_time=prev_time,
+                                                                    similarity_scores=similarity_scores,
+                                                                    max_segment_energy=max_segment_energy,
+                                                                    cluster_size=cluster_size)
 
             # Skip sounds are are poor matches with all references
             if (best_sound is None) or (best_sim < self._config[best_sound][MIN_SIMILARITY]) or (max_segment_energy < self._config[best_sound][ENERGY_THRESHOLD]):
@@ -356,9 +334,6 @@ class AppleTVMoveExtractor(MoveExtractor):
             if (curr_time - prev_time) >= sound_config[TIME_DELTA]:
                 filtered_peaks.append((curr_time, curr_freq))
 
-        #should_print = (time >= 50100) and (time <= 50500)
-        should_print = False
-
         for idx, (t, freq) in enumerate(filtered_peaks):
             curr_peak = target_segment[freq, t]
 
@@ -371,11 +346,6 @@ class AppleTVMoveExtractor(MoveExtractor):
 
                 time_diff = max(abs(prev_peak_time - t), abs(next_peak_time - t))
 
-                if (should_print):
-                    print('Prev Peak Params: t -> {}, f -> {}, h -> {}'.format(prev_peak_time, prev_peak_freq, prev_peak))
-                    print('Curr Peak Params: t -> {}, f -> {}, h -> {}'.format(t, freq, curr_peak))
-                    print('Next Peak Params: t -> {}, f -> {}, h -> {}'.format(next_peak_time, next_peak_freq, next_peak))
-
                 if (curr_peak >= peak_cutoff) or (((t - prev_peak_time) > time_cutoff) or (curr_peak >= (similarity_factor * prev_peak))) and (((next_peak_time - t) > time_cutoff) or (curr_peak >= (similarity_factor * next_peak))):
                     num_low_freq_peaks += 1
             elif (idx == (len(filtered_peaks) - 1)):
@@ -386,25 +356,6 @@ class AppleTVMoveExtractor(MoveExtractor):
                     num_low_freq_peaks += 1
             else:
                 num_low_freq_peaks += 1
-
-                #if (prev_peak >= CONSTELLATION_THRESHOLD_END) and (next_peak >= CONSTELLATION_THRESHOLD_END) and (time_diff <= CONSTELLATION_TIME_DIST):
-                #    num_low_freq_peaks += 1
-
-        #num_low_freq_peaks = np.sum((target_freqs < 7).astype(int))
-
-        if should_print:
-            print('Num Peaks: {}'.format(num_low_freq_peaks))
-            print(similarity_scores[sound])
-
-            fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
-            ax0.imshow(move_spectrogram, cmap='gray_r')
-            ax0.scatter(move_constellation.peak_times, move_constellation.peak_freqs, marker='o', color='red')
-
-            ax1.imshow(target_segment, cmap='gray_r')
-            ax1.scatter(target_times, target_freqs, marker='o', color='red')
-
-            plt.show()
-            plt.close()
 
         best_sim = similarity_scores[sounds.APPLETV_KEYBOARD_MOVE]
         return sounds.APPLETV_KEYBOARD_MOVE, best_sim, max(num_low_freq_peaks, 1)
@@ -473,7 +424,6 @@ class SamsungMoveExtractor(MoveExtractor):
         if (sound == sounds.SAMSUNG_SELECT):
             # Deduplicate with key selection using an alternative threshold
             key_select_sim = similarity_scores[sounds.SAMSUNG_KEY_SELECT]
-            # sim_buffer = self._config[sounds.SAMSUNG_SELECT][DEDUP_THRESHOLD]
 
             if (max_segment_energy < self._config[sounds.SAMSUNG_SELECT][ENERGY_THRESHOLD]) and (key_select_sim > self._config[sounds.SAMSUNG_KEY_SELECT][MIN_SIMILARITY]):
                 return sounds.SAMSUNG_KEY_SELECT, key_select_sim, 1
@@ -498,17 +448,8 @@ class SamsungMoveExtractor(MoveExtractor):
             if (best_sim >= (3.0 * move_sim)):
                 return sound, best_sim, 1
 
-            if (time >= 2100) and (time <= 2500):
-                print('Time diff: {}, Time Buffer: {}, Move Sim: {}, Delete Sim: {}'.format(time - prev_time, time_buffer, move_sim, best_sim))
-
             if ((time - prev_time) <= time_buffer) or ((move_sim > force_threshold) and ((move_sim + 3.0 * move_buffer) > best_sim)) or ((move_sim > move_threshold) and ((best_sim < delete_threshold) or ((move_sim + move_buffer) > best_sim))):
                 return sounds.SAMSUNG_MOVE, move_sim, 1
-
-            #if (time >= 42530) and (time <= 42550):
-            #print('Current Time: {}, Prev Time: {}, Diff: {}, Move Sim: {:.4f}, Best Sim: {:.4f}'.format(time, prev_time, time - prev_time, move_sim, best_sim))
-
-            #if (move_sim > move_threshold) or ((move_sim + delete_buffer) > best_sim) or ((time - prev_time) <= time_buffer):
-            #   return sounds.SAMSUNG_MOVE, move_sim
 
         return sound, similarity_scores[sound], 1
 
@@ -576,29 +517,3 @@ class SamsungMoveExtractor(MoveExtractor):
                 move_carry = 0
 
         return cleaned
-
-
-if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument('--spectrogram-path', type=str, required=True)
-    parser.add_argument('--tv-type', type=str, required=True)
-    args = parser.parse_args()
-
-    #audio_extractor = SmartTVAudio(path=args.video_path)
-    #audio = audio_extractor.get_audio()
-    #target_spectrogram = create_spectrogram(audio)
-    target_spectrogram = read_pickle_gz(args.spectrogram_path)
-
-    if args.tv_type.lower() == 'samsung':
-        extractor = SamsungMoveExtractor()
-    elif args.tv_type.lower() in ('appletv', 'apple-tv', 'apple_tv'):
-        extractor = AppleTVMoveExtractor()
-    else:
-        raise ValueError('Unknown TV type: {}'.format(args.tv_type))
-
-    moves = extractor.extract_moves(target_spectrogram)
-
-    for move in moves:
-        print(move)
-        if (move.end_sound == sounds.APPLETV_TOOLBAR_MOVE):
-            print('==========')

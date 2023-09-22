@@ -13,7 +13,7 @@ class SmartTVAudio:
     def __init__(self, path: str):
         self._path = path
         self._file_name = os.path.basename(path).replace('.mp4', '').replace('.MOV', '').replace('.mov', '')
-        
+
         # Extract the audio from the video. We only use channel 0
         video_clip = VideoFileClip(path)
         self._audio = video_clip.audio.to_soundarray()[:, 0]  # [N]
