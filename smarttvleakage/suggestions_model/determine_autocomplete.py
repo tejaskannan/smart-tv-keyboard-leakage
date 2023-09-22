@@ -151,16 +151,16 @@ def get_transforms(size : int):
 
 
 
-def build_model_sim_new(ms_dict_rockyou, englishDictionary, ss_path : str, words_auto, words_non,
+def build_model_sim_new(ms_dict_rockyou, englishDictionary, ss_path : str, words,
                     include_rockyou : bool = False, bin_transform : List[int] = [], weight : int = 3,
                     mistakes : bool = False, max_depth : int = 3):
     """Builds a model on simulated data"""
 
     ms_dict_auto = {}
     ms_dict_non = {}
-    for word in words_auto:
+    for word in words:
         ms_dict_auto[word] = simulate_ms(englishDictionary, ss_path, word, True)
-    for word in words_non:
+    for word in words:
         ms_dict_non[word] = simulate_ms(englishDictionary, ss_path, word, False)
 
     if mistakes:
@@ -525,8 +525,7 @@ if __name__ == "__main__":
             # Test out building models with strange bin histograms!!!
             # Then do audio!!
 
-            auto_words = grab_words(2000, args.words_path)
-            non_words = grab_words(2000, args.words_path)
+            words = grab_words(2000, args.words_path)
             ms_dict_rockyou_train = add_mistakes_to_ms_dict(build_ms_dict(args.ms_path_rockyou, 2000))
 
             for b in bs:
@@ -534,7 +533,7 @@ if __name__ == "__main__":
                 model = build_model_sim_new(ms_dict_rockyou=ms_dict_rockyou_train,
                                             englishDictionary=englishDictionary,
                                             ss_path=args.ss_path,
-                                            words_auto=auto_words, words_non=non_words,
+                                            words=words,
                                             include_rockyou=True, bin_transform=b, weight=3,
                                             mistakes=True, max_depth = max_depth)
                 save_model(args.save_path + str(max(b) + 1) + "bins_mistakes__sim.pkl.gz", model)
