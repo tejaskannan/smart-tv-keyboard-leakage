@@ -40,7 +40,7 @@ Exception in thread "main" java.lang.IllegalArgumentException: Must provide the 
 ```
 
 ## Audio Extraction
-The codebase processes video recordings of Smart TV interactions. We take videos for debugging purposes--the attack strips away the video and uses audio signals alone (e.g., see the file `smarttvleakage/audio/audio_extractor.py`). This section describes how to execute the audio extraction phase of the attack. Each holding can hold multiple interactions with the keyboard (i.e., keyboard instances). The output of this phase is a `json` file containing the move count sequences for each indentified keyboard instance. A single move count sequences looks as follows.
+The codebase processes video recordings of Smart TV interactions. We take videos for debugging purposes--the attack strips away the video and uses audio signals alone (e.g., see the file `smarttvleakage/audio/audio_extractor.py`). This section describes how to execute the audio extraction phase of the attack. Each holding can hold multiple interactions with the keyboard (i.e., keyboard instances). The output of this phase is a `json` file containing the move count sequences for each identified keyboard instance. A single move count sequence looks as follows.
 ```
 [{"num_moves": 3, "end_sound": "key_select", "num_scrolls": 0, "directions": "any", "start_time": 512, "end_time": 831, "move_times": [528, 569, 773]}, {"num_moves": 3, "end_sound": "key_select", "num_scrolls": 0, "directions": "any", "start_time": 877, "end_time": 1019, "move_times": [892, 925, 958]},...]
 ```
@@ -49,14 +49,31 @@ We describe two methods for creating these move count sequences.
 1. **Emulation:** Creates the move count sequence `json` file algorithmically using the keyboard layout.
 2. **Real Recordings:** Extracts move count sequences from the audio of real interactions with Smart TVs.
 
-To facilitate reproducibility, you many find the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs in this ![Box drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf).
+To facilitate reproducibility, we have shared the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this ![Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf).
 
 For the remainder of this section, you should navigate into the `smarttvleakage` folder. Unless otherwise specified, you should run all scripts from this directory.
 
 
 ### Emulation: Creating Benchmarks
+We support two types of benchmarks: `passwords` and `credit cards`. For better reproducibility, we include a list of existing benchmarks in the accompanying ![Google Drive folder](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (see the folder `benchmarks` in the drive). The instructions in this section create new benchmarks for each type. We note that there is randomness in the generation process, so new benchmarks may create slightly different attack results.
 
+#### Passwords
+The `generate_password_benchmark.py` file creates new password benchmarks. The script takes the password list (as a text file) and TV type as input. The output is a folder of move count sequence files and the corresponding true passwords. We write the outputs in batches of `500` elements (into folders labeled `part_N`). The benchmark forcefully selects passwords with special characters, uppercase letters, and numbers. Passwords with such properties are thus *over-represented* in the benchmark. The provided password benchmark uses the `phpbb.txt` password list with `6,000` total passwords.
 
+The script allows the user to optionally supply the keyboard type; the default follows the provided TV. Of interest here is the `abc` keyboard type, which uses a different layout on the Samsung Smart TV.
+
+For Samsung TVs, the script will also classify the keyboard type as either `suggestions` or `password` (see the `suggestions_model` folder for specifics on this process). Apple TVs and other keyboard layouts are assumed to hold passwords.
+
+#### Credit Cards
+We generate credit card benchmarks using fake details from Visa, Mastercard, and American Express. We use ![this site](https://www.creditcardvalidator.org/generator) to get credit card numbers (CCN), expiration dates, and security codes (CVV). We then attach ZIP codes by sampling according to population.
+
+The script `generate_credit_card_benchmark.py` creates the benchmark. The program expects input CSV files containing lines of the form `CCN,MM/YY/,CVV` (see below). An example of this file is in the Google Drive folder (under `word_lists/credit_cards.csv`).
+```
+379852449392213,03/26,7747
+```
+The program also requires a path to a text file containing ZIP codes and populations. This file is at `dictionaries/zip_codes.txt` in the Google Drive folder.
+
+The provided benchmark contains `6,000` credit cards, with `2,000` coming from each of the three providers. The output file format follows that of password benchmarks. We only test credit cards on the Samsung TV. This specification is hard-coded into the script.
 
 ### Realistic Users
 The codebase processes video recordings of Smart TV interactions. We take videos for debugging purposes--the attack strips away the video and uses audio signals alone (e.g., see the file `smarttvsearch. 

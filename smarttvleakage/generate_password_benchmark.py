@@ -79,17 +79,17 @@ def create_records(input_path: str, max_num_records: int, suggestions_model: Any
 
         try:
             use_shortcuts = (rand.uniform() < 0.5) or (tv_type == SmartTVType.APPLE_TV)
-            use_wraparound = (rand.uniform() < 0.5) 
+            use_wraparound = (rand.uniform() < 0.5)
             use_done = (rand.uniform() < 0.5)
             moves = findPath(word, use_shortcuts=use_shortcuts, use_wraparound=use_wraparound, use_done=use_done, mistake_rate=0.0, decay_rate=1.0, max_errors=0, keyboard=keyboard, start_key=start_key)
 
             if (tv_type == SmartTVType.SAMSUNG) and (keyboard_type != KeyboardType.ABC):
-                suggestions_type =  SuggestionsType.SUGGESTIONS if classify_moves(suggestions_model, moves, cutoff=SUGGESTIONS_CUTOFF) else SuggestionsType.STANDARD
+                suggestions_type = SuggestionsType.SUGGESTIONS if classify_moves(suggestions_model, moves, cutoff=SUGGESTIONS_CUTOFF) else SuggestionsType.STANDARD
             else:
                 suggestions_type = SuggestionsType.STANDARD
 
             move_seq = [m.to_dict() for m in moves]
-            yield { 'target': word, 'move_seq': move_seq, 'suggestions_type': suggestions_type.name.lower() }
+            yield {'target': word, 'move_seq': move_seq, 'suggestions_type': suggestions_type.name.lower()}
 
             if has_special(word):
                 password_type_counter['special'] += 1
@@ -133,8 +133,8 @@ def save_batch(move_sequences: List[List[Move]], suggestions_types: List[str], l
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument('--input-path', type=str, required=True, help='Path to a list of passwords to consider.')
+    parser = ArgumentParser('Script to generate move count sequences for passwords.')
+    parser.add_argument('--input-path', type=str, required=True, help='Path to a list (e.g., text file) of passwords to consider.')
     parser.add_argument('--output-folder', type=str, required=True, help='The folder in which to write output batches.')
     parser.add_argument('--max-num-records', type=int, required=True, help='The maximum number of records to consider.')
     parser.add_argument('--tv-type', type=str, choices=['samsung', 'apple_tv'], required=True, help='The type of Smart TV to generate move sequences for.')
@@ -159,7 +159,10 @@ if __name__ == '__main__':
         keyboard_type = KeyboardType[args.keyboard_type.upper()]
 
     # Read the keyboard suggestions model
-    suggestions_model = read_pickle_gz(os.path.join('suggestions', 'suggestions_model.pkl.gz'))
+    suggestions_model = read_pickle_gz(os.path.join('suggestions_model', 'suggestions_model.pkl.gz'))
+
+    # Make the base output folder
+    make_dir(args.output_folder)
 
     for record in create_records(args.input_path, max_num_records=args.max_num_records, suggestions_model=suggestions_model, tv_type=tv_type, keyboard_type=keyboard_type):
         move_batch.append(record['move_seq'])

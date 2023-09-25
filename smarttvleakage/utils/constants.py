@@ -40,7 +40,7 @@ START_CHAR = '<S>'
 END_CHAR = '<E>'
 
 
-SUGGESTIONS_CUTOFF = 0.6  # Gives over 99.5% accuracy on passwords generated using optimal move sequences
+SUGGESTIONS_CUTOFF = 0.6  # Gives over 99% accuracy on passwords generated using optimal move sequences
 
 
 SMALL_NUMBER = 1e-9
