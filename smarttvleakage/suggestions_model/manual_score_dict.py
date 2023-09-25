@@ -39,11 +39,11 @@ def build_ms_dict(path : str, take : int = 0, passover : int = 0) -> Dict[str, L
     return ms_dict
 
 
-def get_word_from_ms(ms : List[int], msfd : Dict[str, Tuple[str, int]]) -> Tuple[str, float]:
-    """Gets the most common word and freq. score from a move sequence"""
-    ms_string = ""
-    for m in ms:
-        ms_string += str(m) + ","
-    if ms_string in msfd:
-        return msfd[ms_string]
-    return ("", 0)
+#def get_word_from_ms(ms : List[int], msfd : Dict[str, Tuple[str, int]]) -> Tuple[str, float]:
+#    """Gets the most common word and freq. score from a move sequence"""
+#    ms_string = ""
+#    for m in ms:
+#        ms_string += str(m) + ","
+#    if ms_string in msfd:
+#        return msfd[ms_string]
+#    return ("", 0)

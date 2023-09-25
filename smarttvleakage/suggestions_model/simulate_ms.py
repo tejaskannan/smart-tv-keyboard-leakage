@@ -22,12 +22,10 @@ from smarttvleakage.audio.sounds import SAMSUNG_DELETE, SAMSUNG_KEY_SELECT, SAMS
 
 
 
-
-
-
-
 def grab_words(count : int, path : str) -> List[str]:
-    """Returns a list of [count] words from the file at path"""
+    """
+    Returns a list of [count] words from the file at path
+    """
     words = []
     with open(path, "r", encoding="utf-8") as f:
         lines = f.readlines()
@@ -50,8 +48,10 @@ def grab_words(count : int, path : str) -> List[str]:
     return words
 
 
-def get_autos(e_dict, ss_path : str, prefix : str, count : int = 4) -> List[str]:
-    """Returns simulated autocomplete suggestions using an EnglishDictionary"""
+def get_autos(e_dict: EnglishDictionary, ss_path : str, prefix : str, count : int = 4) -> List[str]:
+    """
+    Returns simulated autocomplete suggestions using an EnglishDictionary
+    """
     if len(prefix) == 1: # then use single suggestions
         single_suggestions = read_json(ss_path)
         return single_suggestions[prefix.lower()]
@@ -71,12 +71,16 @@ def get_autos(e_dict, ss_path : str, prefix : str, count : int = 4) -> List[str]
 
     return suggestions
 
-def find_path_auto(e_dict, ss_path, word : str) -> List[int]:
-    """Simulates the path for a word using autocomplete"""
+
+def find_path_auto(e_dict: EnglishDictionary, ss_path: str, word : str) -> List[int]:
+    """
+    Simulates the path for a word using autocomplete
+    """
     path = []
     keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
     mode = keyboard.get_start_keyboard_mode()
     prev = START_KEYS[mode]
+
     last_auto = 0
     for i in list(word.lower()):
         if len(path) > 0:
@@ -133,7 +137,8 @@ def find_path_auto(e_dict, ss_path, word : str) -> List[int]:
 def add_mistakes(ms : List[int], count : int) -> List[int]:
     if len(ms) == 0:
         return ms
-        
+    
+    # randomly adds 2 moves to places in the sequence
     while (count > 0):
         place = random.randint(0, len(ms)-1)
         ms[place] += 2
@@ -143,21 +148,23 @@ def add_mistakes(ms : List[int], count : int) -> List[int]:
     
 
 
-def simulate_ms(dict, ss_path : str, word : str,
-    auto : bool, mistakes : int = 0) -> List[int]:
-    """Simulates a move sequence"""
-    keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
-    if not auto:
-        move = findPath(word, False, False, False, 0, 0, 0, keyboard, "q")
-        ms = []
-        for m in move:
-            ms.append(m.num_moves)
+def simulate_move_sequence(word: str,
+                           single_suggestions: Dict[str, List[str]],
+                           use_suggestions: bool,
+                           english_dictionary: EnglishDictionary,
+                           keyboard: MultiKeyboardGraph,
+                           num_mistakes: int):
+    """
+    Simulates a move sequence
+    """
+    if not use_suggestions:
+        move_seq = findPath(word, False, False, False, 0, 0, 0, keyboard, 'q')
+        move_counts = list(map(lambda m: m.num_moves, move_seq))
     else:
-        ms = find_path_auto(dict, ss_path, word)
+        move_counts = find_path_auto(english_dictionary, single_suggestions, word)
 
-    add_mistakes(ms, mistakes)
-
-    return ms
+    add_mistakes(move_counts, num_mistakes)
+    return move_counts
 
 
 def add_mistakes_to_ms_dict(dict):
@@ -174,7 +181,6 @@ def add_mistakes_to_ms_dict(dict):
             new_dict[word] = add_mistakes(ms, 3)
 
     return new_dict
-
 
 
 
@@ -311,7 +317,7 @@ if __name__ == "__main__":
 
 
 
-    if test == 1:
+    if test == 1: # Can go
         # test non words
         for key in ms_dict_non:
             sim_ms = simulate_ms(englishDictionary, args.ss_path, key, False)
