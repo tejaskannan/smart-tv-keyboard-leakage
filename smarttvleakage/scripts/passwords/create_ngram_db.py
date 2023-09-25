@@ -17,7 +17,7 @@ END_CHAR = '<E>'
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Script to create a local SQL database of ngrams.')
     parser.add_argument('--db-file', type=str, required=True, help='Path to the output database file.')
     parser.add_argument('--dictionary-file', type=str, required=True, help='Path to the list of strings to upload.')
     parser.add_argument('--ngram-sizes', type=int, required=True, nargs='+', help='The ngram sizes to use.')
@@ -62,9 +62,6 @@ if __name__ == '__main__':
             if len(word) <= 0:
                 continue
 
-            # Determine if we can split the string into characters followed by
-            # numbers. We can then match patterns based solely on numbers, which
-            # can help with generalizing across datasets
             for ngram_idx, ngram_size in enumerate(ngram_sizes):
                 count = pow(2, ngram_idx)
 
@@ -83,8 +80,6 @@ if __name__ == '__main__':
                 print('Completed parsing {} strings.'.format(line_idx + 1), end='\r')
 
     print('\nLoaded {} ngrams'.format(len(ngram_dictionary)))
-
-    print(ngram_dictionary)
 
     # Upload the results to the database in batches
     data_batch: List[List[Any]] = []

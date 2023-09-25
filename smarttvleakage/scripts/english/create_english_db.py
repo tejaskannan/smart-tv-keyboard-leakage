@@ -14,7 +14,7 @@ END_CHAR = '<E>'
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser('Script to construct a new database of English words.')
+    parser = ArgumentParser('Script to construct a local SQL database of English words.')
     parser.add_argument('--db-file', type=str, required=True, help='Path to the output database file.')
     parser.add_argument('--input-file', type=str, required=True, help='Path to the list of strings to upload.')
     parser.add_argument('--min-count', type=int, required=True, help='The minimum word count to include.')
@@ -116,7 +116,7 @@ if __name__ == '__main__':
         if (record_idx + 1) % BATCH_SIZE == 0:
             print('Completed {} / {} prefixes.'.format(record_idx + 1, len(prefix_dictionary)), end='\r')
 
-    # Clean up any remaining elements 
+    # Clean up any remaining elements
     if len(data_batch) > 0:
         cursor.executemany('INSERT INTO prefixes VALUES(?, ?, ?, ?);', data_batch)
         conn.commit()
@@ -132,7 +132,7 @@ if __name__ == '__main__':
             cursor.executemany('INSERT INTO words VALUES (?, ?);', data_batch)
             conn.commit()
             data_batch = []
-    
+
         if (record_idx + 1) % BATCH_SIZE == 0:
             print('Completed {} / {} words.'.format(record_idx + 1, len(word_set)), end='\r')
 
