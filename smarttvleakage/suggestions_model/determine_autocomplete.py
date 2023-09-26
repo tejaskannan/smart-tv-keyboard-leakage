@@ -1599,7 +1599,7 @@ if __name__ == "__main__":
         ms_dict_auto_test = build_ms_dict(args.ms_path_auto)
         ms_dict_non_test = build_ms_dict(args.ms_path_non)
         ms_dict_rockyou_test = build_ms_dict(args.ms_path_rockyou, 100, 2000)
-        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 5000)
+        ms_dict_phpbb_test = build_ms_dict("suggestions_model/local/ms_dict_phpbb.pkl.gz", 500)
         print("test dicts built")
         db_path = "rockyou-samsung-updated.db"
         db = PasswordRainbow(db_path)
@@ -1609,27 +1609,18 @@ if __name__ == "__main__":
         #ac = .5
         #nc = .5
         peak = 30
-        bins_nums = [2, 3, 4, 5, 6, 7, 8, 9, 10]
+        bins_nums = [7]
         transforms = {}
-        transforms[2] = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        transforms[3] = [0, 1, 2, 2, 2, 2, 2, 2, 2, 2]
-        transforms[4] = [0, 1, 2, 3, 3, 3, 3, 3, 3, 3]
-        transforms[5] = [0, 1, 2, 3, 4, 4, 4, 4, 4, 4]
-        transforms[6] = [0, 1, 2, 3, 4, 5, 5, 5, 5, 5]
         transforms[7] = [0, 1, 2, 3, 4, 5, 6, 6, 6, 6]
-        transforms[8] = [0, 1, 2, 3, 4, 5, 6, 7, 7, 7]
-        transforms[9] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 8]
-        transforms[10] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
 
-        steps = ["1step", "2step"]
+        steps = ["1step"]
         step_dict = {}
         step_dict["1step"] = (.5, .5)
-        step_dict["2step"] = (.26, .32)
-        mts = ["mistakes", "nomistakes"]
+        mts = ["mistakes"]
     
-        mistakes_list = [0, 1, 2, 3]
+        mistakes_list = [0]
 
-        mds = [1]
+        mds = [0]
 
         for md in mds:
             for bins in bins_nums:
@@ -1648,15 +1639,16 @@ if __name__ == "__main__":
                         ac = step_dict[step][0]
                         nc = step_dict[step][1]
 
-                        if args.save_path is not None:
+                        #if args.save_path is not None:
                             #dec/size2
 
                             # full_path = args.save_path + "/" + str(bins) + "bins/"
                             # full_path += mt + "_" + step
 
-                            full_path = args.save_path + "/md" + str(md) + "/bins/size1"
-                            full_path += "/" + str(bins) + "bins/"
-                            full_path += mt + "_" + step
+                            # full_path = args.save_path + "/md" + str(md) + "/bins/size1"
+                            # full_path += "/" + str(bins) + "bins/"
+                            # full_path += mt + "_" + step
+                        full_path = "suggestions_model/nowtest.txt"
 
                         english_accs = []
                         english_f1s = []
@@ -1749,7 +1741,7 @@ if __name__ == "__main__":
                             lines.append("(phpbb) acc: " + str(password_accs[mistakes])
                                 + "; f1: " + str(password_f1s[mistakes]) + "\n\n")
 
-                        with open(full_path + ".txt", "w") as f:
+                        with open(full_path, "w") as f:
                             f.writelines(lines)
                             f.close()
 
