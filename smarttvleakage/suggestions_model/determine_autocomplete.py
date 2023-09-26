@@ -19,6 +19,9 @@ def moves_to_histogram(move_counts: List[int], bins: List[int]) -> List[int]:
     histogram = [0 for _ in bins]
 
     for move_idx, move in enumerate(move_counts):
+        if move_idx == 0:
+            continue  # Skip the first move, as it never contains suggestions
+
         if move in bins:
             histogram[move] += move_idx
         else:
