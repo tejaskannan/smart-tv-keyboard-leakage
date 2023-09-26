@@ -153,7 +153,6 @@ def perform_match_spectrograms(first_spectrogram: np.ndarray, second_spectrogram
         similarity = max(similarity, 1.0 / dist)
 
         if should_plot:
-            print('Offset: {}, Similarity: {:.4f}'.format(offset, similarity))
             fig, (ax0, ax1, ax2) = plt.subplots(nrows=1, ncols=3)
             ax0.imshow(masked_first, cmap='gray_r')
             ax1.imshow(masked_second, cmap='gray_r')
@@ -219,8 +218,6 @@ def dedup_samsung_move_delete(normalized_spectrogram: np.ndarray, freq_delta: in
     num_after = np.sum(binary_spectrogram[min_freq:max_freq, (highest_time + 1):])
 
     if should_plot:
-        print('Before: {}, After: {}'.format(num_before, num_after))
-
         fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
         ax0.imshow(normalized_spectrogram, cmap='gray_r')
         ax0.scatter(time_peaks, freq_peaks, marker='o', color='red')
@@ -282,30 +279,7 @@ def count_cluster_size(segment_spectrogram: np.ndarray, start_time: int) -> int:
 
         clusters.append(cluster)
 
-        #if (peak_idx < (len(time_peaks) - 1)) and ((time_peaks[peak_idx + 1] - current_peak_time) < time_distance):
-        #    clusters.append([current_peak_time, time_peaks[peak_idx + 1]])
-        #    peak_idx += 1
-        #else:
-        #    clusters.append([current_peak_time])
-
-        #peak_idx += 1
-
     num_clusters = len(clusters)
-
-    #if (start_time >= 17840):
-    #    colors = ['red', 'green', 'orange']
-
-    #    print('Time: {}, # Clusters: {}'.format(start_time, num_clusters))
-    #    fig, ax = plt.subplots()
-    #    #ax0.plot(list(range(len(max_filtered))), max_filtered)
-    #    ax.imshow(segment_spectrogram, cmap='gray_r')
-    #    ax.scatter(time_peaks, freq_peaks, color='red', marker='o')
-
-    #    for cluster_idx, cluster in enumerate(clusters):
-    #        for cluster_time in cluster:
-    #            ax.axvline(cluster_time, color=colors[cluster_idx % len(colors)])
-
-    #    plt.show()
 
     return max(num_clusters, 1)
 
@@ -429,8 +403,6 @@ def get_sound_instances_samsung(spect: np.ndarray, smooth_window_size: int) -> T
     iqr = np.percentile(max_energy, 75) - np.percentile(max_energy, 25)
     peak_cutoff = median_normalized_energy + 0.9 * iqr
     sound_cutoff = median_normalized_energy + 0.15 * iqr
-
-    print('Peak Cutoff: {:.5f}, Sound Cutoff: {:.5f}'.format(peak_cutoff, sound_cutoff))
 
     # Create the time ranges for each sound based on the normalized energy values
     start_times: List[int] = []

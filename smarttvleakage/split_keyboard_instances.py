@@ -109,13 +109,6 @@ def split_into_instances_samsung(move_sequence: List[Move], min_num_selections: 
             split_sequence.append(processed)
             suggestions_types.append(suggestions_type)
 
-    for move_seq, suggestions_type in zip(split_sequence, suggestions_types):
-        print('==========')
-        print(suggestions_type)
-
-        for move in move_seq:
-            print(move)
-
     return SequenceType.STANDARD, split_sequence, suggestions_types
 
 
@@ -175,7 +168,6 @@ def serialize_splits(split_seq: List[Any], suggestions_types: List[SuggestionsTy
 if __name__ == '__main__':
     parser = ArgumentParser('Splits the Smart TV audio file into keyboard instances and extracts the move sequence for each instance.')
     parser.add_argument('--spectrogram-path', type=str, required=True, help='The path to the spectrogram file (pkl.gz).')
-    parser.add_argument('--keyboard-model-path', type=str, required=True, help='The path to the samsung suggestions model. Only needed for Samsung instances.')
     args = parser.parse_args()
 
     assert args.spectrogram_path.endswith('.pkl.gz'), 'Must provide a pickle file containing the spectrogram.'
@@ -207,7 +199,7 @@ if __name__ == '__main__':
 
     # Split the move sequence into keyboard instances
     if tv_type == SmartTVType.SAMSUNG:
-        keyboard_model = read_pickle_gz(args.keyboard_model_path)
+        keyboard_model = read_pickle_gz('suggestions_model/suggestions_model.pkl.gz')
         seq_type, split_seq, suggestions_types = split_into_instances_samsung(move_sequence=move_seq, min_num_selections=1, keyboard_model=keyboard_model)
     elif tv_type == SmartTVType.APPLE_TV:
         seq_type, split_seq, suggestions_types = split_into_instances_appletv(move_sequence=move_seq, min_num_selections=3)

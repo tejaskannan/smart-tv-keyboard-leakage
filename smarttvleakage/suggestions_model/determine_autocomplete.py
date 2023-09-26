@@ -80,20 +80,20 @@ def make_dataset(english_words: List[str],
                                                  english_dictionary=english_dictionary,
                                                  keyboard=keyboard,
                                                  num_mistakes=0)
-            
+
             input_list.append(np.expand_dims(make_features(move_counts), axis=0))
             label_list.append(label)  # 1 for using suggestions
 
     for word in passwords:
-         move_counts = simulate_move_sequence(word=word,
-                                              single_suggestions=single_suggestions,
-                                              use_suggestions=False,
-                                              english_dictionary=english_dictionary,
-                                              keyboard=keyboard,
-                                              num_mistakes=0)
+        move_counts = simulate_move_sequence(word=word,
+                                             single_suggestions=single_suggestions,
+                                             use_suggestions=False,
+                                             english_dictionary=english_dictionary,
+                                             keyboard=keyboard,
+                                             num_mistakes=0)
 
-         input_list.append(np.expand_dims(make_features(move_counts), axis=0))
-         label_list.append(0)  # 1 for using suggestions
+        input_list.append(np.expand_dims(make_features(move_counts), axis=0))
+        label_list.append(0)  # 1 for using suggestions
 
     inputs = np.vstack(input_list)
     labels = np.vstack(label_list).reshape(-1)
@@ -118,14 +118,13 @@ def save_model(path: str, model: RandomForestClassifier):
     save_pickle_gz(model, path)
 
 
-#################### CLASSIFY #########################
 def classify_moves(model: RandomForestClassifier, moves: List[Move], cutoff: float):
     """
     Determines whether the given move count sequence uses a keyboard with suggestions
     """
     # Get only the move counts
     move_counts = [move.num_moves for move in moves]
-  
+
     # Make the feature vector
     features = make_features(move_counts)
     features = np.expand_dims(features, axis=0)  # [1, K]

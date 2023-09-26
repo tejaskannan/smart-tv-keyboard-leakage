@@ -8,7 +8,7 @@ from smarttvleakage.utils.file_utils import save_pickle_gz, iterate_dir
 if __name__ == '__main__':
     parser = ArgumentParser('Script to create a spectrogram from the audio of a given video file.')
     parser.add_argument('--video-path', type=str, required=True, help='Path to the video file or folder.')
-    parser.add_argument('--output-folder', type=str, required=True, help='Path to the output folder. The output file will be a compressed pickle with the same name as the input video.')
+    parser.add_argument('--output-folder', type=str, help='Path to the output folder. The output file will be a compressed pickle with the same name as the input video. If none, defaults to the directory of the video file.')
     parser.add_argument('--should-print', action='store_true', help='Whether to print progress information to the stdout.')
     args = parser.parse_args()
 
@@ -27,8 +27,13 @@ if __name__ == '__main__':
         # Create the spectrogram
         recording_spectrogram = create_spectrogram(audio_extractor.get_audio())
 
+        if args.output_folder is None:
+            output_folder = os.path.dirname(path)
+        else:
+            output_folder = args.output_folder
+
         # Save the result
-        output_path = os.path.join(args.output_folder, '{}.pkl.gz'.format(audio_extractor.file_name))
+        output_path = os.path.join(output_folder, '{}.pkl.gz'.format(audio_extractor.file_name))
         save_pickle_gz(recording_spectrogram, output_path)
 
         print('Completed {} / {} files.'.format(idx + 1, len(video_paths)), end='\r')
