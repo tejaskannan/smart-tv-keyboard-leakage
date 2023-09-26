@@ -150,6 +150,7 @@ def make_df_new(bins_transform : List[int], weighted : int,
 
 
 
+
 def make_df_list(ms_dict_auto : Dict[str, List[int]], ms_dict_non : Dict[str, List[int]],
                 max_len : int = 10):
     """Makes a datagrame given a bin distribution, weighting, and auto and non dictionaries"""
@@ -781,6 +782,26 @@ if __name__ == "__main__":
         test = 31
     else:
         test = int(args.test)
+
+
+
+
+    if test == -10:
+        #single string features
+        string = "test"
+        bt = [0, 1, 2, 3, 4, 5, 6, 6, 6, 6]
+
+        tests = ["by", "their", "creator", "with", "certain", "unalienable", "rights"]
+
+        #mda = {}
+        nda = {}
+        for t in tests:
+            #mda[t] = ms_dict_auto[t]
+            nda[t] = ms_dict_non[t]
+
+        make_df_new(bins_transform = bt, weighted = 3,
+            ms_dict_auto = {}, ms_dict_non = nda, bin_max = 10)
+        
 
 
 
