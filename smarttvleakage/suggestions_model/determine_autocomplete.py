@@ -1,4 +1,5 @@
 import numpy as np
+import random
 from argparse import ArgumentParser
 from sklearn.ensemble import RandomForestClassifier
 from typing import List, Dict, Tuple, Optional
@@ -6,7 +7,7 @@ from typing import List, Dict, Tuple, Optional
 from smarttvleakage.audio.move_extractor import Move
 from smarttvleakage.dictionary.english_dictionary import SQLEnglishDictionary
 from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
-from smarttvleakage.suggestions_model.simulate_ms import simulate_move_sequence, add_mistakes
+from smarttvleakage.suggestions_model.utils import simulate_move_sequence, add_mistakes
 from smarttvleakage.suggestions_model.utils import read_passwords, read_english_words
 from smarttvleakage.utils.file_utils import read_json, save_pickle_gz
 from smarttvleakage.utils.constants import KeyboardType
@@ -59,6 +60,23 @@ def make_features(move_counts: List[int]) -> List[int]:
     return features
 
 
+def add_mistakes_to_move_counts(move_counts: List[int]) -> List[int]:
+    """
+    Randomly adds anywhere between 0 and 3 suboptimal moves to the
+    given move counts
+    """
+    rand = random.randint(0, 99)
+
+    if rand < 75:
+        return move_counts
+    elif rand < 90:
+        return add_mistakes(move_counts, count=1)
+    elif rand < 97:
+        return add_mistakes(move_counts, count=2)
+    else:
+        return add_mistakes(move_counts, count=3)
+
+
 def make_dataset(english_words: List[str],
                  passwords: List[str],
                  english_dictionary: SQLEnglishDictionary,
@@ -81,6 +99,8 @@ def make_dataset(english_words: List[str],
                                                  keyboard=keyboard,
                                                  num_mistakes=0)
 
+            move_counts = add_mistakes_to_move_counts(move_counts)
+
             input_list.append(np.expand_dims(make_features(move_counts), axis=0))
             label_list.append(label)  # 1 for using suggestions
 
@@ -92,8 +112,10 @@ def make_dataset(english_words: List[str],
                                              keyboard=keyboard,
                                              num_mistakes=0)
 
+        move_counts = add_mistakes_to_move_counts(move_counts)
+
         input_list.append(np.expand_dims(make_features(move_counts), axis=0))
-        label_list.append(0)  # 1 for using suggestions
+        label_list.append(0)  # Password's don't use suggestions
 
     inputs = np.vstack(input_list)
     labels = np.vstack(label_list).reshape(-1)
@@ -136,13 +158,13 @@ def classify_moves(model: RandomForestClassifier, moves: List[Move], cutoff: flo
     return int(suggestions_prob >= cutoff)  # 1 if suggestions, 0 if passwords
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     parser = ArgumentParser('Script to train the keyboard suggestions model.')
     parser.add_argument('--english-words-file', type=str, required=True, help='Path to the list of english words to train on, sorted by frequency (descending).')
     parser.add_argument('--passwords-file', type=str, required=True, help='Path to the list of passwords to train on, sorted by frequency (descending).')
     parser.add_argument('--dictionary-file', type=str, required=True, help='Path to the English dictionary from which to estimate letter suggestions.')
     parser.add_argument('--output-file', type=str, required=True, help='Path at which to save the output model (pkl.gz).')
-    parser.add_argument('--word-count', type=int, default=5000, help='The number of words from each list to use during training. Defaults to 5,000.')
+    parser.add_argument('--word-count', type=int, default=2000, help='The number of words from each list to use during training. Defaults to 2,000.')
     args = parser.parse_args()
 
     assert args.dictionary_file.endswith('.db'), 'Must provide a local SQL database containing the dictionary'

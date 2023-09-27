@@ -4,9 +4,7 @@ from sklearn.metrics import accuracy_score
 from typing import Dict, List
 
 from smarttvleakage.dictionary.english_dictionary import SQLEnglishDictionary
-from smarttvleakage.graphs.keyboard_graph import MultiKeyboardGraph
 from smarttvleakage.suggestions_model.determine_autocomplete import make_features
-from smarttvleakage.suggestions_model.utils import read_passwords, read_english_words_random
 from smarttvleakage.utils.constants import SUGGESTIONS_CUTOFF
 from smarttvleakage.utils.file_utils import read_pickle_gz, read_json
 
@@ -42,7 +40,8 @@ if __name__ == '__main__':
     labels = np.concatenate([suggestions_labels, standard_labels], axis=0)
 
     probs = model.predict_proba(inputs)[:, 1]  # Probability of suggestions for each instance
-    preds = (probs > SUGGESTIONS_CUTOFF).astype(int)
+    #preds = (probs > SUGGESTIONS_CUTOFF).astype(int)
+    preds = (probs > 0.5).astype(int)
 
     accuracy = accuracy_score(y_pred=preds, y_true=labels)
 
