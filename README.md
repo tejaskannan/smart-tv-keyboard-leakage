@@ -49,7 +49,19 @@ We describe two methods for creating these move count sequences.
 1. **Emulation:** Creates the move count sequence `json` file algorithmically using the keyboard layout.
 2. **Real Recordings:** Extracts move count sequences from the audio of real interactions with Smart TVs.
 
-To facilitate reproducibility, we have shared the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this ![Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf). Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder if it is infeasible to run the attack on every file.
+To facilitate reproducibility, we have shared the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this ![Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf). Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder if it is infeasible to run the attack on every file. When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their folder. The resulting file structure should look as follows:
+```
+user-study
+    subject-a
+        appletv_passwords.mp4
+        credit_card_details.mp4
+        samsung_passwords.mp4
+        web_searches.mp4
+    subject-b
+        appletv_passwords.mp4
+        ...
+    ...
+```
 
 For the remainder of this section, you should navigate into the `smarttvleakage` folder. Unless otherwise specified, you should run all scripts from this directory.
 
