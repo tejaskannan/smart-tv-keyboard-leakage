@@ -55,12 +55,12 @@ public class SearchRunner {
         SmartTVType tvType = SmartTVType.valueOf(tvTypeName);
 
         // Parse the keyboard type
-        String keyboardTypeName = serializedMoves.getString("keyboard_type");
         KeyboardType keyboardType;
 
-        if (keyboardTypeName == null) {
+        if (!serializedMoves.has("keyboard_type")) {
             keyboardType = KeyboardType.valueOf(tvTypeName);
         } else {
+            String keyboardTypeName = serializedMoves.getString("keyboard_type");
             keyboardType = KeyboardType.valueOf(keyboardTypeName.toUpperCase());
         }
 

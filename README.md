@@ -93,17 +93,53 @@ The second phase determines the TV type, splits the recording into individual in
 ```
 python split_keyboard_instances.py --spectrogram-path <PATH-TO-BOX>/subject-a/samsung_passwords.pkl.gz
 ```
-The script should print out that it finds `10` keyboard instances. The result is in two files stored in the same directory: `samsung_passwords.json` and `samsung_passwords_labels.json`. The first file contains the serialized move count sequences, and the second contains the actual passwords. To ensure this process was successful, you can compare this file to the same file we have included in the Google Drive folder. The command below makes this comparison.
+The script should print out the number of instances, the sequence type (standard or credit cards), and the TV type (see below).
+```
+TV Type: SAMSUNG
+Sequence Type: STANDARD
+Number of splits: 10
+```
+The result is in two files stored in the same directory: `samsung_passwords.json` and `samsung_passwords_labels.json`. The first file contains the serialized move count sequences, and the second contains the actual passwords. To ensure this process was successful, you can compare this file to the same file we have included in the Google Drive folder. The command below makes this comparison.
 ```
 diff -w <PATH-TO-BOX>/subject-a/samsung_passwords.json <PATH-TO-GDRIVE>/user-study/subject-a/samsung_passwords.json
 ```
-Note that the output file names will change when you change the input video. For instance, if you process the `appletv_passwords.mp4` file, the output files will be named `appletv_passwords`.
+Note that the output file names will change when you change the input video. For instance, if you process the `appletv_passwords.mp4` file, the output files will be named `appletv_passwords`. The file names are just for convenience. The code itself will classify the TV type internally based on the audio profile.
 
 If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. We note that the audio extraction might display some errors due to changes in the recording environment.
 
-
 ## String Recovery
+The folder `smarttvleakage/search/smarttvsearch` contains the code related to string recovery. This code is written in Java for efficiency reasons. Overall, this module uses the extracted move count sequences to discover the likely typed strings.
+
+In the remainder of this section, you should navigate into the `smarttvleakage/search/smarttvsearch` directory. We continue the example from the prior second on the Samsung passwords from `subject-a`. We assume this file is in the downloaded Box folder (e.g., `<PATH-TO-BOX>/subject-a/samsung_passwords.json`). You can change the input file for the recovery program by, for example, pointing to one of the pre-generated benchmarks or user study examples in the downloaded Google Drive directory.
+
+The file `SearchRunner.java` contains the entry point into the search process. This program takes the following command line arguments.
+(1) --input-file, (2) --output-file, (3) --password-prior, (4) --english-prior, and (5) --zip-prior
+
+1. `--input-file`: Path to the `json` file containing the move count sequences (e.g., `samsung_passwords.json`)
+2. `--output-file`: Path to the `json` file in which to save the results.
+3. `--password-prior`: Path to the prior distribution of passwords to use during the search. We use either `<PATH-TO-GDRIVE>/dictionaries/phpbb.db` or `<PATH-TO-GDRIVE>/dictionaries/rockyou-5gram.db` in our experiments.
+4. `--english-prior`: Path to the prior distribution of English words to use during the search. We use `<PATH-TO-GDRIVE>/dictionaries/wikipedia.db` in our experiments.
+5. `--zip-prior`: Path to a text file containing valid ZIP codes. We use `<PATH-TO-GDRIVE>` in our experiments.
+6. `--ignore-directions`: An optional flag indicating the search should ignore any inferred directions.
+7. `--ignore-suboptimal`: An optional flag telling the search to ignore possible suboptimal movements. Useful for speeding up large benchmarks.
+8. `--force-suggestions`: An optional flag to force the search to use keyboards with suggestions.
+
+An example of executing this program is below for the Samsung Passwords typed by `subject-a`. Executing this program can take `5-10` minutes. Again, you can specify move sequences from credit cards, Apple TV passwords, and web searches as the input file. The program will handle the search accordingly.
+```
+java smarttvsearch.SearchRunner --input-file <PATH-TO-BOX>/subject-a/samsung_passwords.json --output-file <PATH-TO-BOX>/subject-a/recovered_samsung_passwords_phpbb.json --password-prior <PATH-TO-GDRIVE>/dictionaries/phpbb.db --english-prior <PATH-TO-GDRIVE>/dictionaries/wikipedia.db --zip-prior <PATH-TO-GDRIVE>/dictionaries/zip_codes.txt
+```
+The program should find `6 / 10` passwords on this user.
+
+You can use the `shell` scripts `run_password_benchmark.sh` and `run_credit_card_benchmark.sh` to execute the recovery for all benchmark files. You will need to alter the script to point to the correct input and dictionary directories (i.e., change `INPUT_BASE` and `DICTIONARY_BASE`). The files `run_user_passwords.sh`, `run_user_credit_cards.sh` and `run_user_searches.sh` perform the recovery for all users. You will need to change the `USER_BASE` and `DICTIONARY_BASE` variables to point to the folder containing the subject data and prior dictionaries, respectively.
 
 
+## Analysis
 
+## Additional Resources
+
+
+### Building Dictionaries
+
+
+### Java Tests
 
