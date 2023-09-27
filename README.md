@@ -116,14 +116,14 @@ The file `SearchRunner.java` contains the entry point into the search process. T
 (1) --input-file, (2) --output-file, (3) --password-prior, (4) --english-prior, and (5) --zip-prior
 
 1. `--input-file`: Path to the `json` file containing the move count sequences (e.g., `samsung_passwords.json`)
-2. `--output-file`: Path to the `json` file in which to save the results.
+2. `--output-file`: Path to the `json` file in which to save the results. You should name the file `recovered_<INPUT-FILE-NAME>.json` (e.g., `recovered_samsung_passwords.json`).
 3. `--password-prior`: Path to the prior distribution of passwords to use during the search. We use either `<PATH-TO-GDRIVE>/dictionaries/phpbb.db` or `<PATH-TO-GDRIVE>/dictionaries/rockyou-5gram.db` in our experiments.
 4. `--english-prior`: Path to the prior distribution of English words to use during the search. We use `<PATH-TO-GDRIVE>/dictionaries/wikipedia.db` in our experiments.
 5. `--zip-prior`: Path to a text file containing valid ZIP codes. We use `<PATH-TO-GDRIVE>` in our experiments.
-6. `--ignore-directions`: An optional flag indicating the search should ignore any inferred directions.
+6. `--ignore-directions`: An optional flag indicating the search should ignore any inferred directions. You should prefix the output file name with `no_directions_` (e.g., `no_directions_recovered_samsung_passwords.json`).
 7. `--ignore-suboptimal`: An optional flag telling the search to ignore possible suboptimal movements. Useful for speeding up large benchmarks.
 8. `--force-suggestions`: An optional flag to force the search to use keyboards with suggestions.
-9. `--use-exhaustive`: An optional flag to get the serach to exhaustively enumerate suboptimal paths instead of ordering by timing. When using this flag on credit cards, name the output file `exhaustive.json`.
+9. `--use-exhaustive`: An optional flag to get the search to exhaustively enumerate suboptimal paths instead of ordering by timing. When using this flag on credit cards, name the output file `exhaustive.json`.
 
 An example of executing this program is below for the Samsung Passwords typed by `subject-a`. Executing this program can take `5-10` minutes. Again, you can specify move sequences from credit cards, Apple TV passwords, and web searches as the input file. The program will handle the search accordingly.
 ```
@@ -177,7 +177,7 @@ The command below shows an example of executing this script. You must provide th
 ```
 python benchmark_ccn_recovery.py --benchmark-folder <PATH-TO-GDRIVE>/benchmarks/credit-cards
 ```
-The script also prints out the top-$K$ rates for each provider on both the credit card number and the full details. The top-`10` rates on the full details should match those in the final paragraph of Section `V.B`. The program additionally prints the average fraction of potential guesses that are *valid* credit card numbers. The printed amount should match the `16.26%` value listed in the final paragraph of Section `V.B`. 
+The script also prints out the top-`K` rates for each provider on both the credit card number and the full details. The top-`10` rates on the full details should match those in the final paragraph of Section `V.B`. The program additionally prints the average fraction of potential guesses that are *valid* credit card numbers. The printed amount should match the `16.26%` value listed in the final paragraph of Section `V.B`. 
 
 #### Passwords
 The file `benchmark_password_recovery.py` shows the password recovery results. The script takes in multiple folders, each containing the results for a single TV; the user must also supply the `--tv-types` in the same order as the provided folders. Below is an example of executing this script on the provided results.
@@ -205,7 +205,7 @@ python compare_suboptimal_modes.py --user-folder <PATH-TO-GDRIVE>/user-study
 ```
 The resulting plot should match Figure `15`.
 
-Finally, we find the approximate number of times that users traver an optimal path between keys when entering credit card numbers. The file `ccn_optimal_paths.py` handles this computation. An example is below.
+Finally, we find the approximate number of times that users traverse an optimal path between keys when entering credit card numbers. The file `ccn_optimal_paths.py` handles this computation. An example is below.
 ```
 python ccn_optimal_paths.py --user-folder <PATH-TO-GDRIVE>/user-study
 ```
@@ -221,7 +221,41 @@ The resulting plot should match Figures `12` and `13` in the paper. Similar to b
 2. The top-`K` accuracy for passwords with different characters. These figures should match those listed in the third paragraph of Section `VI.C`.
 3. The factor by which the attack improves over random guessing. The first paragraph of Section `VI.C` lists the improvement of over `100x` with the RockYou prior on the Samsung TV.
 
-We further compare password recovery for the *same* strings typed by different users. 
+We further compare password recovery for the *same* strings typed by different users. The script `password_user_comparison.py` handles this computation. The example below computes the recovery rate across users for each of the `50` unique passwords.
+```
+python password_user_comparison.py --user-folder <PATH-TO-GDRIVE>/user-study --tv-type samsung
+```
+The result looks as below. The rate should match that of the third paragraph in Section `VI.C`.
+```
+phpbb Prior. Duplicate Recovery Rate: 42.00000\% (21 / 50)
+rockyou-5gram Prior. Duplicate Recovery Rate: 8.00000\% (4 / 50)
+```
+
+Additionally, we provide a method to find the rate at which users traverse optimal paths when typing passwords. We perform a comparison across TV types (`samsung` and `appletv`). The file `compare_user_keyboard_accuracy.py` implements this comparison.
+```
+python compare_user_keyboard_accuracy.py --user-folder <PATH-TO-GDRIVE>/user-study
+```
+The script prints out the rate at which users traverse an optimal path on both platforms. The result of the above command is below.
+```
+Samsung Accuracy. Mean -> 85.9436, Std -> 4.2318, Max -> 92.5926, Min -> 80.0000
+AppleTV Accuracy. Mean -> 44.3455, Std -> 10.0268, Max -> 54.9296, Min -> 29.5455
+```
+These mean accuracy values should match those listed in paragraph two of Section `VI.C`.
+
+Finally, we compare the performance discrepancy of the attack with and without direction inference. When generating new results for this comparison, you must run the search both with and without the `--ignore-directions` flag. The file `compare_directions.py` performs the comparison, as shown below.
+```
+python compare_directions.py --user-folder <PATH-TO-GDRIVE>/user-study --prior rockyou-5gram
+```
+The result looks as follows.
+```
+With: 33, Without: 38, Password: 20340437
+With: 54, Without: 64, Password: deanna69!
+With: 7, Without: 8, Password: never.di
+Num Improved: 19 / 19 (1.00000)
+Num Better: 3 / 19 (0.15789)
+Total Counts. With: 19, Without: 19
+```
+The improvement of `3 / 19` matches the description in the third paragraph of Section `VI.E`.
 
 #### Web Searches
 

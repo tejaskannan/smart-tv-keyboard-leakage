@@ -102,9 +102,9 @@ def compare_against_optimal(move_sequences: List[List[OrderedDict]], labels: Lis
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument('--user-folder', type=str, required=True)
-    parser.add_argument('--output-file', type=str)
+    parser = ArgumentParser('Program to compare the approximate rate at which users traverse an optimal path when typing passwords.')
+    parser.add_argument('--user-folder', type=str, required=True, help='Folder containing the user attack results.')
+    parser.add_argument('--output-file', type=str, help='Optional output file at which to save the plot.')
     args = parser.parse_args()
 
     samsung_keyboard = MultiKeyboardGraph(KeyboardType.SAMSUNG)
@@ -143,8 +143,6 @@ if __name__ == '__main__':
         samsung_distances.extend(dist)
         samsung_user_accuracy.append(100.0 * (correct / total))
 
-        print('{} {} / {}'.format(user_folder, correct, total))
-
         correct, total, dist = compare_against_optimal(appletv_move_seq, appletv_labels, keyboard=appletv_keyboard, tv_type=SmartTVType.APPLE_TV)
         appletv_correct_count += correct
         appletv_total_count += total
@@ -163,8 +161,8 @@ if __name__ == '__main__':
     with plt.style.context(PLOT_STYLE):
         fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=FIGSIZE)
 
-        ax0.bar(-(WIDTH / 2), height=samsung_accuracy, width=WIDTH, label='Samsung', color=TV_COLORS['samsung'])
-        ax0.bar((WIDTH / 2), height=appletv_accuracy, width=WIDTH, label='Apple TV', color=TV_COLORS['appletv'])
+        ax0.bar(-(WIDTH / 2), height=samsung_accuracy, width=WIDTH, label='Samsung', color=TV_COLORS['samsung'][0])
+        ax0.bar((WIDTH / 2), height=appletv_accuracy, width=WIDTH, label='Apple TV', color=TV_COLORS['appletv'][0])
 
         ax0.annotate('{:.3f}%'.format(samsung_accuracy), (-(WIDTH / 2), samsung_accuracy), xytext=(-(WIDTH / 2) - 0.1, samsung_accuracy + 1), fontsize=LABEL_SIZE)
         ax0.annotate('{:.3f}%'.format(appletv_accuracy), (WIDTH / 2, appletv_accuracy), xytext=((WIDTH / 2) - 0.1, appletv_accuracy + 1), fontsize=LABEL_SIZE)
@@ -178,8 +176,8 @@ if __name__ == '__main__':
         ax0.set_ylabel('Accuracy (%)', fontsize=AXIS_SIZE)
         ax0.set_title('Optimal Move Accuracy', fontsize=TITLE_SIZE)
 
-        ax1.hist(x=samsung_distances, bins=10, label='Samsung', density=True, color=TV_COLORS['samsung'])
-        ax1.hist(x=appletv_distances, bins=10, label='Apple TV', density=True, color=TV_COLORS['appletv'], alpha=0.7)
+        ax1.hist(x=samsung_distances, bins=10, label='Samsung', density=True, color=TV_COLORS['samsung'][0])
+        ax1.hist(x=appletv_distances, bins=10, label='Apple TV', density=True, color=TV_COLORS['appletv'][0], alpha=0.7)
 
         ax1.text(3, 0.5, s='Samsung: ${:.3f} (\\pm {:.3f})$ \nApple TV: ${:.3f} (\\pm {:.3f})$'.format(samsung_avg_dist, samsung_std_dist, appletv_avg_dist, appletv_std_dist), fontsize=LABEL_SIZE)
 

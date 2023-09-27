@@ -31,9 +31,9 @@ def compute_rank_with_score(guesses: List[str], scores: List[float], label: str)
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument('--user-folder', type=str, required=True)
-    parser.add_argument('--prior', type=str, required=True, choices=['phpbb', 'rockyou-5gram'])
+    parser = ArgumentParser('Script comparing password recovery with and without direction inference.')
+    parser.add_argument('--user-folder', type=str, required=True, help='Path to the folder containins the user results.')
+    parser.add_argument('--prior', type=str, required=True, choices=['phpbb', 'rockyou-5gram'], help='The name of the prior to analyze.')
     args = parser.parse_args()
 
     num_improved = 0
@@ -73,4 +73,4 @@ if __name__ == '__main__':
 
     print('Num Improved: {} / {} ({:.5f})'.format(num_improved, total_found, num_improved / total_found))
     print('Num Better: {} / {} ({:.5f})'.format(num_better, total_found, num_better / total_found))
-    print('Total Counts. With: {}, Without: {}, Overall: {}'.format(total_with, total_without, total_count))
+    print('Total Counts. With: {}, Without: {}'.format(total_with, total_without))

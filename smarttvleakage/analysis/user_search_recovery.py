@@ -1,4 +1,5 @@
 import os.path
+import matplotlib
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from typing import List, Tuple, Dict
@@ -9,7 +10,11 @@ from smarttvleakage.analysis.utils import MARKER_SIZE, MARKER, LINE_WIDTH, COLOR
 from smarttvleakage.analysis.utils import compute_rank, top_k_accuracy, compute_accuracy, compute_baseline_accuracy
 
 
-TOP = [1, 5, 10, 50, 100]
+matplotlib.rc('pdf', fonttype=42)  # Embed fonts in pdf
+plt.rcParams['pdf.fonttype'] = 42
+
+
+TOP = [1, 5, 10, 50, 100, 250]
 GUESSES_NAME = 'recovered_web_searches.json'
 LABELS_NAME = 'web_searches_labels.json'
 DICTIONARY_SIZE = 95892
@@ -18,15 +23,18 @@ DICTIONARY_SIZE = 95892
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--user-folder', type=str, required=True, help='Name of the folder containing the user results.')
+    parser.add_argument('--use-forced', action='store_true', help='Whether to use version with forced consideration of dynamic suggestions.')
     parser.add_argument('--output-file', type=str, help='Path to (optional) output file in which to save the plot.')
     args = parser.parse_args()
 
     correct_counts: List[int] = [0 for _ in range(len(TOP))]
     total_counts: List[int] = [0 for _ in range(len(TOP))]
 
+    file_name = GUESSES_NAME if not args.use_forced else 'forced_{}'.format(GUESSES_NAME)
+
     for subject_folder in iterate_dir(args.user_folder):
         # Read the serialized password guesses
-        guesses_path = os.path.join(subject_folder, GUESSES_NAME)
+        guesses_path = os.path.join(subject_folder, file_name)
         if not os.path.exists(guesses_path):
             continue
 
@@ -58,28 +66,33 @@ if __name__ == '__main__':
         ax.plot(TOP, accuracy_results, marker=MARKER, markersize=MARKER_SIZE, linewidth=LINE_WIDTH, label='Audio', color=COLORS_0[0])
         ax.plot(TOP, baseline_accuracy, marker=MARKER, markersize=MARKER_SIZE, linewidth=LINE_WIDTH, label='Random Guess', color=COLORS_0[-1])
 
-        for top_count, accuracy in zip(TOP, accuracy_results):
-            if top_count == 100:
-                xoffset = -8.0
-                yoffset = -1.5
-            elif top_count == 50:
-                xoffset = -3.0
-                yoffset = -1.5
+        for idx, (top_count, accuracy) in enumerate(zip(TOP, accuracy_results)):
+            if idx == (len(TOP) - 1):
+                xoffset = -18.0
+                yoffset = -2.5
+            elif idx == 0:
+                xoffset = 3.5
+                yoffset = 0.75
+            elif idx == 1:
+                xoffset = 3.5
+                yoffset = -2.0
             else:
                 xoffset = 3.5
-                yoffset = -1.0
+                yoffset = -1.5
 
-            ax.annotate('{:.2f}%'.format(accuracy), (top_count, accuracy), (top_count + xoffset, accuracy + yoffset), size=12)
+            ax.annotate('{:.2f}%'.format(accuracy), (top_count, accuracy), (top_count + xoffset, accuracy + yoffset), size=AXIS_SIZE)
 
-        ax.annotate('{:.2f}%'.format(baseline_accuracy[-1]), (TOP[-1], baseline_accuracy[-1]), (TOP[-1] - 8.0, baseline_accuracy[-1] + 0.5), size=LABEL_SIZE)
+        ax.annotate('{:.2f}%'.format(baseline_accuracy[-1]), (TOP[-1], baseline_accuracy[-1]), (TOP[-1] - 18.0, baseline_accuracy[-1] + 0.5), size=AXIS_SIZE)
 
-        ax.legend(fontsize=LEGEND_SIZE)
-        ax.xaxis.set_tick_params(labelsize=LABEL_SIZE)
-        ax.yaxis.set_tick_params(labelsize=LABEL_SIZE)
+        ax.legend(fontsize=AXIS_SIZE)
+        ax.xaxis.set_tick_params(labelsize=TITLE_SIZE)
+        ax.yaxis.set_tick_params(labelsize=TITLE_SIZE)
 
-        ax.set_xlabel('Guess Cutoff (K)', fontsize=AXIS_SIZE)
-        ax.set_ylabel('Accuracy (%)', fontsize=AXIS_SIZE)
-        ax.set_title('Web Search Top-K Recovery Accuracy on Human Users', fontsize=TITLE_SIZE)
+        ax.set_xlabel('Guess Cutoff', fontsize=TITLE_SIZE)
+        ax.set_ylabel('Accuracy (%)', fontsize=TITLE_SIZE)
+        ax.set_title('Web Search Accuracy on Human Users', fontsize=TITLE_SIZE)
+
+        plt.tight_layout()
 
         if args.output_file is None:
             plt.show()
