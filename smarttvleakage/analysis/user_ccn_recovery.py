@@ -1,14 +1,23 @@
 import os.path
+import matplotlib
 import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from collections import namedtuple, defaultdict
+from enum import Enum, auto
 from typing import List, Tuple, Dict, DefaultDict, Iterable
 
 from smarttvleakage.utils.credit_card_detection import CreditCardSequence
 from smarttvleakage.utils.file_utils import iterate_dir, read_json
+from smarttvleakage.analysis.utils import PLOT_STYLE, compute_rank, top_k_accuracy, AXIS_SIZE, TITLE_SIZE, LEGEND_SIZE, LABEL_SIZE
+from smarttvleakage.analysis.utils import MARKER_SIZE, LINE_WIDTH, MARKER, TV_COLORS, CREDIT_CARD_FIGSIZE, print_as_table
 
-TOP_CCN = [1, 5, 10, 50, 100, 500]
-TOP_FULL = [1, 10, 100, 500, 1000, 5000, 10000]
+
+matplotlib.rc('pdf', fonttype=42)  # Embed fonts in pdf
+plt.rcParams['pdf.fonttype'] = 42
+
+
+TOP_CCN = [1, 5, 10, 50, 100, 250]
+TOP_FULL = [1, 10, 100, 1000, 2500, 5000]
 GUESSES_NAME = 'recovered_credit_card_details.json'
 LABELS_NAME = 'credit_card_details_labels.json'
 
@@ -20,74 +29,66 @@ MONTH_CUTOFF = 3
 YEAR_CUTOFF = 3
 
 
-def iterate_full_guesses(ccns: List[str], cvvs: List[str], zips: List[str], months: List[str], years: List[str]) -> Iterable[CreditCardSequence]:
-    # (1) Output the first guesses based on the top ranked results in each field
-    guessed: Set[CreditCardSequence] = set()
+class CreditCardProvider(Enum):
+    VISA = auto()
+    MASTERCARD = auto()
+    AMEX = auto()
 
-    for year_idx in range(min(YEAR_CUTOFF, len(years))):
-        for month_idx in range(min(MONTH_CUTOFF, len(months))):
-            for zip_idx in range(min(ZIP_CUTOFF, len(zips))):
-                for cvv_idx in range(min(CVV_CUTOFF, len(cvvs))):
-                    for ccn_idx in range(min(CCN_CUTOFF, len(ccns))):
-                        guess = CreditCardSequence(credit_card=ccns[ccn_idx],
-                                                   zip_code=zips[zip_idx],
-                                                   expiration_month=months[month_idx],
-                                                   expiration_year=years[year_idx],
-                                                   security_code=cvvs[cvv_idx])
-
-                        if guess not in guessed:
-                            yield guess
-                            guessed.add(guess)
-    
-
-    # (2) Output the entire set by iterating over all of the results
-    for year_idx in range(len(years)):
-        for month_idx in range(len(months)):
-            for zip_idx in range(len(zips)):
-                for cvv_idx in range(len(cvvs)):
-                    for ccn_idx in range(min(CCN_MAX_CUTOFF, len(ccns))):
-                        guess = CreditCardSequence(credit_card=ccns[ccn_idx],
-                                                   zip_code=zips[zip_idx],
-                                                   expiration_month=months[month_idx],
-                                                   expiration_year=years[year_idx],
-                                                   security_code=cvvs[cvv_idx])
-
-                        if guess not in guessed:
-                            yield guess
-                            guessed.add(guess)
+    def __lt__(self, other):
+        if isinstance(other, CreditCardProvider):
+            return self.name < other.name
+        else:
+            return False
 
 
-def top_k_accuracy(guesses: List[List[str]], targets: List[str], top: int) -> Tuple[int, int]:
-    assert top >= 1, 'Must provide a positive `top` count'
-    assert len(guesses) == len(targets), 'Must provide the same number of guesses as targets'
+def determine_provider(ccn: str) -> CreditCardProvider:
+    if ccn.startswith('2') or ccn.startswith('5'):
+        return CreditCardProvider.MASTERCARD
+    elif ccn.startswith('4'):
+        return CreditCardProvider.VISA
+    elif ccn.startswith('3'):
+        return CreditCardProvider.AMEX
+    else:
+        raise ValueError('Unknown credit card prefix: {}'.format(ccn[0]))
 
-    recovered_count = 0
 
-    for entry_guesses, target in zip(guesses, targets):
-        for rank, guess in enumerate(entry_guesses):
-            if rank >= top:
-                break
-            elif guess == target:
-                recovered_count += 1
-                break
-    
-    return recovered_count, len(targets)
+def get_ccn_offsets(top: int) -> Tuple[float, float]:
+    if top == 250:
+        return (-50.0, -7.0)
+    elif top == 50:
+        return (5.0, -7.0)
+    elif top > 1:
+        return (5.0, -5.0)
+    else:
+        return (5.0, 2.0)
 
+
+def get_full_offsets(top: int) -> Tuple[float, float]:
+    if top == 5000:
+        return (-1000.0, -6.0)
+    else:
+        xoffset = 200.0
+
+        if top == 2500:
+            return (xoffset, -6.0)
+        elif top == 1:
+            return (xoffset, 0.0)
+        else:
+            return (xoffset, -4.0)
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Script to display attack results against user credit card details.')
     parser.add_argument('--user-folder', type=str, required=True, help='Name of the folder containing the user results.')
     parser.add_argument('--output-file', type=str, help='Path to (optional) output file in which to save the plot.')
     args = parser.parse_args()
 
     ccn_correct_counts: DefaultDict[str, List[int]] = defaultdict(list)  # { Subject -> [ counts per rank cutoff ] }
-    cvv_correct_counts: DefaultDict[str, List[int]] = defaultdict(list)  # { Subject -> [ counts per rank cutoff ] }
-    zip_correct_counts: DefaultDict[str, List[int]] = defaultdict(list)  # { Subject -> [ counts per rank cutoff ] }
-    month_correct_counts: DefaultDict[str, List[int]] = defaultdict(list)  # { Subject -> [ counts per rank cutoff ] }
-    year_correct_counts: DefaultDict[str, List[int]] = defaultdict(list)  # { Subject -> [ counts per rank cutoff ] }
-
     full_correct_counts: DefaultDict[str, List[int]] = defaultdict(list)  # { Subject -> [ counts per rank cutoff ] }
+
+    provider_ccn_correct_counts: Dict[CreditCardProvider, List[int]] = dict()  # { Provider -> [ counts per rank cutoff ] }
+    provider_full_correct_counts: Dict[CreditCardProvider, List[int]] = dict()  # { Provider -> [ counts per rank cutoff ] }
+    provider_total_counts: Dict[CreditCardProvider, int] = dict()  # { Provider -> total_count }
 
     for subject_folder in iterate_dir(args.user_folder):
         # Read the serialized password guesses
@@ -97,78 +98,58 @@ if __name__ == '__main__':
 
         subject_name = os.path.split(subject_folder)[-1]
         ccn_correct_counts[subject_name] = [0 for _ in range(len(TOP_CCN))]
-        cvv_correct_counts[subject_name] = [0 for _ in range(len(TOP_CCN))]
-        zip_correct_counts[subject_name] = [0 for _ in range(len(TOP_CCN))]
-        month_correct_counts[subject_name] = [0 for _ in range(len(TOP_CCN))]
-        year_correct_counts[subject_name] = [0 for _ in range(len(TOP_CCN))]
         full_correct_counts[subject_name] = [0 for _ in range(len(TOP_FULL))]
 
         # Unpack the guesses
         saved_guesses = read_json(guesses_path)
         ccn_guesses = [entry['ccn'] for entry in saved_guesses]  # List of list of strings
-        cvv_guesses = [entry['cvv'] for entry in saved_guesses]
-        zip_guesses = [entry['zip'] for entry in saved_guesses]
-        month_guesses = [entry['exp_month'] for entry in saved_guesses]
-        year_guesses = [entry['exp_year'] for entry in saved_guesses]
         total_ranks = [entry['rank'] for entry in saved_guesses]
 
         # Read the labels
         labels_path = os.path.join(subject_folder, LABELS_NAME)
-        full_labels = [CreditCardSequence(credit_card=r['credit_card'], security_code=r['security_code'], expiration_month=r['exp_month'], expiration_year=r['exp_year'], zip_code=r['zip_code']) for r in read_json(labels_path)['labels']]
-        ccn_labels = [entry.credit_card for entry in full_labels]
-        cvv_labels = [entry.security_code for entry in full_labels]
-        zip_labels = [entry.zip_code for entry in full_labels]
-        month_labels = [entry.expiration_month for entry in full_labels]
-        year_labels = [entry.expiration_year for entry in full_labels]
+        labels = read_json(labels_path)['labels']
+        ccn_labels = [entry['credit_card'] for entry in labels]
 
-        # Get the correct counts for the credit card number alone
+        # Get the Credit Card Number rank
+        ccn_ranks = [compute_rank(guesses, ccn_labels[idx]) for idx, guesses in enumerate(ccn_guesses)]
+
+        # Get the credit card provider
+        providers = [determine_provider(ccn) for ccn in ccn_labels]
+
         for top_idx, top_count in enumerate(TOP_CCN):
-            correct, total = top_k_accuracy(ccn_guesses, targets=ccn_labels, top=top_count)
+            correct, _ = top_k_accuracy(ccn_ranks, top=top_count)
             ccn_correct_counts[subject_name][top_idx] += correct
 
-            correct, total = top_k_accuracy(cvv_guesses, targets=cvv_labels, top=top_count)
-            cvv_correct_counts[subject_name][top_idx] += correct
+        for top_idx, top_count in enumerate(TOP_FULL):
+            correct, _ = top_k_accuracy(total_ranks, top=top_count)
+            full_correct_counts[subject_name][top_idx] += correct
 
-            correct, total = top_k_accuracy(zip_guesses, targets=zip_labels, top=top_count)
-            zip_correct_counts[subject_name][top_idx] += correct
+        # Aggregate the results by provider
+        for provider in providers:
+            if provider not in provider_total_counts:
+                provider_total_counts[provider] = 0
+            provider_total_counts[provider] += 1
 
-            correct, total = top_k_accuracy(month_guesses, targets=month_labels, top=top_count)
-            month_correct_counts[subject_name][top_idx] += correct
+        for idx, (ccn_rank, full_rank) in enumerate(zip(ccn_ranks, total_ranks)):
+            provider = providers[idx]
 
-            correct, total = top_k_accuracy(year_guesses, targets=year_labels, top=top_count)
-            year_correct_counts[subject_name][top_idx] += correct
+            if provider not in provider_ccn_correct_counts:
+                provider_ccn_correct_counts[provider] = [0 for _ in range(len(TOP_CCN))]
+                provider_full_correct_counts[provider] = [0 for _ in range(len(TOP_FULL))]
 
-        for idx in range(len(ccn_guesses)):
-            rank = total_ranks[idx]
+            for top_idx, top_count in enumerate(TOP_CCN):
+                provider_ccn_correct_counts[provider][top_idx] += int((ccn_rank >= 1) and (ccn_rank <= top_count))
 
-            #if total_ranks[idx] >= 1:
-            #    for rank_idx, full_guess in enumerate(iterate_full_guesses(ccns=ccn_guesses[idx], cvvs=cvv_guesses[idx], zips=zip_guesses[idx], months=month_guesses[idx], years=year_guesses[idx])):
-            #        if full_guess == full_labels[idx]:
-            #            rank = rank_idx + 1
-
-            for top_idx, topk in enumerate(TOP_FULL):
-                full_correct_counts[subject_name][top_idx] += int((rank > 0) and (rank <= topk))
-
-        #full_guesses: List[CreditCardSequence] = []
-        print('Subject: {}, Full Correct Counts: {}, Total Ranks: {}'.format(subject_name, full_correct_counts[subject_name], total_ranks))
-
-        #print('Prior: {}, Subject {}, Correct: {}, Total: {}'.format(prior_name, subject_name, correct_counts[prior_name][subject_name], total_counts[prior_name][subject_name]))
+            for top_idx, top_count in enumerate(TOP_FULL):
+                provider_full_correct_counts[provider][top_idx] += int((full_rank >= 1) and (full_rank <= top_count))
 
     # Compute the accuracy across all cutoffs for each prior
     ccn_correct_list: List[int] = [0 for _ in range(len(TOP_CCN))]
-    zip_correct_list: List[int] = [0 for _ in range(len(TOP_CCN))]
-    cvv_correct_list: List[int] = [0 for _ in range(len(TOP_CCN))]
-    month_correct_list: List[int] = [0 for _ in range(len(TOP_CCN))]
-    year_correct_list: List[int] = [0 for _ in range(len(TOP_CCN))]
     full_correct_list: List[int] = [0 for _ in range(len(TOP_FULL))]
 
     for subject_name in ccn_correct_counts.keys():
         for top_idx in range(len(TOP_CCN)):
             ccn_correct_list[top_idx] += ccn_correct_counts[subject_name][top_idx]
-            zip_correct_list[top_idx] += zip_correct_counts[subject_name][top_idx]
-            cvv_correct_list[top_idx] += cvv_correct_counts[subject_name][top_idx]
-            month_correct_list[top_idx] += month_correct_counts[subject_name][top_idx]
-            year_correct_list[top_idx] += year_correct_counts[subject_name][top_idx]
 
     for subject_name in full_correct_counts.keys():
         for top_idx in range(len(TOP_FULL)):
@@ -176,48 +157,45 @@ if __name__ == '__main__':
 
     total_count = 3 * len(ccn_correct_counts)  # Each user performs 3 credit card entries
     ccn_accuracy_list = [100.0 * (ccn_correct_list[top_idx] / float(total_count)) for top_idx in range(len(TOP_CCN))]
-    cvv_accuracy_list = [100.0 * (cvv_correct_list[top_idx] / float(total_count)) for top_idx in range(len(TOP_CCN))]
-    zip_accuracy_list = [100.0 * (zip_correct_list[top_idx] / float(total_count)) for top_idx in range(len(TOP_CCN))]
-    month_accuracy_list = [100.0 * (month_correct_list[top_idx] / float(total_count)) for top_idx in range(len(TOP_CCN))]
-    year_accuracy_list = [100.0 * (year_correct_list[top_idx] / float(total_count)) for top_idx in range(len(TOP_CCN))]
     full_accuracy_list = [100.0 * (full_correct_list[top_idx] / float(total_count)) for top_idx in range(len(TOP_FULL))]
 
-    with plt.style.context('seaborn-ticks'):
-        fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=(9, 7))
+    # Compute the accuracy across all cutoffs for each provider
+    print('Credit Card Number')
+    print_as_table(provider_ccn_correct_counts, provider_total_counts, TOP_CCN)
+    print('==========')
+    print('Full Details')
+    print_as_table(provider_full_correct_counts, provider_total_counts, TOP_FULL)
 
-        ax0.plot(TOP_CCN, ccn_accuracy_list, marker='o', linewidth=3, markersize=8, label='Credit Card Number', color='#fd8d3c')
-        #ax0.plot(TOP_CCN, cvv_accuracy_list, marker='o', linewidth=3, markersize=8, label='Security Code')
-        #ax0.plot(TOP_CCN, zip_accuracy_list, marker='o', linewidth=3, markersize=8, label='Zip Code')
-        #ax0.plot(TOP_CCN, month_accuracy_list, marker='o', linewidth=3, markersize=8, label='Expiration Month')
-        #ax0.plot(TOP_CCN, year_accuracy_list, marker='o', linewidth=3, markersize=8, label='Expiration Year')
+    with plt.style.context(PLOT_STYLE):
+        fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=CREDIT_CARD_FIGSIZE)
+
+        ax0.plot(TOP_CCN, ccn_accuracy_list, marker=MARKER, linewidth=LINE_WIDTH, markersize=MARKER_SIZE, label='Credit Card Number', color=TV_COLORS['samsung'][0])
 
         # Write the data labels
-        for idx, (topk, accuracy) in enumerate(zip(TOP_CCN, ccn_accuracy_list)):
-            xoffset = 0 if (topk < 500) else -75.0
-            yoffset = -3.0 if (topk > 1) else -2.0
-            ax0.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
+        for topk, accuracy in zip(TOP_CCN, ccn_accuracy_list):
+            xoffset, yoffset = get_ccn_offsets(top=topk)
+            ax0.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=AXIS_SIZE)
 
-        ax1.plot(TOP_FULL, full_accuracy_list, marker='o', linewidth=3, markersize=8, label='Full Details', color='#bd0026')
+        ax1.plot(TOP_FULL, full_accuracy_list, marker='o', linewidth=3, markersize=8, label='Full Details', color=TV_COLORS['samsung'][0])
 
-        for idx, (topk, accuracy) in enumerate(zip(TOP_FULL, full_accuracy_list)):
-            xoffset = 0 if (topk < 10000) else -1500.0
-            yoffset = -3.0 if (topk > 1) else -2.0
-            ax1.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=12)
+        for topk, accuracy in zip(TOP_FULL, full_accuracy_list):
+            xoffset, yoffset = get_full_offsets(top=topk)
+            ax1.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=AXIS_SIZE)
 
-        #ax.set_xticks(TOP)
-        #ax0.set_xscale('log')
-        #ax1.set_xscale('log')
+        ax0.xaxis.set_tick_params(labelsize=TITLE_SIZE)
+        ax0.yaxis.set_tick_params(labelsize=TITLE_SIZE)
+        ax1.xaxis.set_tick_params(labelsize=TITLE_SIZE)
+        ax1.yaxis.set_tick_params(labelsize=TITLE_SIZE)
 
-        ax0.legend()
-        ax1.legend()
+        ax0.set_title('CCN Accuracy on Users', fontsize=TITLE_SIZE)
+        ax0.set_xlabel('Guess Cutoff', fontsize=TITLE_SIZE)
+        ax0.set_ylabel('Accuracy (%)', fontsize=TITLE_SIZE)
 
-        ax0.set_title('Credit Card Number Top-K Accuracy', size=16)
-        ax0.set_xlabel('Guess Cutoff (K)', size=14)
-        ax0.set_ylabel('Accuracy (%)', size=14)
+        ax1.set_title('Full Accuracy on Users', fontsize=TITLE_SIZE)
+        ax1.set_xlabel('Guess Cutoff', fontsize=TITLE_SIZE)
+        ax1.set_ylabel('Accuracy (%)', fontsize=TITLE_SIZE)
 
-        ax1.set_title('Credit Card Details Top-K Accuracy', size=16)
-        ax1.set_xlabel('Guess Cutoff (K)', size=14)
-        ax1.set_ylabel('Accuracy (%)', size=14)
+        plt.tight_layout()
 
         # Show or save the result
         if args.output_file is None:

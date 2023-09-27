@@ -98,7 +98,7 @@ def get_label_offset(tv_type: str, prior_name: str, top_count: int) -> Tuple[flo
 
 def main(folders: List[str], tv_types: List[str], output_file: Optional[str]):
     # Holds the accuracy for every TV type, prior, and top-K cutoff
-    tv_accuracy: Dict[str, Dict[str, List[float]]] = { name: dict() for name in tv_types }
+    tv_accuracy: Dict[str, Dict[str, List[float]]] = {name: dict() for name in tv_types}
 
     # Compute the baseline accuracy as would be done with random guessing
     baseline_accuracy: List[float] = compute_baseline_accuracy(baseline_size=PHPBB_COUNT, top_counts=TOP)
@@ -127,7 +127,7 @@ def main(folders: List[str], tv_types: List[str], output_file: Optional[str]):
                 comp = min([acc / base for acc, base in zip(prior_accuracy_list, baseline_accuracy)])
 
         print('Comparison between {} and baseline for {}: {:.4f}x'.format(prior_name, tv_type, comp))
-   
+
     # Plot the results
     with plt.style.context(PLOT_STYLE):
         fig, ax = plt.subplots(figsize=FIGSIZE)
@@ -144,7 +144,7 @@ def main(folders: List[str], tv_types: List[str], output_file: Optional[str]):
                         accuracy = tv_accuracy[tv_type][prior_name][top_idx]
 
                         if (tv_type == 'appletv') and (prior_name == 'rockyou-5gram') and (top_idx == 0):
-                            bbox = dict(boxstyle='round,pad=0.1', fc='white', ec='black', lw=0) 
+                            bbox = dict(boxstyle='round,pad=0.1', fc='white', ec='black', lw=0)
                             ax.annotate('{:.2f}%'.format(accuracy), xy=(top_count, accuracy), xytext=(top_count + xoffset, accuracy + yoffset), size=AXIS_SIZE, bbox=bbox)
                         else:
                             ax.annotate('{:.2f}%'.format(accuracy), xy=(top_count, accuracy), xytext=(top_count + xoffset, accuracy + yoffset), size=AXIS_SIZE)
@@ -177,7 +177,7 @@ def main(folders: List[str], tv_types: List[str], output_file: Optional[str]):
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Script to displays results for password recovery on benchmarks.')
     parser.add_argument('--benchmark-folders', type=str, required=True, help='Name of the folders containing the move sequences.', nargs='+')
     parser.add_argument('--tv-types', type=str, required=True, choices=['samsung', 'appletv'], help='The name of the TV types (aligned with the folders).', nargs='+')
     parser.add_argument('--output-file', type=str, help='Path to (optional) output file in which to save the plot.')
@@ -186,100 +186,3 @@ if __name__ == '__main__':
     assert len(args.benchmark_folders) == len(args.tv_types), 'Must provide the same number of folders and TV types'
 
     main(folders=args.benchmark_folders, tv_types=args.tv_types, output_file=args.output_file)
-
-    # Compare the results to the baseline
-    #for prior_name in PRIORS:
-    #    prior_accuracy_list = accuracy_dict[prior_name]
-
-    #    if len(prior_accuracy_list) > 0:
-    #        comp = min([acc / base for acc, base in zip(prior_accuracy_list, baseline_accuracy)])
-
-    #    print('Comparison between {} and baseline: {:.4f}x'.format(prior_name, comp))
-
-    #with plt.style.context(PLOT_STYLE):
-    #    fig, ax = plt.subplots(figsize=FIGSIZE)
-
-    #    for prior_idx, prior_name in enumerate(PRIORS):
-    #        if prior_name not in accuracy_dict:
-    #            continue
-
-    #        ax.plot(TOP, accuracy_dict[prior_name], marker=MARKER, linewidth=LINE_WIDTH, markersize=MARKER_SIZE, label=PRIOR_LABELS[prior_name], color=COLORS_0[prior_idx])
-
-    #        # Write the data labels
-    #        for idx, (topk, accuracy) in enumerate(zip(TOP, accuracy_dict[prior_name])):
-    #            if prior_name == 'phpbb':
-    #                if args.tv_type == 'samsung':
-    #                    if (idx <= 2):
-    #                        xoffset = 0
-    #                    elif idx == 3:
-    #                        xoffset = -5
-    #                    elif idx == 4:
-    #                        xoffset = -10
-    #                    else:
-    #                        xoffset = -25
-    #                    
-    #                    if idx == 1:
-    #                        yoffset = -15.0
-    #                    else:
-    #                        yoffset = -9.0
-    #                else:
-    #                    if (idx <= 1):
-    #                        xoffset = 0
-    #                        yoffset = -10 if idx == 0 else -14
-    #                    elif (idx == 2):
-    #                        xoffset = 0
-    #                        yoffset = -8
-    #                    elif (idx in (3, 4)):
-    #                        xoffset = 0
-    #                        yoffset = -8
-    #                    else:
-    #                        xoffset = -30
-    #                        yoffset = -8
-    #            elif prior_name == 'rockyou-5gram':
-    #                if args.tv_type == 'samsung':
-    #                    if idx <= 1:
-    #                        xoffset = 3
-    #                    elif idx == len(TOP) - 1:
-    #                        xoffset = -30
-    #                    else:
-    #                        xoffset = -20
-
-    #                    yoffset = -4.0 if (topk <= 5) else 4.0
-    #                else:
-    #                    if idx <= 1:
-    #                        xoffset = 5
-    #                        yoffset = -5
-    #                    elif idx == 2:
-    #                        xoffset = -12
-    #                        yoffset = 4
-    #                    else:
-    #                        xoffset = -20 if idx < (len(TOP) - 1) else -30
-    #                        yoffset = 3
-    #            else:
-    #                raise ValueError('Unknown prior name: {}'.format(prior_name))
-
-    #            ax.annotate('{:.2f}%'.format(accuracy), xy=(topk, accuracy), xytext=(topk + xoffset, accuracy + yoffset), size=AXIS_SIZE)
-
-    #    # Plot the baseline and the final data label
-    #    ax.plot(TOP, baseline_accuracy, marker=MARKER, linewidth=LINE_WIDTH, markersize=MARKER_SIZE, label='Random Guess', color=COLORS_0[-1])
-
-    #    last_accuracy = baseline_accuracy[-1]
-    #    last_count = TOP[-1]
-    #    ax.annotate('{:.2f}%'.format(last_accuracy), xy=(last_count, last_accuracy), xytext=(last_count - 20, last_accuracy + 3.0), size=AXIS_SIZE)
-
-    #    legend_pos = (0.5, 0.25)
-    #    ax.legend(fontsize=AXIS_SIZE, bbox_to_anchor=legend_pos)
-    #    ax.xaxis.set_tick_params(labelsize=TITLE_SIZE)
-    #    ax.yaxis.set_tick_params(labelsize=TITLE_SIZE)
-
-    #    ax.set_title('{} Password Accuracy in Emulation'.format(TV_LABELS[args.tv_type]), size=TITLE_SIZE)
-    #    ax.set_xlabel('Guess Cutoff', size=TITLE_SIZE)
-    #    ax.set_ylabel('Accuracy (%)', size=TITLE_SIZE)
-
-    #    plt.tight_layout()
-
-    #    # Show or save the result
-    #    if args.output_file is None:
-    #        plt.show()
-    #    else:
-    #        plt.savefig(args.output_file, transparent=True, bbox_inches='tight')

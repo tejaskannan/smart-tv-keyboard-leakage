@@ -123,6 +123,7 @@ The file `SearchRunner.java` contains the entry point into the search process. T
 6. `--ignore-directions`: An optional flag indicating the search should ignore any inferred directions.
 7. `--ignore-suboptimal`: An optional flag telling the search to ignore possible suboptimal movements. Useful for speeding up large benchmarks.
 8. `--force-suggestions`: An optional flag to force the search to use keyboards with suggestions.
+9. `--use-exhaustive`: An optional flag to get the serach to exhaustively enumerate suboptimal paths instead of ordering by timing. When using this flag on credit cards, name the output file `exhaustive.json`.
 
 An example of executing this program is below for the Samsung Passwords typed by `subject-a`. Executing this program can take `5-10` minutes. Again, you can specify move sequences from credit cards, Apple TV passwords, and web searches as the input file. The program will handle the search accordingly.
 ```
@@ -167,7 +168,7 @@ Ranks: CCN -> 33, CVV -> 11, Month -> 1, Year -> 1, ZIP -> 1, Overall -> 2383
 ```
 
 ### Attack Results in Emulation
-This examples in this section assume the use of the pre-computed results provided in the Google Drive folder. You may change the file paths that point to local directories containing results generated from executing the steps above.
+The examples in this section assume the use of the pre-computed results provided in the Google Drive folder. You may change the file paths that point to local directories containing results generated from executing the steps above.
 
 #### Credit Cards
 The script `benchmark_ccn_recovery.py` creates a plot showing the top-`K` accuracy on the credit card number and full credit card details. When running this program on the provided benchmark results (from the Google Drive), the resulting plot should match Figure `8` in the paper. Note that if you change the benchmark, the results may differ slightly; the overall trends should remain the same.
@@ -189,12 +190,38 @@ The script also prints out the accuracy on different password types for both pri
 
 
 ### Attack Results on Users
+The examples in this section assume that you are displaying the results from the files in the Google Drive folder containing the outputs for all users. If you wish to use your own results, there are two options. First, you can run the attack on all users for every data type (this can take some time and requires downloading all videos). Second, you can run the attack on *some* users and copy the results from the remaining using the Google Drive. In this second case, you will need a single folder containing all of the `subject-X` directories.
 
 #### Credit Cards
+The file `user_ccn_recovery.py` displays the results for the top-`K` accuracy on both credit card numbers and full details. The outputs are similar to those from emulation. The command below is an example for how to run this script.
+```
+python user_ccn_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study
+```
+The resulting plot should match Figure `11` in the paper. The script also prints out the results for each provider, and these numbers should match those listed in the third paragraph of Section `VI.B`.
 
+We further compare the results of searching for credit card details when exhaustively enumerating suboptimal paths. This baseline compares to the attack's current method of ordering attacks using keystroke timing. To generate these results on your own, run the search on all users with the `--use-exhaustive` flag and name the output files `exhaustive.json` in each subject's folder. The script `compare_suboptimal_modes.py` displays the results for these two strategies. The command below shows an example.
+```
+python compare_suboptimal_modes.py --user-folder <PATH-TO-GDRIVE>/user-study
+```
+The resulting plot should match Figure `15`.
+
+Finally, we find the approximate number of times that users traver an optimal path between keys when entering credit card numbers. The file `ccn_optimal_paths.py` handles this computation. An example is below.
+```
+python ccn_optimal_paths.py --user-folder <PATH-TO-GDRIVE>/user-study
+```
+The resulting accuracy should match the `89.35%` figure listed in the final paragraph of Section `VI.B`.
 
 #### Passwords
+The script ``user_password_recovery.py` displays the recovery results for passwords typed by human users. The format of inputs and outputs are similar to those from the benchmark. The command below shows an example.
+```
+python user_password_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study --tv-types samsung appletv
+```
+The resulting plot should match Figures `12` and `13` in the paper. Similar to before, we altered this script to display both series on one plot. The program also prints out three key pieces of information.
+1. The `95%` confidence interval in the top-100 password accuracy.
+2. The top-`K` accuracy for passwords with different characters. These figures should match those listed in the third paragraph of Section `VI.C`.
+3. The factor by which the attack improves over random guessing. The first paragraph of Section `VI.C` lists the improvement of over `100x` with the RockYou prior on the Samsung TV.
 
+We further compare password recovery for the *same* strings typed by different users. 
 
 #### Web Searches
 

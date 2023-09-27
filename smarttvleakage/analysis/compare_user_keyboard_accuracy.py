@@ -87,7 +87,7 @@ def compare_against_optimal(move_sequences: List[List[OrderedDict]], labels: Lis
 
             for optimal_idx, optimal_seq in enumerate(optimal_move_sequences):
                 dist = abs(optimal_seq[move_idx].num_moves - move_seq[move_idx].num_moves)
-                
+
                 if (best_dist is None) or (dist < best_dist):
                     best_idx = optimal_idx
                     best_dist = dist
@@ -101,10 +101,9 @@ def compare_against_optimal(move_sequences: List[List[OrderedDict]], labels: Lis
     return result_correct, result_total, result_distances
 
 
-
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--folder', type=str, required=True)
+    parser.add_argument('--user-folder', type=str, required=True)
     parser.add_argument('--output-file', type=str)
     args = parser.parse_args()
 
@@ -114,12 +113,14 @@ if __name__ == '__main__':
     samsung_correct_count = 0
     samsung_total_count = 0
     samsung_distances: List[float] = []
+    samsung_user_accuracy: List[float] = []
 
     appletv_correct_count = 0
     appletv_total_count = 0
     appletv_distances: List[float] = []
+    appletv_user_accuracy: List[float] = []
 
-    for user_folder in iterate_dir(args.folder):
+    for user_folder in iterate_dir(args.user_folder):
         # Get the move sequences on both systems
         samsung_path = os.path.join(user_folder, 'samsung_passwords.json')
         samsung_move_seq = read_json(samsung_path)['move_sequences']
@@ -140,17 +141,24 @@ if __name__ == '__main__':
         samsung_correct_count += correct
         samsung_total_count += total
         samsung_distances.extend(dist)
+        samsung_user_accuracy.append(100.0 * (correct / total))
+
+        print('{} {} / {}'.format(user_folder, correct, total))
 
         correct, total, dist = compare_against_optimal(appletv_move_seq, appletv_labels, keyboard=appletv_keyboard, tv_type=SmartTVType.APPLE_TV)
         appletv_correct_count += correct
         appletv_total_count += total
         appletv_distances.extend(dist)
+        appletv_user_accuracy.append(100.0 * (correct / total))
 
     samsung_accuracy = 100.0 * (samsung_correct_count / samsung_total_count)
     appletv_accuracy = 100.0 * (appletv_correct_count / appletv_total_count)
 
     samsung_avg_dist, samsung_std_dist = np.mean(samsung_distances), np.std(samsung_distances)
     appletv_avg_dist, appletv_std_dist = np.mean(appletv_distances), np.std(appletv_distances)
+
+    print('Samsung Accuracy. Mean -> {:.4f}, Std -> {:.4f}, Max -> {:.4f}, Min -> {:.4f}'.format(np.mean(samsung_user_accuracy), np.std(samsung_user_accuracy), np.max(samsung_user_accuracy), np.min(samsung_user_accuracy)))
+    print('AppleTV Accuracy. Mean -> {:.4f}, Std -> {:.4f}, Max -> {:.4f}, Min -> {:.4f}'.format(np.mean(appletv_user_accuracy), np.std(appletv_user_accuracy), np.max(appletv_user_accuracy), np.min(appletv_user_accuracy)))
 
     with plt.style.context(PLOT_STYLE):
         fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2, figsize=FIGSIZE)

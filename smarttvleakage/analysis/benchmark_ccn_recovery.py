@@ -86,7 +86,7 @@ def get_full_offsets(top: int) -> Tuple[float, float]:
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Script to display results from credit card recovery on benchmarks.')
     parser.add_argument('--benchmark-folder', type=str, required=True, help='Name of the folder containing the user results.')
     parser.add_argument('--output-file', type=str, help='Path to (optional) output file in which to save the plot.')
     args = parser.parse_args()
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     ccn_correct_counts: List[int] = [0 for _ in range(len(TOP_CCN))]  # [ counts per rank cutoff ] }
     full_correct_counts: List[int] = [0 for _ in range(len(TOP_FULL))]  # [ counts per rank cutoff ] }
     search_space_fractions: List[float] = []
-    
+
     provider_ccn_correct_counts: Dict[CreditCardProvider, List[int]] = dict()  # { Provider -> [ counts per rank cutoff ] }
     provider_full_correct_counts: Dict[CreditCardProvider, List[int]] = dict()  # { Provider -> [ counts per rank cutoff ] }
     provider_total_counts: Dict[CreditCardProvider, int] = dict()  # { Provider -> total_count }
@@ -118,7 +118,7 @@ if __name__ == '__main__':
         labels_path = os.path.join(subject_folder, LABELS_NAME)
         labels = read_json(labels_path)['labels']
         ccn_labels = [entry['credit_card'] for entry in labels]
-    
+
         # Get the Credit Card Number rank
         ccn_ranks = [compute_rank(guesses, ccn_labels[idx]) for idx, guesses in enumerate(ccn_guesses)]
         total_count += len(ccn_ranks)
