@@ -134,6 +134,71 @@ You can use the `shell` scripts `run_password_benchmark.sh` and `run_credit_card
 
 
 ## Analysis
+The `smarttvleakage/analysis` folder provides a variety of tools to analyze the attack's results. We describe these tools with a particular emphasis on generating the figures shown in the paper.
+
+### Viewing Recovery Results
+The scripts `view_password_results.py` and `view_credit_card_results.py` print out the strings which were and were not recovered by the search procedure. These scripts both take in the recovery `json` file (the output of the search step) and the label `json` file. An example of this script for Samsung passwords is below (assumes the completion of password recovery for `subject-a`).
+```
+python view_password_recovery.py --recovery-file <PATH-TO-BOX>/subject-a/recovered_samsung_passwords_phpbb.json --labels-file <PATH-TO-BOX>/subject-a/samsung_passwords_labels.json 
+```
+This command will print the following.
+```
+Found: naarf666 (rank 6), pva81-ph (rank 1), .sagara. (rank 1), 8b7ce7df (rank 1), tutuphpbb (rank 1), williame (rank 4)
+Not Found: function84 , p5ych0#7 , chevy_1954 , bubba?51879
+Recovery Accuracy: 60.0000% (6 / 10)
+```
+Note that you can change the recovery file to any of the password recovery files in the Google Drive folder. The script also works on benchmarks, although it is less useful due to the large number of strings. Further, this script will also work on web searches.
+
+The command below shows an example of printing the credit card recovery results for `subject-a`. The example assumes you have run the credit card recovery for this subject. Otherwise, replace the input paths with the precomputed results from the Google Drive folder.
+```
+python view_credit_card_recovery.py --recovery-file <PATH-TO-BOX>/subject-a/recovered_credit_card_details.json --labels-file <PATH-TO-BOX>/subject-a/credit_card_details_labels.json 
+```
+The result looks as follows (as printed to the terminal).
+```
+Target: CCN -> 2295229331701537, CVV -> 043, Month -> 07, Year -> 26, ZIP -> 10305
+Ranks: CCN -> 11, CVV -> 4, Month -> 1, Year -> 1, ZIP -> 1, Overall -> 251
+======
+Target: CCN -> 4388910972580132, CVV -> 030, Month -> 02, Year -> 25, ZIP -> 50606
+Ranks: CCN -> -1, CVV -> -1, Month -> 1, Year -> 1, ZIP -> 3, Overall -> -1
+======
+Target: CCN -> 371901290375583, CVV -> 1792, Month -> 07, Year -> 30, ZIP -> 60804
+Ranks: CCN -> 33, CVV -> 11, Month -> 1, Year -> 1, ZIP -> 1, Overall -> 2383
+======
+```
+
+### Attack Results in Emulation
+This examples in this section assume the use of the pre-computed results provided in the Google Drive folder. You may change the file paths that point to local directories containing results generated from executing the steps above.
+
+#### Credit Cards
+The script `benchmark_ccn_recovery.py` creates a plot showing the top-`K` accuracy on the credit card number and full credit card details. When running this program on the provided benchmark results (from the Google Drive), the resulting plot should match Figure `8` in the paper. Note that if you change the benchmark, the results may differ slightly; the overall trends should remain the same.
+
+The command below shows an example of executing this script. You must provide the folder containing the `part_N` directories.
+```
+python benchmark_ccn_recovery.py --benchmark-folder <PATH-TO-GDRIVE>/benchmarks/credit-cards
+```
+The script also prints out the top-$K$ rates for each provider on both the credit card number and the full details. The top-`10` rates on the full details should match those in the final paragraph of Section `V.B`. The program additionally prints the average fraction of potential guesses that are *valid* credit card numbers. The printed amount should match the `16.26%` value listed in the final paragraph of Section `V.B`. 
+
+#### Passwords
+The file `benchmark_password_recovery.py` shows the password recovery results. The script takes in multiple folders, each containing the results for a single TV; the user must also supply the `--tv-types` in the same order as the provided folders. Below is an example of executing this script on the provided results.
+```
+python benchmark_password_recovery.py --benchmark-folders <PATH-TO-GDRIVE>/benchmarks/samsung-passwords/ <PATH-TO-GDRIVE>/benchmarks/appletv-passwords/ --tv-types samsung appletv
+```
+The program will display a plot which should match Figures `9` and `10`. Note that we have placed the results for both TVs on a single plot; this change was made for space reasons since submitting the original version of the paper.
+
+The script also prints out the accuracy on different password types for both priors (`phpbb` and `rockyou-5gram`). The top-`1` values should match those listed in the second-to-last paragraph in Section `V.C`. Finally, the script also prints the minimum factor by which the attack improves over random guessing for the `rockyou` prior. As listed in the paper, the improvement is over `330x` for both TVs.
+
+
+### Attack Results on Users
+
+#### Credit Cards
+
+
+#### Passwords
+
+
+#### Web Searches
+
+
 
 ## Additional Resources
 
