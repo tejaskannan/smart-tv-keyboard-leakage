@@ -21,7 +21,7 @@ DICTIONARY_SIZE = 95892
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Script to display the results of the attack on web searches.')
     parser.add_argument('--user-folder', type=str, required=True, help='Name of the folder containing the user results.')
     parser.add_argument('--use-forced', action='store_true', help='Whether to use version with forced consideration of dynamic suggestions.')
     parser.add_argument('--output-file', type=str, help='Path to (optional) output file in which to save the plot.')
@@ -54,8 +54,6 @@ if __name__ == '__main__':
             num_correct, total = top_k_accuracy(ranks=ranks, top=top_count)
             correct_counts[top_idx] += num_correct
             total_counts[top_idx] += max(total, len(labels))
-
-        print('Subject {}, Correct: {}, Total: {}'.format(subject_name, correct_counts, total_counts))
 
     accuracy_results = compute_accuracy(num_correct=correct_counts, total_counts=total_counts)
     baseline_accuracy = compute_baseline_accuracy(baseline_size=DICTIONARY_SIZE, top_counts=TOP)

@@ -258,7 +258,15 @@ Total Counts. With: 19, Without: 19
 The improvement of `3 / 19` matches the description in the third paragraph of Section `VI.E`.
 
 #### Web Searches
-
+The file `user_search_recovery.py` displays the results for recovering web searches on keyboards with suggestions. Below is an example of how to use this script.
+```
+python user_search_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study
+```
+The resulting plot should match Figure `14` from the paper. The script also has an option (`--use-forced`) to use the results when informing the search of a keyboard with suggestions.
+```
+python user_search_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study --use-forced
+```
+The paper cites the top-`10` (`12%`) and top-`100` (`27%`) accuracy when forcing suggestions in the second paragraph of Section `VI.D`.
 
 
 ## Additional Resources
