@@ -1,30 +1,22 @@
 import numpy as np
 import os.path
-import matplotlib.pyplot as plt
 from argparse import ArgumentParser
 from collections import namedtuple
-from scipy.signal import find_peaks, convolve
 from typing import Dict, List, Set, Tuple
 
 import smarttvleakage.audio.sounds as sounds
 from smarttvleakage.audio.data_types import Move
-from smarttvleakage.audio.utils import get_sound_instances_samsung, get_sound_instances_appletv, create_spectrogram, extract_move_directions
-from smarttvleakage.audio.utils import perform_match_spectrograms, dedup_samsung_move_delete, get_move_time_length, get_num_scrolls
+from smarttvleakage.audio.utils import get_sound_instances_samsung, get_sound_instances_appletv, create_spectrogram
+from smarttvleakage.audio.utils import perform_match_spectrograms, get_num_scrolls, extract_move_directions
 from smarttvleakage.audio.utils import get_directions_appletv
 from smarttvleakage.audio.constellations import compute_constellation_map
 from smarttvleakage.utils.file_utils import read_json, read_pickle_gz
 from smarttvleakage.utils.constants import SmartTVType, Direction, BIG_NUMBER, SMALL_NUMBER
 
 
-SMOOTH_FILTER_SIZE = 8
 CONSTELLATION_THRESHOLD = 0.80
-CONSTELLATION_THRESHOLD_END = 0.905
-CONSTELLATION_TIME_DIST = 10
 MOVE_FREQS = (2, 3, 4)
 
-CONV_MODE = 'full'
-TIME_TOL = 'time_tol'
-FREQ_TOL = 'freq_tol'
 TIME_DELTA = 'time_delta'
 FREQ_DELTA = 'freq_delta'
 PEAK_THRESHOLD = 'threshold'

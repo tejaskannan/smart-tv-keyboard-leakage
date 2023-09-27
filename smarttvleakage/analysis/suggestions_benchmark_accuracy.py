@@ -38,6 +38,9 @@ if __name__ == '__main__':
     total_counts: Counter = Counter()
 
     for batch_idx, batch_folder in enumerate(iterate_dir(args.benchmark_folder)):
+        if batch_idx >= 3:
+            break
+
         batch_file = os.path.join(batch_folder, 'samsung_passwords.json')
         move_sequences = read_json(batch_file)['move_sequences']
 
@@ -47,8 +50,6 @@ if __name__ == '__main__':
                 clf_result = classify_moves(suggestions_model, parsed_move_seq, cutoff=cutoff)
                 correct_counts[cutoff] += int(clf_result == 0)
                 total_counts[cutoff] += 1
-
-        print('Completed {}'.format(batch_idx))
 
     for cutoff in cutoffs:
         accuracy = 100.0 * (correct_counts[cutoff] / total_counts[cutoff])

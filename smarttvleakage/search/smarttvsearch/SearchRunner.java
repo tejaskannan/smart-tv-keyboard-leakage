@@ -107,8 +107,14 @@ public class SearchRunner {
                 JSONObject labelsJson = creditCardLabels.getJSONObject(idx);
 
                 // Recover each field
-                List<SearchResult> ccnResults = recover(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), false, MAX_NUM_CANDIDATES, "");
-                //List<SearchResult> ccnResults = recoverExhaustive(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), MAX_NUM_CANDIDATES, "");
+                List<SearchResult> ccnResults;
+                
+                if (searchArgs.shouldUseExhaustive()) {
+                    ccnResults = recoverExhaustive(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), MAX_NUM_CANDIDATES, "");
+                } else {
+                    ccnResults = recover(ccnSeq, keyboard, ccnPrior, keyboard.getStartKey(), tvType, false, false, false, numericExtender, 1e-3, 0, MAX_CCN_RANK, false, searchArgs.shouldUseSuboptimal(), false, MAX_NUM_CANDIDATES, "");
+                }
+                
                 List<SearchResult> cvvResults = recover(cvvSeq, keyboard, cvvPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.5, 0, MAX_CVV_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");
                 List<SearchResult> monthResults = recover(monthSeq, keyboard, monthPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");
                 List<SearchResult> yearResults = recover(yearSeq, keyboard, yearPrior, keyboard.getStartKey(), tvType, false, false, false, stndExtender, 0.75, 0, MAX_EXPIRY_RANK, false, searchArgs.shouldUseSuboptimal(), false, -1, "");

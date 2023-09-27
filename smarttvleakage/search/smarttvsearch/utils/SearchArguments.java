@@ -12,6 +12,7 @@ public class SearchArguments {
     private boolean shouldUseDirections;
     private boolean shouldIncludeSuboptimal;
     private boolean shouldForceSuggestions;
+    private boolean shouldUseExhaustive;
 
     private static final String INPUT_NAME = "--input-file";
     private static final String OUTPUT_NAME = "--output-file";
@@ -21,6 +22,7 @@ public class SearchArguments {
     private static final String DIRECTIONS_NAME = "--ignore-directions";
     private static final String SUBOPTIMAL_NAME = "--ignore-suboptimal";
     private static final String SUGGESTIONS_NAME = "--force-suggestions";
+    private static final String EXHAUSTIVE_NAME = "--use-exhaustive";
 
     public SearchArguments(String[] args) {
         if (args.length < 10) {
@@ -35,6 +37,7 @@ public class SearchArguments {
         this.shouldUseDirections = true;
         this.shouldIncludeSuboptimal = true;
         this.shouldForceSuggestions = false;
+        this.shouldUseExhaustive = false;
 
         for (int idx = 0; idx < args.length; idx += 2) {
             if (args[idx].equals(INPUT_NAME)) {
@@ -68,6 +71,8 @@ public class SearchArguments {
                 this.shouldIncludeSuboptimal = false;
             } else if (args[idx].equals(SUGGESTIONS_NAME)) {
                 this.shouldForceSuggestions = true;
+            } else if (args[idx].equals(EXHAUSTIVE_NAME)) {
+                this.shouldUseExhaustive = true;
             } else {
                 throw new IllegalArgumentException(String.format("Unknown argument: %s", args[idx]));
             }
@@ -145,5 +150,9 @@ public class SearchArguments {
 
     public boolean shouldForceSuggestions() {
         return this.shouldForceSuggestions;
+    }
+
+    public boolean shouldUseExhaustive() {
+        return this.shouldUseExhaustive;
     }
 }

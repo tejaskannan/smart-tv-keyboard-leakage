@@ -9,8 +9,8 @@ SEARCHES_PATH = 'web_searches.json'
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
-    parser.add_argument('--user-folder', type=str, required=True)
+    parser = ArgumentParser('Script to find the accuracy of keyboard type classification on Samsung devices.')
+    parser.add_argument('--user-folder', type=str, required=True, help='Path to the folder containing the user results.')
     args = parser.parse_args()
 
     password_correct, password_total = 0, 0

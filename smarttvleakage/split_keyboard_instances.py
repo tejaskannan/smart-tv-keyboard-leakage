@@ -206,6 +206,8 @@ if __name__ == '__main__':
     else:
         raise ValueError('Unknown TV Type: {}'.format(tv_type))
 
+    print('TV Type: {}'.format(tv_type.name))
+    print('Sequence Type: {}'.format(seq_type.name))
     print('Number of splits: {}'.format(len(split_seq)))
 
     serialize_splits(split_seq, suggestions_types=suggestions_types, tv_type=tv_type, seq_type=seq_type, output_path=output_path)

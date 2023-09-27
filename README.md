@@ -188,6 +188,18 @@ The program will display a plot which should match Figures `9` and `10`. Note th
 
 The script also prints out the accuracy on different password types for both priors (`phpbb` and `rockyou-5gram`). The top-`1` values should match those listed in the second-to-last paragraph in Section `V.C`. Finally, the script also prints the minimum factor by which the attack improves over random guessing for the `rockyou` prior. As listed in the paper, the improvement is over `330x` for both TVs.
 
+Finally, we include a script which shows the keyboard suggestion model's accuracy on the password benchmark. The file `suggestions_benchmark_accuracy.py` performs this comparison. It also runs a small parameter sweep over different cutoffs to observe the predictor's recall. Note that the command can take a few minutes to complete.
+```
+python suggestions_benchmark_accuracy.py --benchmark-folder /local/smart-tv-benchmarks/samsung-passwords/
+```
+The results look as below. The `99.23%` figure matches that of fourth paragraph in Section `V.C`.
+```
+Observed Accuracy: 99.2333%
+Cutoff: 0.50, Accuracy: 98.000%
+Cutoff: 0.55, Accuracy: 98.600%
+Cutoff: 0.60, Accuracy: 99.000%
+Cutoff: 0.65, Accuracy: 99.267%
+```
 
 ### Attack Results on Users
 The examples in this section assume that you are displaying the results from the files in the Google Drive folder containing the outputs for all users. If you wish to use your own results, there are two options. First, you can run the attack on all users for every data type (this can take some time and requires downloading all videos). Second, you can run the attack on *some* users and copy the results from the remaining using the Google Drive. In this second case, you will need a single folder containing all of the `subject-X` directories.
@@ -268,12 +280,13 @@ python user_search_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study --use-f
 ```
 The paper cites the top-`10` (`12%`) and top-`100` (`27%`) accuracy when forcing suggestions in the second paragraph of Section `VI.D`.
 
-
-## Additional Resources
-
-
-### Building Dictionaries
-
-
-### Java Tests
-
+Finally, we analyze the accuracy of the keyboard type classifier on Samsung devices. The script `suggestions_user_accuracy.py` implements this functionality for both passwords and web searches. Below is an example.
+```
+python suggestions_user_accuracy.py --user-folder <PATH-TO-GDRIVE>/user-study
+```
+The script outputs the following.
+```
+Password Accuracy: 99.0196% (101 / 102)
+Searches Accuracy: 42.7083% (41 / 96)
+```
+The password accuracy should match that of the fourth paragraph in Section `VI.C`. The searches accuracy should be equivalent to that of the second paragarph in Section `VI.D`.
