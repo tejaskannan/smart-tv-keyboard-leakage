@@ -1,12 +1,12 @@
 # Smart TV Acoustic Keystroke Leakage
-This repository contains the code for discovering keystrokes from the audio of Apple and Samsung Smart TVs. This attack was acknowledged by Samsung in their ![Bug Bounty Hall of Fame for Smart TVs, Audio, and Displays](https://samsungtvbounty.com/hallOfFame).
+This repository contains the code for discovering keystrokes from the audio of Apple and Samsung Smart TVs. This attack was acknowledged by Samsung in their [Bug Bounty Hall of Fame for Smart TVs, Audio, and Displays](https://samsungtvbounty.com/hallOfFame).
 
 ## Overview
 This repository has two main portions: audio extraction and string recovery. The phases are split for checkpointing reasons. The audio extraction module is written in Python, and the string recovery is in Java. The folder `smarttvleakage/audio` contains most of the code related to audio extraction. The directory `smarttvleakage/search/smarttvsearch` holds the Java code involving string recovery.
 
 This document describes how to create emulation benchmarks (to test string recovery in isolation), process recordings of users interacting with Smart TVs, and recover strings from the audio's intermediate representation. The code has only been tested on Ubuntu `20.04`. The installation instructions may differ on other systems.
 
-We include the results of intermediate steps, as well as the dictionary priors, in this ![Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder. In the remainder of this document, we use the term `<PATH-TO-GDRIVE>` to refer to the path holding the location of the Google Drive folder when downloaded locally. This local version should have the following file structure. The `<PATH-TO-GDRIVE>` should be the path to the directory `Smart-TV-Acoustic-Leakage-Supplementary-Materials`.
+We include the results of intermediate steps, as well as the dictionary priors, in this [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder. In the remainder of this document, we use the term `<PATH-TO-GDRIVE>` to refer to the path holding the location of the Google Drive folder when downloaded locally. This local version should have the following file structure. The `<PATH-TO-GDRIVE>` should be the path to the directory `Smart-TV-Acoustic-Leakage-Supplementary-Materials`.
 ```
 Smart-TV-Acoustic-Leakage-Supplementary-Materials
     benchmarks
@@ -20,7 +20,7 @@ For all Python scripts, you can use the command line option `--help` (e.g., `pyt
 ## Setup
 
 ### Python
-We recommend configuring the Python portion of this project inside an Anaconda environment. We have tested everything using ![Anaconda](https://docs.anaconda.com/free/anaconda/install/) version `23.0.1`. The first step is to create a virtual environment, as shown below (named `smarttv`).
+We recommend configuring the Python portion of this project inside an Anaconda environment. We have tested everything using [Anaconda](https://docs.anaconda.com/free/anaconda/install/) version `23.0.1`. The first step is to create a virtual environment, as shown below (named `smarttv`).
 ```
 conda env create --name smarttv -f environment.yml
 ```
@@ -31,7 +31,7 @@ pip install -e .
 To verify this installation, navigate into the `smarttvleakage` directory and run `python make_spectrogram.py --help`. This program should *not* error and instead should print out the command line arguments.
 
 ### Java
-The Java code requires an installation of the ![Java Runtime Environment](https://ubuntu.com/tutorials/install-jre#1-overview). We use `openjdk` version `17.05`. The Java portion of the project uses `json` parsing, local `SQL` databases, and `junit`. The `jar` files for these libraries are in the `jars` directory. You need to specify both paths to these `jars` and a path to the Java project. To add these references, you must update your `$CLASSPATH$` environment variable. This step is best accomplished by adding the following lines to your `~/.bashrc` file.
+The Java code requires an installation of the [Java Runtime Environment](https://ubuntu.com/tutorials/install-jre#1-overview). We use `openjdk` version `17.05`. The Java portion of the project uses `json` parsing, local `SQL` databases, and `junit`. The `jar` files for these libraries are in the `jars` directory. You need to specify both paths to these `jars` and a path to the Java project. To add these references, you must update your `$CLASSPATH$` environment variable. This step is best accomplished by adding the following lines to your `~/.bashrc` file.
 ```
 export SMARTTV_HOME=<PATH-TO-PROJECT-DIRECTORY>
 export CLASSPATH=$CLASSPATH:$SMARTTV_HOME/smarttvleakage/search:$SMARTTV_HOME/jars/junit-4.10.jar:$SMARTTV_HOME/jars/json-20220924.jar:$SMARTTV_HOME/jars/sqlite-jdbc-3.36.0.3.jar:.
@@ -56,7 +56,7 @@ We describe two methods for creating these move count sequences.
 1. **Emulation:** Creates the move count sequence `json` file algorithmically using the keyboard layout.
 2. **Real Recordings:** Extracts move count sequences from the audio of real interactions with Smart TVs.
 
-To facilitate reproducibility, we have shared the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this ![Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (the password is in the Artifact Appendix). Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (within the folder `user-study`) When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows. We use the term `<PATH-TO-BOX>` to refer to the path of the folder `user-study` in the structure below.
+To facilitate reproducibility, we have shared the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (the password is in the Artifact Appendix). Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (within the folder `user-study`) When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows. We use the term `<PATH-TO-BOX>` to refer to the path of the folder `user-study` in the structure below.
 ```
 user-study
     subject-a
@@ -73,7 +73,7 @@ For the remainder of this section, you should navigate into the `smarttvleakage`
 
 
 ### Emulation: Creating Benchmarks
-We support two types of benchmarks: `passwords` and `credit cards`. For better reproducibility, we include a list of existing benchmarks in the accompanying ![Google Drive folder](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (see the folder `benchmarks`). Thus, creating new benchmarks is optional. We note that there is randomness in the generation process, so new benchmarks may create slightly different attack results. However, the general patterns should remain the same.
+We support two types of benchmarks: `passwords` and `credit cards`. For better reproducibility, we include a list of existing benchmarks in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (see the folder `benchmarks`). Thus, creating new benchmarks is optional. We note that there is randomness in the generation process, so new benchmarks may create slightly different attack results. However, the general patterns should remain the same.
 
 #### Passwords
 The `generate_password_benchmark.py` file creates new password benchmarks. The script takes the password list (as a text file) and TV type (either `samsung` or `apple_tv`) as input. The output is a folder of move count sequence files and the corresponding true passwords. We write the outputs in batches of `500` elements (into sub-folders labeled `part_N`). The benchmark selects passwords with special characters, uppercase letters, and numbers. Passwords with such properties are thus *over-represented*. The provided benchmark (in the Google Drive) uses the `phpbb.txt` password list with `6,000` total passwords. An example of generating a password benchmark is below. The command should take no more than a few minutes.
@@ -85,7 +85,7 @@ The script allows the user to optionally supply the keyboard type; the default f
 For Samsung TVs, the script will also classify the keyboard type as either `suggestions` or `standard` (see the `suggestions_model` folder for specifics on this process). Apple TVs and other keyboard layouts are assumed to not have dynamic behavior.
 
 #### Credit Cards
-We generate credit card benchmarks using fake details from Visa, Mastercard, and American Express. We use ![this site](https://www.creditcardvalidator.org/generator) to get credit card numbers (CCN), expiration dates, and security codes (CVV). We then attach ZIP codes by sampling according to population. Our practical experiments with credit card details only use the Samsung TV. Thus, we only generate credit card benchmarks for this TV type.
+We generate credit card benchmarks using fake details from Visa, Mastercard, and American Express. We use [this site](https://www.creditcardvalidator.org/generator) to get credit card numbers (CCN), expiration dates, and security codes (CVV). We then attach ZIP codes by sampling according to population. Our practical experiments with credit card details only use the Samsung TV. Thus, we only generate credit card benchmarks for this TV type.
 
 The script `generate_credit_card_benchmark.py` creates the benchmark. The program expects input CSV files containing lines of the form `CCN,MM/YY,CVV` (see below). An example of this file is in the Google Drive folder (under `word_lists/credit_cards.csv`).
 ```
