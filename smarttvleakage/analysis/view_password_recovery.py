@@ -23,8 +23,9 @@ def main(recovery_path: str, labels_path: str):
         else:
             found.append((target, rank))
 
-    print('Found: {}'.format(', '.join(map(lambda t: '{} (rank {})'.format(t[0], t[1]), found))))
-    print('Not Found: {}'.format(' , '.join(not_found)))
+    if len(labels) <= 50:
+        print('Found: {}'.format(', '.join(map(lambda t: '{} (rank {})'.format(t[0], t[1]), found))))
+        print('Not Found: {}'.format(' , '.join(not_found)))
 
     accuracy = len(found) / len(labels)
     print('Recovery Accuracy: {:.4f}% ({} / {})'.format(accuracy * 100.0, len(found), len(labels)))
