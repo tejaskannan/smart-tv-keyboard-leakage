@@ -6,7 +6,7 @@ from smarttvleakage.utils.file_utils import read_json, save_json
 
 
 if __name__ == '__main__':
-    parser = ArgumentParser()
+    parser = ArgumentParser('Utility tool to merge move count sequences into a single file.')
     parser.add_argument('--extracted-paths', type=str, required=True, nargs='+', help='Paths to the extracted JSON files in order.')
     parser.add_argument('--output-path', type=str, required=True, help='Path to the merged output file.')
     args = parser.parse_args()

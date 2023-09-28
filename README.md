@@ -76,7 +76,7 @@ For the remainder of this section, you should navigate into the `smarttvleakage`
 We support two types of benchmarks: `passwords` and `credit cards`. For better reproducibility, we include a list of existing benchmarks in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (see the folder `benchmarks`). Thus, creating new benchmarks is optional. We note that there is randomness in the generation process, so new benchmarks may create slightly different attack results. However, the general patterns should remain the same.
 
 #### Passwords
-The `generate_password_benchmark.py` file creates new password benchmarks. The script takes the password list (as a text file) and TV type (either `samsung` or `apple_tv`) as input. The output is a folder of move count sequence files and the corresponding true passwords. We write the outputs in batches of `500` elements (into sub-folders labeled `part_N`). The benchmark selects passwords with special characters, uppercase letters, and numbers. Passwords with such properties are thus *over-represented*. The provided benchmark (in the Google Drive) uses the `phpbb.txt` password list with `6,000` total passwords. An example of generating a password benchmark is below. The command should take no more than a few minutes.
+The `generate_password_benchmark.py` file creates new password benchmarks. The script takes the password list (as a text file) and TV type (either `samsung` or `apple_tv`) as input. The output is a folder of move count sequence files and the corresponding true passwords. We write the outputs in batches of `500` elements (into sub-folders labeled `part_N`). The benchmark selects passwords with special characters, uppercase letters, and numbers. Passwords with such properties are thus *over-represented*. The paper's results come from the `phpbb.txt` password list with `6,000` total passwords. An example of generating a password benchmark is below. The command should take no more than a few minutes.
 ```
 python generate_password_benchmark.py --input-path <PATH-TO-GDRIVE>/word-lists/phpbb.txt --output-folder benchmarks --max-num-records 6000 --tv-type samsung
 ```
@@ -121,7 +121,13 @@ diff -w <PATH-TO-BOX>/subject-a/samsung_passwords.json <PATH-TO-GDRIVE>/user-stu
 ```
 Note that the output file names will change when you change the input video. For instance, if you process the `appletv_passwords.mp4` file, the output files will be named `appletv_passwords.json` and `appletv_passwords_labels.json`. We emphasize that the code will classifies the TV type based on the audio profile and does not use the TV name specified in the file path.
 
-If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. For Samsung TVs, you may provide any example of typing into the default keyboard (e.g., typing in a WiFi password). On Apple TVs, we execute the attack on the keyboard used when entering passwords (e.g., when logging into an Apple ID). We note that the audio extraction might display some errors due to changes in the recording environment.
+We note that both subjects `g` and `j` have two password recording files for the Samsung TV. This split happened as a result of the subject needing to pause during the experiment. On these users, you can process and split the instances for each video individually. Then, you can merge the move count sequence files using the script `scripts/passwords/merge_password_extractions.py`. The command below shows an example.
+```
+python merge_password_extractions.py --extracted-paths <PATH-TO-BOX>/subject-g/samsung_passwords_part_0.json <PATH-TO-BOX>/subject-g/samsung_passwords_part_1.json --output-path <PATH-TO-BOX>/subject-g/samsung_passwords.json
+```
+You should then use the resulting file during the string recovery phase.
+
+If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. For Samsung TVs, you may provide any example of typing into the default keyboard (e.g., typing in a WiFi password). On Apple TVs, we execute the attack on the keyboard used when entering passwords (e.g., when logging into an Apple ID). You should take a video using a camera pointed at the TV as you type. The TV must be audible during the recording. We note that the audio extraction might display some errors due to changes in the recording environment.
 
 ## String Recovery
 The folder `smarttvleakage/search/smarttvsearch` contains the code related to string recovery. This code is written in Java for efficiency reasons. Overall, this module uses the extracted move count sequences to discover the likely typed strings.
@@ -146,6 +152,8 @@ javac SearchRunner.java
 java smarttvsearch.SearchRunner --input-file <PATH-TO-BOX>/subject-a/samsung_passwords.json --output-file <PATH-TO-BOX>/subject-a/recovered_samsung_passwords_phpbb.json --password-prior <PATH-TO-GDRIVE>/dictionaries/phpbb.db --english-prior <PATH-TO-GDRIVE>/dictionaries/wikipedia.db --zip-prior <PATH-TO-GDRIVE>/dictionaries/zip_codes.txt
 ```
 The program should find `6 / 10` passwords on this user.
+
+When executing the search on large benchmarks, use the flag `--ignore-suboptimal`. The benchmarks contain no suboptimal moves, and ignoring such paths speeds up the search considerably.
 
 You can use the `shell` scripts `run_password_benchmark.sh` and `run_credit_card_benchmark.sh` to execute the recovery for all benchmark files. You will need to alter the script to point to the correct input and dictionary directories (i.e., change `INPUT_BASE` and `DICTIONARY_BASE`). The files `run_user_passwords.sh`, `run_user_credit_cards.sh` and `run_user_searches.sh` perform the recovery for all users (on passwords, credit cards, and web searches). You will need to change the `USER_BASE` and `DICTIONARY_BASE` variables to point to the folder containing the subject data and prior dictionaries, respectively. Note that each one of these scripts can take upwards to `20` minutes to complete.
 
@@ -191,7 +199,7 @@ The script `benchmark_ccn_recovery.py` creates a plot showing the top-`K` accura
 
 The command below shows an example of executing this script. You must provide the folder containing the `part_N` directories.
 ```
-python benchmark_ccn_recovery.py --benchmark-folder <PATH-TO-GDRIVE>/benchmarks/credit-cards
+python benchmark_credit_card_recovery.py --benchmark-folder <PATH-TO-GDRIVE>/benchmarks/credit-cards
 ```
 The script also prints out the top-`K` rates for each provider on both the credit card number and the full details. The top-`10` rates on the full details should match those in the final paragraph of Section `V.B`. The program additionally prints the average fraction of potential guesses that are *valid* credit card numbers. The printed amount should match the `16.26%` value listed in the final paragraph of Section `V.B`. 
 
@@ -223,7 +231,7 @@ The examples in this section assume that you are displaying the results from the
 #### Credit Cards
 The file `user_ccn_recovery.py` displays the results for the top-`K` accuracy on both credit card numbers and full details. The outputs are similar to those from emulation. The command below is an example for how to run this script.
 ```
-python user_ccn_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study
+python user_credit_card_recovery.py --user-folder <PATH-TO-GDRIVE>/user-study
 ```
 The resulting plot should match Figure `11` in the paper. The script also prints out the results for each provider, and these numbers should match those listed in the third paragraph of Section `VI.B`.
 
