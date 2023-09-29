@@ -6,14 +6,7 @@ This repository has two main portions: audio extraction and string recovery. The
 
 This document describes how to create emulation benchmarks (to test string recovery in isolation), process recordings of users interacting with Smart TVs, and recover strings from the audio's intermediate representation. The code has only been tested on Ubuntu `20.04`. The installation instructions may differ on other systems.
 
-We include the results of intermediate steps, as well as the dictionary priors, in this [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder. In the remainder of this document, we use the term `<PATH-TO-GDRIVE>` to refer to the path holding the location of the Google Drive folder when downloaded locally. This local version should have the following file structure. The `<PATH-TO-GDRIVE>` should be the path to the directory `Smart-TV-Acoustic-Leakage-Supplementary-Materials`.
-```
-Smart-TV-Acoustic-Leakage-Supplementary-Materials
-    benchmarks
-    dictionaries
-    user-study
-    word-lists 
-```
+We include the results of intermediate steps, as well as the dictionary priors, in this [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder. We provide the recordings from our user study in this Box Drive.
 
 For all Python scripts, you can use the command line option `--help` (e.g., `python make_spectrogram.py --help`) to get a description of each argument. For this reason, we do not enumerate all command line arguments in this `README`.
 
@@ -24,7 +17,11 @@ We recommend configuring the Python portion of this project inside an Anaconda e
 ```
 conda env create --name smarttv -f environment.yml
 ```
-This command will both create the environment and install the relevant Python packages. Upon completion, you will need to install the local `smarttvleakage` package for development via the command below. You must run this from the root directory (e.g., where `setup.py` is).
+This command will both create the environment and install the relevant Python packages. You should then activate the environment as shown below. All following operations must be completed within the virtual environment.
+```
+conda activate smarttv
+```
+You will then need to install the local `smarttvleakage` package for development via the command below. You must run this from the root directory (e.g., where `setup.py` is).
 ```
 pip install -e .
 ```
@@ -46,17 +43,18 @@ This command should show the following error, which is expected because the abov
 Exception in thread "main" java.lang.IllegalArgumentException: Must provide the (1) --input-file, (2) --output-file, (3) --password-prior, (4) --english-prior, and (5) --zip-prior
 ```
 
-## Audio Extraction
-The codebase processes video recordings of Smart TV interactions. We take videos for debugging purposes--the attack strips away the video and uses audio alone (e.g., see the file `smarttvleakage/audio/audio_extractor.py`). This section describes how to execute the audio extraction phase of the attack. Each recording can have multiple interactions with the keyboard (we call each interaction a keyboard *instance*). The output of this phase is a `json` file containing the move count sequences for each identified keyboard instance. A single move count sequence looks as follows.
+### Data Sources
+For convenience, we list both data sources here.
+1. The [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder contains the dictionary priors, word lists, and intermediate / final results. You should download this entire folder (about 1 GB of disk space uncompressed). The directory should have the following structure.
 ```
-[{"num_moves": 3, "end_sound": "key_select", "num_scrolls": 0, "directions": "any", "start_time": 512, "end_time": 831, "move_times": [528, 569, 773]}, {"num_moves": 3, "end_sound": "key_select", "num_scrolls": 0, "directions": "any", "start_time": 877, "end_time": 1019, "move_times": [892, 925, 958]},...]
+Smart-TV-Acoustic-Leakage-Supplementary-Materials
+    benchmarks
+    dictionaries
+    user-study
+    word-lists 
 ```
-
-We describe two methods for creating these move count sequences.
-1. **Emulation:** Creates the move count sequence `json` file algorithmically using the keyboard layout.
-2. **Real Recordings:** Extracts move count sequences from the audio of real interactions with Smart TVs.
-
-To facilitate reproducibility, we have shared the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (the password is in the Artifact Appendix). Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (within the folder `user-study`) When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows. We use the term `<PATH-TO-BOX>` to refer to the path of the folder `user-study` in the structure below.
+We use the variable `<PATH-TO-GDRIVE>` to refer to the local path to the folder `Smart-TV-Acoustic-Leakage-Supplementary-Materials`.
+2. The [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (the password is in the Artifact Appendix) contains the videos of users typing on Smart TVs. Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (under `user-study`). When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows.
 ```
 user-study
     subject-a
@@ -69,8 +67,19 @@ user-study
         ...
     ...
 ```
-For the remainder of this section, you should navigate into the `smarttvleakage` folder. Unless otherwise specified, you should run all scripts from this directory.
+In the remainder of this document, we use the variable `<PATH-TO-BOX>` to refer to the path of the folder `user-study` (above) on the local system.
 
+## Audio Extraction
+The codebase processes video recordings of Smart TV interactions. We take videos for debugging purposes--the attack strips away the video and uses audio alone (e.g., see the file `smarttvleakage/audio/audio_extractor.py`). This section describes how to execute the audio extraction phase of the attack. Each recording can have multiple interactions with the keyboard (we call each interaction a keyboard *instance*). The output of this phase is a `json` file containing the move count sequences for each identified keyboard instance. A single move count sequence looks as follows.
+```
+[{"num_moves": 3, "end_sound": "key_select", "num_scrolls": 0, "directions": "any", "start_time": 512, "end_time": 831, "move_times": [528, 569, 773]}, {"num_moves": 3, "end_sound": "key_select", "num_scrolls": 0, "directions": "any", "start_time": 877, "end_time": 1019, "move_times": [892, 925, 958]},...]
+```
+
+We describe two methods for creating these move count sequences.
+1. **Emulation:** Creates the move count sequence `json` file algorithmically using the keyboard layout.
+2. **Real Recordings:** Extracts move count sequences from the audio of real interactions with Smart TVs.
+
+We include the recordings of users entering passwords, credit card details, and web searches into Apple and Samsung Smart TVs using this [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (the password is in the Artifact Appendix). See the second on Data Sources above for more details. For the remainder of this section, you should navigate into the `smarttvleakage` folder. Unless otherwise specified, you should run all scripts from this directory.
 
 ### Emulation: Creating Benchmarks
 We support two types of benchmarks: `passwords` and `credit cards`. For better reproducibility, we include a list of existing benchmarks in the accompanying [Google Drive folder](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (see the folder `benchmarks`). Thus, creating new benchmarks is optional. We note that there is randomness in the generation process, so new benchmarks may create slightly different attack results. However, the general patterns should remain the same.
