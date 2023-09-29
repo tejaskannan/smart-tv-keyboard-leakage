@@ -45,7 +45,7 @@ Exception in thread "main" java.lang.IllegalArgumentException: Must provide the 
 
 ### Data Sources
 For convenience, we list both data sources here.
-1. The [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder contains the dictionary priors, word lists, and intermediate / final results. You should download this entire folder (about 1 GB of disk space uncompressed). The directory should have the following structure.
+1. The [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) (link: https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder contains the dictionary priors, word lists, and intermediate / final results. You should download this entire folder (about 1 GB of disk space uncompressed). The directory should have the following structure.
 ```
 Smart-TV-Acoustic-Leakage-Supplementary-Materials
     benchmarks
@@ -54,7 +54,8 @@ Smart-TV-Acoustic-Leakage-Supplementary-Materials
     word-lists 
 ```
 We use the variable `<PATH-TO-GDRIVE>` to refer to the local path to the folder `Smart-TV-Acoustic-Leakage-Supplementary-Materials`.
-2. The [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (the password is in the Artifact Appendix) contains the videos of users typing on Smart TVs. Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (under `user-study`). When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows.
+
+2. The [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (link: https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf , password in the Artifact Appendix) contains the videos of users typing on Smart TVs. Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (under `user-study`). When downloading the files, use the `Primary` videos when possible. Further, you should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows.
 ```
 user-study
     subject-a
