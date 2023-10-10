@@ -207,10 +207,6 @@ public class SearchRunner {
                     numCandidates = searchResults.get(searchResults.size() - 1).getNumCandidates();
                 }
 
-                if (!didFind) {
-                    System.out.println(groundTruth);
-                }
-
                 // Add the results to the output file
                 JSONObject output = new JSONObject();
                 output.put("guesses", JsonUtils.listToJsonArray(guesses));

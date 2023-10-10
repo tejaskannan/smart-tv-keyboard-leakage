@@ -127,7 +127,7 @@ TV Type: SAMSUNG
 Sequence Type: STANDARD
 Number of splits: 10
 ```
-The result is in two files stored in the same directory: `samsung_passwords.json` and `samsung_passwords_labels.json`. The first file contains the serialized move count sequences, and the second contains the typed strings. To ensure this process was successful, you can compare this file to the same file we have included in the Google Drive folder. The command below makes this comparison. The expectation is no difference (i.e., the command prints nothing).
+The result is in a file called `samsung_passwords.json` stored in the same directory. This file contains the serialized move count sequences. To ensure this process was successful, you can compare this file to the same file we have included in the Google Drive folder. The command below makes this comparison. The expectation is no difference (i.e., the command prints nothing).
 ```
 diff -w <PATH-TO-BOX>/subject-a/samsung_passwords.json <PATH-TO-GDRIVE>/user-study/subject-a/samsung_passwords.json
 ```
@@ -139,12 +139,15 @@ python merge_password_extractions.py --extracted-paths <PATH-TO-BOX>/subject-g/s
 ```
 You should then use the resulting file during the string recovery phase.
 
-If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. For Samsung TVs, you may provide any example of typing into the default keyboard (e.g., typing a WiFi password). On Apple TVs, we execute the attack on the keyboard used when entering passwords (e.g., logging into an Apple ID). You should take a video using a camera pointed at the TV. The TV must be audible during the recording. We note that the audio extraction might display some errors due to changes in the recording environment.
+If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. For Samsung TVs, you may provide any example of typing into the default keyboard (e.g., typing a WiFi password). On Apple TVs, we execute the attack on the keyboard used when entering passwords (e.g., logging into an Apple ID). You should take a video using a camera pointed at the TV. The TV must be audible during the recording. We note that the audio extraction might display some errors due to changes in the recording environment. You will need to list the true typed strings in a file with the name `<experiment-name>_labels.json` placed in the same folder as the video. This `json` file has a single key called `labels` which holds a list of the true typed strings in the order they appear in the recording. See the file `<PATH-TO-GDRIVE>/user-study/subject-a/samsung_passwords_labels.json` for an example.
 
 ## String Recovery
 The folder `smarttvleakage/search/smarttvsearch` contains the code related to string recovery. This code is written in Java for efficiency reasons. Overall, this module uses the extracted move count sequences to discover the likely typed strings.
 
 In the remainder of this section, you should navigate into the `smarttvleakage/search/smarttvsearch` directory. We continue the example of processing Samsung passwords from `subject-a` and assumes the relevant files are in the downloaded Box folder (e.g., `<PATH-TO-BOX>/subject-a/samsung_passwords.json`). You can change the input file for the recovery program by, for example, referencing one of the benchmarks or user study examples in the downloaded Google Drive directory. The first five are required and the remaining are optional.
+
+The recovery process will terminate upon reaching either the correct string or making the maximum number of guesses. The correct strings for each experiment are in the Google Drive folder at paths of the form `<PATH-TO-GDRIVE>/user-st
+udy/subject-a/<experiment-name>_labels.json`. For example, the path for the Samsung passwords for `subject-a` is `<PATH-TO-GDRIVE>/user-study/subject-a/samsung_passwords_labels.json`. Before executing the string recovery, you must copy the labels into the `<PATH-TO-BOX>/subject-<N>/` directories. The recovery program expects the labels file to be in the same folder as the `json` file containing the move count sequences.
 
 The file `SearchRunner.java` contains the entry point into the search process. This program takes the following command line arguments.
 
