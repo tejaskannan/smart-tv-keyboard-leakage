@@ -1,6 +1,8 @@
 # Smart TV Acoustic Keystroke Leakage
 This repository contains the code for discovering keystrokes from the audio of Apple and Samsung Smart TVs. This attack was acknowledged by Samsung in their [Bug Bounty Hall of Fame for Smart TVs, Audio, and Displays](https://samsungtvbounty.com/hallOfFame).
 
+This code is the artifact accompanying the conference paper "Acoustic Keystroke Leakage on Smart Televisions," accepted at NDSS 2024. If you use this work in any way, we ask that you cite this paper.
+
 ## Overview
 This repository has two main portions: audio extraction and string recovery. The phases are split for checkpointing reasons. The audio extraction module is written in Python, and the string recovery is in Java. The folder `smarttvleakage/audio` contains most of the code related to audio extraction. The directory `smarttvleakage/search/smarttvsearch` holds the Java code involving string recovery.
 
