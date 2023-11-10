@@ -6,6 +6,8 @@ This repository has two main portions: audio extraction and string recovery. The
 
 This document describes how to create emulation benchmarks (to test string recovery in isolation), process recordings of users interacting with Smart TVs, and recover strings from the audio's intermediate representation. The code has only been tested on Ubuntu `20.04`. The installation instructions may differ on other systems.
 
+We designed the attack to extract English keystrokes from Apple and Samsung Smart TVs in the United States. We tested our implementation against an A1625 AppleTV with tvOS version 16.3.2 and a model UN55MU6300 Samsung Smart TV running Tizen software version T-KTMAKUC-1310.1. Other versions may exhibit differences, e.g., in the layout of the default keyboard.
+
 We include the results of intermediate steps, as well as the dictionary priors, in this [Google Drive](https://drive.google.com/drive/folders/1iBWbk8wqRq2OYdgXhRM71CzBnK5pXcJ3?usp=sharing) folder. We provide the recordings from our user study in this Box Drive.
 
 For all Python scripts, you can use the command line option `--help` (e.g., `python make_spectrogram.py --help`) to get a description of each argument. For this reason, we do not enumerate all command line arguments in this `README`.
