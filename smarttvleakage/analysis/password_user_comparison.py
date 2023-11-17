@@ -57,4 +57,4 @@ if __name__ == '__main__':
             recovered_count += int(all(((rank <= TOP) and (rank >= 1)) for rank in recovery.values()))
 
         recovery_rate = (recovered_count / total_count) * 100.0
-        print('{} Prior. Duplicate Recovery Rate: {:.5f}\% ({} / {})'.format(prior_name, recovery_rate, recovered_count, total_count))
+        print('{} Prior. Duplicate Recovery Rate: {:.2f}% ({} / {})'.format(prior_name, recovery_rate, recovered_count, total_count))

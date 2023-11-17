@@ -40,5 +40,5 @@ if __name__ == '__main__':
         distances.extend(dist)
 
     accuracy = correct_count / total_count
-    print('Accuracy: {:.4f} ({} / {})'.format(accuracy, correct_count, total_count))
+    print('Accuracy: {:.2f}% ({} / {})'.format(accuracy * 100.0, correct_count, total_count))
     print('Dist: {:.4f} ({:.4f})'.format(np.mean(distances), np.std(distances)))
