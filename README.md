@@ -68,7 +68,7 @@ Smart-TV-Acoustic-Leakage-Supplementary-Materials/
     user-study/
     word-lists/
 ```
-You should move this folder into the root directory of this repository and rename the folder to `supplementary'. After this action, you should have a directory structure that looks as follows.
+You should move this folder into the root directory of this repository and rename the folder to `supplementary`. After this action, you should have a directory structure that looks as follows.
 ```
 smart-tv-keyboard-leakage/
     environment.yml
@@ -84,6 +84,7 @@ smart-tv-keyboard-leakage/
         user-study/
         word-lists/
 ```
+*An easy mistake is to unzip the downloaded drive and rename the extracted folder to `supplementary`*. This action will not work because there is an additional directory between the Drive's root and the folders `benchmarks`, `dictionaries`, etc. You will instead need to move the first inner folder out of the extracted ZIP and rename this moved folder to `supplementary`.
 
 2. This [Box Drive](https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) (link: https://uchicago.box.com/s/1td9b0ltk115eg0uyp21d7u2wrdlnjhf) contains the videos of users typing on Smart TVs. Note that this drive is large, and it can help to start with a single subject (e.g., Subject A). We include the extracted move count sequences for every subject in the Google Drive folder (under `user-study`). When downloading the files, use the `Primary` videos when possible. You should create a folder for each subject within a single directory and place the subject's videos directly in their corresponding folder. The resulting file structure should look as follows. Note that you should place the base `user-study` folder into the root directory of this repository.
 ```
@@ -176,16 +177,16 @@ The output file names will change when you change the input video. For instance,
 
 We note that both subjects `g` and `j` have two password recording files for the Samsung TV. This split happened as a result of the subject needing to pause during the experiment. On these users, you can process each video individually. Then, you can merge the move count sequence files using the script `scripts/passwords/merge_password_extractions.py`. The command below shows an example.
 ```
-python merge_password_extractions.py --extracted-paths ../../user-study/subject-g/samsung_passwords_part_0.json ../../user-study/subject-g/samsung_passwords_part_1.json --output-path ../../user-study/subject-g/samsung_passwords.json
+python merge_password_extractions.py --extracted-paths ../../../user-study/subject-g/samsung_passwords_part_0.json ../../../user-study/subject-g/samsung_passwords_part_1.json --output-path ../../../user-study/subject-g/samsung_passwords.json
 ```
 You should then use the resulting file during the string recovery phase.
 
-If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. For Samsung TVs, you may provide any example of typing into the default keyboard (e.g., typing a WiFi password). On Apple TVs, we execute the attack on the keyboard used when entering passwords (e.g., logging into an Apple ID). You should take a video using a camera pointed at the TV. The TV must be audible during the recording. We note that the audio extraction might display some errors due to changes in the recording environment. You will need to list the true typed strings in a file with the name `<experiment-name>_labels.json` placed in the same folder as the video. This `json` file has a single key called `labels` which holds a list of the true typed strings in the order they appear in the recording. See the file `smart-tv-keyboard-leakage/supplementary/user-study/subject-a/samsung_passwords_labels.json` (in the supplementary materials) for an example.
+If you have access to an AppleTV or a Samsung Smart TV, you can supply your own video recordings to this phase. For Samsung TVs, you may provide any example of typing into the default keyboard (e.g., typing a WiFi password). On Apple TVs, we execute the attack on the keyboard used when entering passwords (e.g., logging into an Apple ID). You should take a video using a camera pointed at the TV. The TV must be audible during the recording. We note that the audio extraction might display some errors due to changes in the recording environment. You will need to list the true typed strings in a file with the name `<experiment-name>_labels.json` placed in the same folder as the video. This `json` file has a single key called `labels` which holds a list of the true typed strings in the order they appear in the recording. See the file `supplementary/user-study/subject-a/samsung_passwords_labels.json` (in the supplementary materials) for an example.
 
 ## String Recovery
 The folder `smarttvleakage/search/smarttvsearch` contains the code related to string recovery. This code is written in Java for efficiency reasons. Overall, this module uses the extracted move count sequences to discover the likely typed strings.
 
-In the remainder of this section, you should navigate into the `smarttvleakage/search/smarttvsearch` directory. We continue the example of processing Samsung passwords from `subject-a` and assumes the relevant files are in the downloaded Box folder (e.g., `user-study/subject-a/samsung_passwords.json`). You can change the input file for the recovery program by, for example, referencing one of the benchmarks or user study examples in the downloaded Google Drive directory. The first five are required and the remaining are optional.
+In the remainder of this section, you should navigate into the `smarttvleakage/search/smarttvsearch` directory. We continue the example of processing Samsung passwords from `subject-a` and assumes the relevant files are in the downloaded Box folder (e.g., `user-study/subject-a/samsung_passwords.json`). You can change the input file for the recovery program by, for example, referencing one of the benchmarks or user study examples in the supplementary materials. The first five arguments are required and the remaining are optional.
 
 The recovery process will terminate upon reaching either the correct string or making the maximum number of guesses. The correct strings for each experiment are in the Google Drive folder at paths of the form `supplementary/user-study/subject-a/<experiment-name>_labels.json`. For example, the path for the Samsung passwords for `subject-a` is `supplementary/user-study/subject-a/samsung_passwords_labels.json`. Before executing the string recovery, you must copy the labels into the `user-study/subject-<N>/` directories in the root directory. The recovery program expects the labels file to be in the same folder as the `json` file containing the move count sequences.
 
@@ -210,7 +211,7 @@ The program should find `6 / 10` passwords on this user.
 
 When executing the search on large benchmarks, use the flag `--ignore-suboptimal`. The benchmarks contain no suboptimal moves, and ignoring such paths speeds up the search considerably.
 
-You can use the `shell` scripts `run_password_benchmark.sh` and `run_credit_card_benchmark.sh` to execute the recovery for all benchmark files. You will need to alter the script to point to the correct input and dictionary directories (i.e., change `INPUT_BASE` and `DICTIONARY_BASE`). The files `run_user_passwords.sh`, `run_user_credit_cards.sh` and `run_user_searches.sh` perform the recovery for all users (on passwords, credit cards, and web searches). You will need to change the `USER_BASE` and `DICTIONARY_BASE` variables to point to the folder containing the subject data and prior dictionaries, respectively. Note that each one of these scripts can take `30+` minutes to complete.
+You can use the `shell` scripts `run_password_benchmark.sh` and `run_credit_card_benchmark.sh` to execute the recovery for all benchmark files. These scripts reference the pre-computed benchmarks from the supplementary materials. If you want reference new benchmarks, update the `INPUT_BASE` variable in the script. The files `run_user_passwords.sh`, `run_user_credit_cards.sh` and `run_user_searches.sh` perform the recovery for all users (on passwords, credit cards, and web searches, respectively). Note that each one of these scripts can take `30+` minutes to complete.
 
 
 ## Analysis
@@ -229,7 +230,7 @@ Recovery Accuracy: 60.0000% (6 / 10)
 ```
 Note that you can change the `--recovery-file` to any password or web search recovery file. The script also works on benchmarks, although it will not print the exact strings for space reasons.
 
-The command below shows an example of printing the credit card recovery results for `subject-a`. The example assumes you have run the credit card recovery for this subject. Otherwise, replace the input paths with the precomputed results from the Google Drive folder.
+The command below shows an example of printing the credit card recovery results for `subject-a`. The example assumes you have run the credit card recovery for this subject. Otherwise, replace the input paths with the precomputed results from the supplementary materials (e.g., use `--recovery-file ../../supplementary/user-study/subject-a/recovered_credit_card_details.json` instead).
 ```
 python view_credit_card_recovery.py --recovery-file ../../user-study/subject-a/recovered_credit_card_details.json --labels-file ../../user-study/subject-a/credit_card_details_labels.json 
 ```
@@ -269,7 +270,7 @@ The script also prints out the accuracy on different password types for both pri
 
 Finally, we include a script which shows the keyboard suggestion model's accuracy on the password benchmark (see the folder `smarttvleakage/suggestions_model` for more details). The file `suggestions_benchmark_accuracy.py` performs this comparison. It also runs a small parameter sweep over different cutoffs to observe the predictor's recall. Note that the command can take a few minutes to complete.
 ```
-python suggestions_benchmark_accuracy.py --benchmark-folder /local/smart-tv-benchmarks/samsung-passwords/
+python suggestions_benchmark_accuracy.py --benchmark-folder ../../supplementary/benchmarks/samsung-passwords/
 ```
 The results look as below. The `99.23%` figure matches that of fourth paragraph in Section `V.C`.
 ```
@@ -318,8 +319,8 @@ python password_user_comparison.py --user-folder ../../supplementary/user-study 
 ```
 The result looks as below. The `phpbb` rate should match that of the third paragraph in Section `VI.C`.
 ```
-phpbb Prior. Duplicate Recovery Rate: 42.00000\% (21 / 50)
-rockyou-5gram Prior. Duplicate Recovery Rate: 8.00000\% (4 / 50)
+phpbb Prior. Duplicate Recovery Rate: 42.00% (21 / 50)
+rockyou-5gram Prior. Duplicate Recovery Rate: 8.00% (4 / 50)
 ```
 
 Additionally, we provide a method to find the rate at which users traverse optimal paths when typing passwords. We perform a comparison across TV types (`samsung` and `appletv`). The file `compare_user_keyboard_accuracy.py` implements this comparison.
