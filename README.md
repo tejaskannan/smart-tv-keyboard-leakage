@@ -3,6 +3,8 @@ This repository contains the code for discovering keystrokes from the audio of A
 
 This code is the artifact accompanying the conference paper "Acoustic Keystroke Leakage on Smart Televisions," accepted at NDSS 2024. A draft of this paper is included in the repository under the file `acoustic_keystroke_leakage_smart_tv.pdf`. If you use this work in any way, we ask that you cite this paper.
 
+This repository is the most up-to-date version of this artifact. You can find a persistent copy under the Digital Object Identifier (DOI) [10.5281/zenodo.10151215](https://zenodo.org/records/10151216).
+
 ## Overview
 This repository has two main portions: audio extraction and string recovery. The phases are split for checkpointing reasons. The audio extraction module is written in Python, and the string recovery is in Java. The folder `smarttvleakage/audio` contains most of the code related to audio extraction. The directory `smarttvleakage/search/smarttvsearch` holds the Java code involving string recovery.
 
